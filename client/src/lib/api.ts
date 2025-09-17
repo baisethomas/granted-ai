@@ -1,4 +1,4 @@
-import { apiRequest } from "./queryClient";
+import { apiRequest, API_BASE_URL } from "./queryClient";
 
 export interface Project {
   id: string;
@@ -59,6 +59,25 @@ export interface Stats {
   dueThisWeek: number;
 }
 
+export interface User {
+  id: string;
+  username: string;
+  organizationName?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AuthResponse {
+  user: User;
+  message?: string;
+}
+
+export interface ApiErrorResponse {
+  error: string;
+  message: string;
+  statusCode: number;
+}
+
 export const api = {
   // Projects
   async getProjects(): Promise<Project[]> {
@@ -81,6 +100,11 @@ export const api = {
     return res.json();
   },
 
+  async finalizeProject(id: string): Promise<Project> {
+    const res = await apiRequest("PUT", `/api/projects/${id}/finalize`);
+    return res.json();
+  },
+
   // Documents
   async getDocuments(): Promise<Document[]> {
     const res = await apiRequest("GET", "/api/documents");
@@ -92,7 +116,8 @@ export const api = {
     formData.append('file', file);
     if (category) formData.append('category', category);
 
-    const res = await fetch("/api/documents/upload", {
+    const url = API_BASE_URL ? `${API_BASE_URL}/api/documents/upload` : "/api/documents/upload";
+    const res = await fetch(url, {
       method: "POST",
       body: formData,
       credentials: "include",
@@ -125,6 +150,11 @@ export const api = {
     return res.json();
   },
 
+  async updateResponse(questionId: string, content: string, preserveVersion = false): Promise<{ id: string; content: string; lastModified: Date; status: string; wordCount: number }> {
+    const res = await apiRequest("PUT", `/api/questions/${questionId}/response`, { content, preserveVersion });
+    return res.json();
+  },
+
   // Settings
   async getSettings(): Promise<UserSettings> {
     const res = await apiRequest("GET", "/api/settings");
@@ -147,7 +177,8 @@ export const api = {
     const formData = new FormData();
     formData.append('file', file);
 
-    const res = await fetch("/api/extract-questions", {
+    const url = API_BASE_URL ? `${API_BASE_URL}/api/extract-questions` : "/api/extract-questions";
+    const res = await fetch(url, {
       method: "POST",
       body: formData,
       credentials: "include",
@@ -158,5 +189,25 @@ export const api = {
     }
 
     return res.json();
+  },
+
+  // Auth
+  async me(): Promise<User> {
+    const res = await apiRequest("GET", "/api/auth/me");
+    return res.json();
+  },
+
+  async login(username: string, password: string): Promise<User> {
+    const res = await apiRequest("POST", "/api/auth/login", { username, password });
+    return res.json();
+  },
+
+  async signup(username: string, password: string, organizationName?: string): Promise<User> {
+    const res = await apiRequest("POST", "/api/auth/signup", { username, password, organizationName });
+    return res.json();
+  },
+
+  async logout(): Promise<void> {
+    await apiRequest("POST", "/api/auth/logout");
   },
 };

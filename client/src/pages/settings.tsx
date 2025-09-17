@@ -16,8 +16,10 @@ import {
   Save, 
   Plus, 
   X,
-  Info
+  Info,
+  BarChart3
 } from "lucide-react";
+import UsageDashboard from "@/components/UsageDashboard";
 
 export default function Settings() {
   const { toast } = useToast();
@@ -180,6 +182,19 @@ export default function Settings() {
 
   return (
     <div className="space-y-8">
+      {/* Usage & Billing Dashboard */}
+      <Card className="shadow-sm border border-slate-200">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <BarChart3 className="h-5 w-5 text-blue-600" />
+            <span>Usage & Billing</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <UsageDashboard organizationId={1} />
+        </CardContent>
+      </Card>
+
       <Card className="shadow-sm border border-slate-200">
         <CardContent className="p-6">
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Settings & Profile</h2>
@@ -553,7 +568,7 @@ export default function Settings() {
         <Button 
           onClick={handleSaveSettings}
           disabled={updateSettingsMutation.isPending}
-          className="bg-primary-600 hover:bg-primary-700"
+          className="bg-[var(--brand-a)] hover:bg-[color-mix(in_srgb,var(--brand-a) 85%,black)]"
         >
           <Save className="mr-2 h-4 w-4" />
           {updateSettingsMutation.isPending ? "Saving..." : "Save Changes"}

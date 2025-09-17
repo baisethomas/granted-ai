@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { FileUpload } from "@/components/ui/file-upload";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -15,8 +17,11 @@ import {
   Plus,
   Trash2,
   Wand2,
-  X
+  X,
+  Loader2,
+  HelpCircle
 } from "lucide-react";
+import ClarificationPanel, { ClarificationQuestion } from "@/components/ClarificationPanel";
 
 export default function Forms() {
   const { toast } = useToast();
@@ -43,13 +48,19 @@ export default function Forms() {
   });
 
   const [currentProject, setCurrentProject] = useState<string | null>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [showClarifications, setShowClarifications] = useState(false);
+  const [clarificationQuestions, setClarificationQuestions] = useState<ClarificationQuestion[]>([]);
 
   const { data: projects = [] } = useQuery({
     queryKey: ["/api/projects"],
+    queryFn: api.getProjects,
   });
 
   const { data: settings } = useQuery({
     queryKey: ["/api/settings"],
+    queryFn: api.getSettings,
   });
 
   const createProjectMutation = useMutation({
@@ -64,25 +75,29 @@ export default function Forms() {
     },
   });
 
-  const createQuestionMutation = useMutation({
-    mutationFn: ({ projectId, question }: { projectId: string; question: any }) =>
-      api.createQuestion(projectId, question),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-    },
-  });
+  const saveProjectMutation = useMutation({
+    mutationFn: async () => {
+      // Prepare project data with proper date formatting
+      const projectData = {
+        title: projectForm.title,
+        funder: projectForm.funder,
+        amount: projectForm.amount || undefined,
+        deadline: projectForm.deadline ? new Date(projectForm.deadline) : undefined,
+        description: projectForm.description || undefined,
+      };
 
-  const generateResponsesMutation = useMutation({
-    mutationFn: async (projectId: string) => {
       // Create project first if needed
-      let pid = projectId;
+      let pid = currentProject;
       if (!pid) {
-        const project = await api.createProject(projectForm);
+        const project = await api.createProject(projectData);
         pid = project.id;
         setCurrentProject(pid);
+      } else {
+        // Update existing project
+        await api.updateProject(pid, projectData);
       }
 
-      // Create questions
+      // Create or update questions
       for (const q of questions) {
         await api.createQuestion(pid, {
           question: q.question,
@@ -94,11 +109,125 @@ export default function Forms() {
       return pid;
     },
     onSuccess: (projectId) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      toast({
+        title: "Draft saved",
+        description: "Your grant application draft has been saved successfully.",
+      });
+      // Note: Navigation to drafts tab would need to be handled by parent component
+      console.log("Draft saved with project ID:", projectId);
+    },
+    onError: (error) => {
+      toast({
+        title: "Save failed",
+        description: error instanceof Error ? error.message : "Failed to save draft",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const createQuestionMutation = useMutation({
+    mutationFn: ({ projectId, question }: { projectId: string; question: any }) =>
+      api.createQuestion(projectId, question),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    },
+  });
+
+  const generateResponsesMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      // Prepare project data with proper date formatting
+      const projectData = {
+        title: projectForm.title,
+        funder: projectForm.funder,
+        amount: projectForm.amount || undefined,
+        deadline: projectForm.deadline ? new Date(projectForm.deadline) : undefined,
+        description: projectForm.description || undefined,
+      };
+
+      // Create project first if needed
+      let pid = projectId;
+      if (!pid) {
+        const project = await api.createProject(projectData);
+        pid = project.id;
+        setCurrentProject(pid);
+      } else {
+        // Update existing project
+        await api.updateProject(pid, projectData);
+      }
+
+      // First, analyze for clarifications
+      try {
+        const clarificationResponse = await fetch('/api/clarifications/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectId: pid,
+            questions: questions,
+            organizationContext: {
+              name: projectForm.title,
+              description: projectForm.description
+            }
+          })
+        });
+        
+        if (clarificationResponse.ok) {
+          const clarificationData = await clarificationResponse.json();
+          setClarificationQuestions(clarificationData.questions || []);
+          
+          if (clarificationData.questions && clarificationData.questions.length > 0) {
+            // Show clarification panel instead of generating immediately
+            setShowClarifications(true);
+            toast({
+              title: "Clarifications needed",
+              description: `${clarificationData.questions.length} questions will help improve your application quality.`,
+            });
+            return pid;
+          }
+        }
+      } catch (error) {
+        console.warn('Clarification analysis failed, proceeding with generation:', error);
+      }
+
+      // Create questions and get their IDs
+      const questionIds = [];
+      for (const q of questions) {
+        const createdQuestion = await api.createQuestion(pid, {
+          question: q.question,
+          wordLimit: q.wordLimit || undefined,
+          priority: q.priority,
+        });
+        questionIds.push(createdQuestion.id);
+      }
+
+      // Start generating responses for all questions
+      const generatePromises = questionIds.map(qid => 
+        api.generateResponse(qid, {
+          tone: generationSettings.tone,
+          emphasisAreas: generationSettings.focusAreas
+        })
+      );
+
+      // Wait for all responses to start generating (they will continue in background)
+      await Promise.allSettled(generatePromises);
+
+      return pid;
+    },
+    onSuccess: (projectId) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       toast({
         title: "Responses generating",
-        description: "AI is generating responses for your questions.",
+        description: "AI is generating responses for your questions. View progress in the drafts section.",
       });
-      // Navigate to drafts view would go here
+      // Note: Navigation to drafts tab would need to be handled by parent component
+      console.log("Generation started for project ID:", projectId);
+    },
+    onError: (error) => {
+      toast({
+        title: "Generation failed",
+        description: error instanceof Error ? error.message : "Failed to generate responses",
+        variant: "destructive",
+      });
     },
   });
 
@@ -114,6 +243,76 @@ export default function Forms() {
     ]);
   };
 
+  // Clarification handlers
+  const handleClarificationAnswer = (questionId: string, answer: string) => {
+    setClarificationQuestions(prev => 
+      prev.map(q => 
+        q.id === questionId 
+          ? { ...q, isAnswered: true, answer }
+          : q
+      )
+    );
+    
+    toast({
+      title: "Answer recorded",
+      description: "Your clarification answer has been saved.",
+    });
+  };
+
+  const handleSkipClarification = (questionId: string) => {
+    setClarificationQuestions(prev => 
+      prev.filter(q => q.id !== questionId)
+    );
+  };
+
+  const handleClarificationFollowUp = (questionId: string) => {
+    toast({
+      title: "Follow-up requested",
+      description: "Additional guidance will be provided for this question.",
+    });
+  };
+
+  const proceedWithGeneration = async () => {
+    if (!currentProject) return;
+    
+    // Proceed with generation using the existing logic
+    try {
+      const questionIds = [];
+      for (const q of questions) {
+        if (!q.id.startsWith('existing-')) { // Only create new questions
+          const createdQuestion = await api.createQuestion(currentProject, {
+            question: q.question,
+            wordLimit: q.wordLimit || undefined,
+            priority: q.priority,
+          });
+          questionIds.push(createdQuestion.id);
+        }
+      }
+
+      // Start generating responses
+      const generatePromises = questionIds.map(qid => 
+        api.generateResponse(qid, {
+          tone: generationSettings.tone,
+          emphasisAreas: generationSettings.focusAreas
+        })
+      );
+
+      await Promise.allSettled(generatePromises);
+      
+      setShowClarifications(false);
+      toast({
+        title: "Generation started",
+        description: "AI is generating responses using your clarifications.",
+      });
+    } catch (error) {
+      toast({
+        title: "Generation failed",
+        description: "Failed to start generation. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const updateQuestion = (id: string, field: string, value: any) => {
     setQuestions(questions.map(q => 
       q.id === id ? { ...q, [field]: value } : q
@@ -124,7 +323,7 @@ export default function Forms() {
     setQuestions(questions.filter(q => q.id !== id));
   };
 
-  const handleProjectSubmit = () => {
+  const handleSaveDraft = () => {
     if (!projectForm.title || !projectForm.funder) {
       toast({
         title: "Missing information",
@@ -134,14 +333,44 @@ export default function Forms() {
       return;
     }
 
-    createProjectMutation.mutate(projectForm);
+    if (questions.length === 0) {
+      toast({
+        title: "No questions added",
+        description: "Please add at least one question before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log("Saving draft with data:", { projectForm, questions });
+    saveProjectMutation.mutate();
   };
 
   const handleGenerateResponses = () => {
+    if (!projectForm.title || !projectForm.funder) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in the project title and funder.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (questions.length === 0) {
       toast({
         title: "No questions added",
         description: "Please add at least one question before generating responses.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if all questions have content
+    const emptyQuestions = questions.filter(q => !q.question.trim());
+    if (emptyQuestions.length > 0) {
+      toast({
+        title: "Empty questions found",
+        description: "Please fill in all questions before generating responses.",
         variant: "destructive",
       });
       return;
@@ -164,6 +393,39 @@ export default function Forms() {
       ...generationSettings,
       focusAreas: generationSettings.focusAreas.filter(a => a !== area),
     });
+  };
+
+  const handleUploadDocument = async (file: File) => {
+    setIsProcessingFile(true);
+    try {
+      const result = await api.extractQuestions(file);
+      
+      // Convert extracted questions to the format expected by the form
+      const extractedQuestions = result.questions.map((question: string) => ({
+        id: Math.random().toString(36).substr(2, 9),
+        question: question.trim(),
+        wordLimit: null,
+        priority: "medium",
+      }));
+      
+      // Add extracted questions to existing questions
+      setQuestions([...questions, ...extractedQuestions]);
+      
+      toast({
+        title: "Questions extracted successfully",
+        description: `Found ${result.questions.length} questions in the document.`,
+      });
+      
+      setShowUploadModal(false);
+    } catch (error) {
+      toast({
+        title: "Failed to extract questions",
+        description: error instanceof Error ? error.message : "Could not process the document",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessingFile(false);
+    }
   };
 
   return (
@@ -189,7 +451,13 @@ export default function Forms() {
                 <p className="text-slate-600 mb-4">
                   Copy and paste questions from grant applications or enter them manually.
                 </p>
-                <Button className="bg-primary-600 hover:bg-primary-700 w-full">
+                <Button 
+                  className="bg-primary-600 hover:bg-primary-700 w-full"
+                  onClick={() => {
+                    document.getElementById('questions-section')?.scrollIntoView({ behavior: 'smooth' });
+                    addQuestion();
+                  }}
+                >
                   Start Manual Input
                 </Button>
               </CardContent>
@@ -206,7 +474,11 @@ export default function Forms() {
                 <p className="text-slate-600 mb-4">
                   Upload a PDF or Word document of the grant application form.
                 </p>
-                <Button variant="outline" className="w-full">
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => setShowUploadModal(true)}
+                >
                   Upload Document
                 </Button>
               </CardContent>
@@ -272,7 +544,7 @@ export default function Forms() {
           </div>
 
           {/* Questions Input */}
-          <div className="space-y-6 mt-8">
+          <div id="questions-section" className="space-y-6 mt-8">
             <div className="border-b border-slate-200 pb-4">
               <h3 className="text-lg font-semibold text-slate-900">Application Questions</h3>
               <p className="text-sm text-slate-600 mt-1">Add the specific questions from the grant application</p>
@@ -408,12 +680,16 @@ export default function Forms() {
 
           {/* Action Buttons */}
           <div className="flex items-center justify-end space-x-4 mt-8 pt-6 border-t border-slate-200">
-            <Button variant="outline" onClick={handleProjectSubmit}>
-              Save Draft
+            <Button 
+              variant="outline" 
+              onClick={handleSaveDraft}
+              disabled={saveProjectMutation.isPending}
+            >
+              {saveProjectMutation.isPending ? "Saving..." : "Save Draft"}
             </Button>
             <Button 
               onClick={handleGenerateResponses}
-              disabled={generateResponsesMutation.isPending}
+              disabled={generateResponsesMutation.isPending || saveProjectMutation.isPending}
               className="bg-primary-600 hover:bg-primary-700"
             >
               <Wand2 className="mr-2 h-4 w-4" />
@@ -422,6 +698,89 @@ export default function Forms() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Clarification Panel */}
+      {showClarifications && clarificationQuestions.length > 0 && (
+        <div className="space-y-4">
+          <ClarificationPanel
+            questions={clarificationQuestions}
+            onAnswerSubmit={handleClarificationAnswer}
+            onSkipQuestion={handleSkipClarification}
+            onRequestFollowUp={handleClarificationFollowUp}
+            isGenerating={generateResponsesMutation.isPending}
+          />
+          
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold text-blue-900 mb-1">Ready to Generate?</h4>
+                  <p className="text-sm text-blue-700">
+                    {clarificationQuestions.filter(q => q.isAnswered).length} of {clarificationQuestions.length} clarifications completed.
+                    You can proceed with generation or continue answering questions.
+                  </p>
+                </div>
+                <div className="flex space-x-3">
+                  <Button 
+                    variant="outline"
+                    onClick={() => setShowClarifications(false)}
+                    disabled={generateResponsesMutation.isPending}
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Skip Clarifications
+                  </Button>
+                  <Button
+                    onClick={proceedWithGeneration}
+                    disabled={generateResponsesMutation.isPending}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    {generateResponsesMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="mr-2 h-4 w-4" />
+                        Generate Responses
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Upload Modal */}
+      <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Upload Grant Application Form</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              Upload a PDF or Word document containing the grant application form. 
+              We'll automatically extract the questions for you.
+            </p>
+            {isProcessingFile ? (
+              <div className="flex items-center justify-center p-8">
+                <div className="flex items-center space-x-3">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary-600" />
+                  <span className="text-slate-600">Processing document...</span>
+                </div>
+              </div>
+            ) : (
+              <FileUpload
+                onUpload={handleUploadDocument}
+                accept=".pdf,.doc,.docx"
+                multiple={false}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
