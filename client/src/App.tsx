@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Route, useLocation } from "wouter";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { Login } from "@/components/Login";
 
 // Import landing page components
 import { HeroSection } from "@/components/landing/hero-section";
@@ -30,24 +32,10 @@ import Drafts from "@/pages/drafts";
 import Settings from "@/pages/settings";
 import Pricing from "@/pages/pricing";
 
-function App() {
+function AppContent() {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
   const [location, setLocation] = useLocation();
-
-  useEffect(() => {
-    api
-      .me()
-      .then(setUser)
-      .catch((error) => {
-        // Don't log auth errors - they're expected for logged-out users
-        if (!error.message.includes('401') && !error.message.includes('403')) {
-          console.error('Failed to check authentication status:', error);
-        }
-      })
-      .finally(() => setLoading(false));
-  }, []);
+  const { user, loading, signOut } = useAuth();
 
   // Handle redirect to /app when user logs in
   useEffect(() => {
@@ -91,17 +79,17 @@ function App() {
         <TooltipProvider>
           <ErrorBoundary fallback={AuthErrorFallback}>
             <Route path="/auth">
-              <AuthPage onAuthed={(u) => { setUser(u); }} />
+              <Login />
             </Route>
             <Route path="/pricing">
               <Pricing />
             </Route>
             <Route path="/">
-              <LandingPage 
+              <LandingPage
                 onClickSeeHow={() => {
                   const el = document.getElementById('how');
                   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }} 
+                }}
                 onNavigateToAuth={() => setLocation("/auth")}
               />
             </Route>
@@ -128,7 +116,7 @@ function App() {
       <TooltipProvider>
         <ErrorBoundary>
           <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-            <MarketingHeader onLogout={async () => { await api.logout(); setUser(null); setLocation("/"); }} />
+            <MarketingHeader onLogout={async () => { await signOut(); setLocation("/"); }} />
             <AppLayoutWithTabs activeTab={activeTab} onTabChange={setActiveTab}>
               {renderActiveView()}
             </AppLayoutWithTabs>
@@ -215,6 +203,15 @@ function AppNavigation({
         </div>
       </div>
     </nav>
+  );
+}
+
+// Main App component with AuthProvider wrapper
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 
