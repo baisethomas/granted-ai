@@ -23,6 +23,12 @@ const upload = multer({
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// In-memory storage for data (temporary solution)
+const documentsStore: Record<string, any[]> = {};
+const projectsStore: Record<string, any[]> = {};
+const questionsStore: Record<string, any[]> = {};
+const settingsStore: Record<string, any> = {};
+
 // CORS for Vercel deployment
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -115,7 +121,7 @@ app.post("/api/documents/upload", requireAuth, upload.single('file'), async (req
     // Simple file processing (no external AI service for now)
     const summary = `Uploaded ${originalname} (${mimetype}, ${Math.round(size/1024)}KB) in category: ${category}`;
 
-    res.json({
+    const document = {
       id: `upload-${Date.now()}`,
       filename: originalname,
       originalName: originalname,
@@ -127,7 +133,15 @@ app.post("/api/documents/upload", requireAuth, upload.single('file'), async (req
       uploadedAt: new Date().toISOString(),
       userId: user.id,
       note: "File uploaded successfully (Vercel demo mode)"
-    });
+    };
+
+    // Store document in memory
+    if (!documentsStore[user.id]) {
+      documentsStore[user.id] = [];
+    }
+    documentsStore[user.id].push(document);
+
+    res.json(document);
   } catch (error) {
     console.error("Upload error:", error);
     res.status(500).json({ error: "Failed to process upload" });
@@ -137,9 +151,123 @@ app.post("/api/documents/upload", requireAuth, upload.single('file'), async (req
 // Documents list (protected route)
 app.get("/api/documents", requireAuth, async (req, res) => {
   try {
-    res.json([]);
+    const user = (req as any).user;
+    const userDocuments = documentsStore[user.id] || [];
+    res.json(userDocuments);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch documents" });
+  }
+});
+
+// Delete document (protected route)
+app.delete("/api/documents/:id", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const documentId = req.params.id;
+
+    if (!documentsStore[user.id]) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    const documentIndex = documentsStore[user.id].findIndex(doc => doc.id === documentId);
+    if (documentIndex === -1) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    documentsStore[user.id].splice(documentIndex, 1);
+    res.json({ message: "Document deleted successfully" });
+  } catch (error) {
+    console.error("Delete error:", error);
+    res.status(500).json({ error: "Failed to delete document" });
+  }
+});
+
+// Projects endpoints
+app.get("/api/projects", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const userProjects = projectsStore[user.id] || [];
+    res.json(userProjects);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch projects" });
+  }
+});
+
+app.post("/api/projects", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const project = {
+      id: `project-${Date.now()}`,
+      ...req.body,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      userId: user.id
+    };
+
+    if (!projectsStore[user.id]) {
+      projectsStore[user.id] = [];
+    }
+    projectsStore[user.id].push(project);
+
+    res.json(project);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to create project" });
+  }
+});
+
+// Settings endpoints
+app.get("/api/settings", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const userSettings = settingsStore[user.id] || {
+      id: `settings-${user.id}`,
+      userId: user.id,
+      defaultTone: "professional",
+      lengthPreference: "medium",
+      emphasisAreas: [],
+      aiModel: "gpt-4",
+      fallbackModel: "gpt-3.5-turbo",
+      creativity: 0.7,
+      contextUsage: 0.8,
+      emailNotifications: true,
+      autoSave: true,
+      analytics: true,
+      autoDetection: true,
+      updatedAt: new Date().toISOString()
+    };
+    res.json(userSettings);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch settings" });
+  }
+});
+
+app.put("/api/settings", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const updatedSettings = {
+      ...settingsStore[user.id],
+      ...req.body,
+      userId: user.id,
+      updatedAt: new Date().toISOString()
+    };
+
+    settingsStore[user.id] = updatedSettings;
+    res.json(updatedSettings);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update settings" });
+  }
+});
+
+// Questions endpoints
+app.get("/api/projects/:projectId/questions", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const projectId = req.params.projectId;
+    const userQuestions = questionsStore[user.id] || [];
+    const projectQuestions = userQuestions.filter(q => q.projectId === projectId);
+    res.json(projectQuestions);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch questions" });
   }
 });
 
