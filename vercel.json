@@ -1,24 +1,16 @@
 {
   "version": 2,
-  "buildCommand": "npm run build",
-  "devCommand": "npm run dev",
-  "installCommand": "npm install",
-  "framework": null,
-  "outputDirectory": "dist/public",
-  "functions": {
-    "dist/index.js": {
-      "maxDuration": 30
+  "builds": [
+    {
+      "src": "dist/index.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "dist/public/**",
+      "use": "@vercel/static"
     }
-  },
+  ],
   "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/dist/index.js"
-    },
-    {
-      "src": "/auth/(.*)",
-      "dest": "/dist/index.js"
-    },
     {
       "src": "/(.*)",
       "dest": "/dist/index.js"
