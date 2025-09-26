@@ -8,10 +8,11 @@ import { createClient } from "@supabase/supabase-js";
 
 const app = express();
 
-// Initialize Supabase client
+// Initialize Supabase clients
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ieicdrcpckcjgcgfylaj.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImllaWNkcmNwY2tjamdjZ2Z5bGFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4MDAzODQsImV4cCI6MjA3MDM3NjM4NH0.5mgWjDuVk4-udmSC23TocxZjlXooF4ciWRRTAIdF2mo';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseDB = createClient(supabaseUrl, supabaseAnonKey);
 
 // Configure multer for file uploads
 const upload = multer({
@@ -24,13 +25,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Supabase database operations (inline to avoid import issues)
-const dbSupabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const db = {
   documents: {
     async insert(data: any) {
       try {
-        const result = await dbSupabase.from('documents').insert(data).select().single();
+        const result = await supabaseDB.from('documents').insert(data).select().single();
         console.log('Database insert result:', result);
         return result;
       } catch (error) {
@@ -40,7 +40,7 @@ const db = {
     },
     async findByUserId(userId: string) {
       try {
-        const result = await dbSupabase.from('documents').select('*').eq('user_id', userId);
+        const result = await supabaseDB.from('documents').select('*').eq('user_id', userId);
         console.log('Database query result:', result);
         return result;
       } catch (error) {
@@ -50,7 +50,7 @@ const db = {
     },
     async deleteById(id: string, userId: string) {
       try {
-        const result = await dbSupabase.from('documents').delete().eq('id', id).eq('user_id', userId);
+        const result = await supabaseDB.from('documents').delete().eq('id', id).eq('user_id', userId);
         console.log('Database delete result:', result);
         return result;
       } catch (error) {
@@ -80,7 +80,7 @@ async function getAuthenticatedUser(req: express.Request) {
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
     try {
-      const { data: { user }, error } = await supabase.auth.getUser(token);
+      const { data: { user }, error } = await supabaseAuth.auth.getUser(token);
       if (user && !error) {
         return {
           id: user.id,
@@ -112,13 +112,6 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
       }
       console.log('Authentication successful for user:', user.id);
       (req as any).user = user;
-
-      // Also store the token for database operations
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        (req as any).authToken = authHeader.substring(7);
-      }
-
       next();
     })
     .catch(error => {
