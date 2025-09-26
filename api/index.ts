@@ -1,43 +1,48 @@
-// Minimal Vercel serverless function for debugging
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+// Gradually rebuilding Vercel serverless function
+import express from "express";
 
-export default function handler(req: VercelRequest, res: VercelResponse) {
-  try {
-    console.log(`${req.method} ${req.url}`);
+const app = express();
 
-    // Simple routing
-    if (req.url === '/health') {
-      return res.status(200).json({
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        method: req.method,
-        url: req.url,
-        environment: process.env.NODE_ENV
-      });
-    }
+// Basic middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
-    if (req.url === '/') {
-      return res.status(200).json({
-        message: 'Grant Writing Platform API',
-        status: 'running',
-        timestamp: new Date().toISOString()
-      });
-    }
+// Test routes
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Grant Writing Platform API with Express',
+    status: 'running',
+    timestamp: new Date().toISOString(),
+    express: 'working'
+  });
+});
 
-    // Default response
-    res.status(404).json({
-      error: 'Route not found',
-      method: req.method,
-      url: req.url,
-      available: ['/health', '/']
-    });
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    express: 'working',
+    environment: process.env.NODE_ENV
+  });
+});
 
-  } catch (error) {
-    console.error('Handler error:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
-    });
-  }
-}
+// Basic API test
+app.get('/api/test', (req, res) => {
+  res.json({
+    test: 'success',
+    message: 'API routing working'
+  });
+});
+
+// Error handler
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error('Express error:', err);
+  res.status(500).json({
+    error: 'Express error',
+    message: err.message,
+    stack: err.stack
+  });
+});
+
+// Export for Vercel
+export default app;
