@@ -85,6 +85,13 @@ export async function apiRequest(
   // Get auth headers (includes Supabase token)
   const authHeaders = await getAuthHeaders();
 
+  console.log('API Request:', {
+    method,
+    url: fullUrl,
+    hasAuthHeaders: Object.keys(authHeaders).length > 0,
+    authHeaders: Object.keys(authHeaders)
+  });
+
   const headers = {
     ...authHeaders,
     ...(data ? { "Content-Type": "application/json" } : {}),
