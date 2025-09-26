@@ -173,20 +173,86 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// Serve static files for SPA
-app.use(express.static('/var/task/dist/public'));
+// Serve static files for SPA - try multiple possible locations
+import path from "path";
+import fs from "fs";
+
+app.get('/', (req, res) => {
+  // Check multiple possible locations for index.html
+  const possiblePaths = [
+    '/var/task/dist/public/index.html',
+    '/tmp/dist/public/index.html',
+    path.join(process.cwd(), 'dist/public/index.html'),
+    path.join(__dirname, '../dist/public/index.html')
+  ];
+
+  for (const htmlPath of possiblePaths) {
+    try {
+      if (fs.existsSync(htmlPath)) {
+        console.log('Found index.html at:', htmlPath);
+        return res.sendFile(htmlPath);
+      }
+    } catch (error) {
+      console.log('Failed to check path:', htmlPath, error);
+    }
+  }
+
+  // If no frontend found, show API info
+  res.json({
+    message: 'Grant Writing Platform API',
+    status: 'working - Frontend not found',
+    timestamp: new Date().toISOString(),
+    frontend_note: 'Frontend files not available in this deployment',
+    api_endpoints: {
+      auth: '/api/auth/me',
+      upload: '/api/documents/upload',
+      status: '/api/status'
+    },
+    suggestion: 'Use local development (npm run dev) for full UI experience'
+  });
+});
+
+// Static file serving for assets
+app.get('/*.(js|css|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)', (req, res) => {
+  const filePath = `/var/task/dist/public${req.path}`;
+  try {
+    if (fs.existsSync(filePath)) {
+      res.sendFile(filePath);
+    } else {
+      res.status(404).json({ error: 'Static file not found', path: req.path });
+    }
+  } catch {
+    res.status(404).json({ error: 'Static file error', path: req.path });
+  }
+});
 
 // Catch-all for SPA routing
 app.get('*', (req, res) => {
-  try {
-    res.sendFile('/var/task/dist/public/index.html');
-  } catch {
-    res.status(404).json({
-      error: 'Page not found',
-      path: req.path,
-      suggestion: 'Visit /api/status for API information'
-    });
+  // For non-API routes, try to serve index.html
+  if (!req.path.startsWith('/api/')) {
+    const possiblePaths = [
+      '/var/task/dist/public/index.html',
+      '/tmp/dist/public/index.html',
+      path.join(process.cwd(), 'dist/public/index.html')
+    ];
+
+    for (const htmlPath of possiblePaths) {
+      try {
+        if (fs.existsSync(htmlPath)) {
+          return res.sendFile(htmlPath);
+        }
+      } catch (error) {
+        // Continue to next path
+      }
+    }
   }
+
+  res.status(404).json({
+    error: 'Page not found',
+    path: req.path,
+    note: 'Frontend files not available - API only deployment',
+    suggestion: 'Visit /api/status for API information'
+  });
 });
 
 // Error handler
