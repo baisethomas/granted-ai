@@ -193,9 +193,10 @@ export default function Upload() {
         <CardContent className="p-6">
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Upload Documents</h2>
           <p className="text-slate-600 mb-8">
-            Add your organization documents to build context for AI-powered grant writing. 
+            Add your organization documents to build context for AI-powered grant writing.
             These files help the AI understand your mission, capabilities, and past successes.
           </p>
+          {/* Debug: Force rebuild */}
 
           <FileUpload onUpload={handleUpload} />
 
