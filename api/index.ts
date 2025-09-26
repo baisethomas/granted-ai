@@ -1,9 +1,8 @@
-// Testing auth setup integration
+// Working Vercel serverless function without problematic auth
 import { config } from "dotenv";
 config();
 
 import express from "express";
-import { setupAuth } from "../server/auth";
 
 const app = express();
 
@@ -11,38 +10,23 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Test routes before auth
-app.get('/test-before-auth', (req, res) => {
-  res.json({
-    message: 'This route works before auth setup',
-    timestamp: new Date().toISOString()
-  });
-});
-
-try {
-  // Setup auth - this might be what's crashing
-  console.log('Setting up auth...');
-  setupAuth(app);
-  console.log('Auth setup completed');
-} catch (error) {
-  console.error('Auth setup failed:', error);
-  app.get('/auth-error', (req, res) => {
-    res.status(500).json({
-      error: 'Auth setup failed',
-      message: error instanceof Error ? error.message : 'Unknown auth error',
-      stack: error instanceof Error ? error.stack : undefined
-    });
-  });
+// Serve static files from dist/public if they exist
+import { serveStatic } from "../server/vite";
+if (process.env.NODE_ENV === "production") {
+  try {
+    serveStatic(app);
+  } catch (error) {
+    console.log("Static files not available:", error);
+  }
 }
 
-// Test routes after auth
+// Basic routes
 app.get('/', (req, res) => {
   res.json({
-    message: 'Grant Writing Platform API with Express + Auth',
-    status: 'running',
+    message: 'Grant Writing Platform API',
+    status: 'working',
     timestamp: new Date().toISOString(),
-    express: 'working',
-    auth: 'attempted'
+    note: 'Auth disabled for Vercel compatibility - full app runs on port 3001'
   });
 });
 
@@ -50,21 +34,44 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    express: 'working',
-    auth: 'attempted',
     environment: process.env.NODE_ENV
   });
+});
+
+// API status
+app.get('/api/status', (req, res) => {
+  res.json({
+    api: 'online',
+    features: {
+      auth: 'disabled (serverless limitation)',
+      uploads: 'disabled (requires auth)',
+      static_files: 'enabled'
+    },
+    recommendation: 'Use local development server (npm run dev) for full functionality'
+  });
+});
+
+// Catch-all for SPA routing
+app.get('*', (req, res) => {
+  // Try to serve index.html for client-side routing
+  try {
+    res.sendFile('/var/task/dist/public/index.html');
+  } catch {
+    res.status(404).json({
+      error: 'Page not found',
+      path: req.path,
+      suggestion: 'This may be a client-side route. Visit / for the main app.'
+    });
+  }
 });
 
 // Error handler
 app.use((err: any, req: any, res: any, next: any) => {
   console.error('Express error:', err);
   res.status(500).json({
-    error: 'Express error',
-    message: err.message,
-    stack: err.stack
+    error: 'Server error',
+    message: err.message
   });
 });
 
-// Export for Vercel
 export default app;
