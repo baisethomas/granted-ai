@@ -23,11 +23,8 @@ const upload = multer({
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// In-memory storage for data (temporary solution)
-const documentsStore: Record<string, any[]> = {};
-const projectsStore: Record<string, any[]> = {};
-const questionsStore: Record<string, any[]> = {};
-const settingsStore: Record<string, any> = {};
+// Import database
+import { db } from './database';
 
 // CORS for Vercel deployment
 app.use((req, res, next) => {
@@ -135,30 +132,45 @@ app.post("/api/documents/upload", requireAuth, upload.single('file'), async (req
     // Simple file processing (no external AI service for now)
     const summary = `Uploaded ${originalname} (${mimetype}, ${Math.round(size/1024)}KB) in category: ${category}`;
 
-    const document = {
-      id: `upload-${Date.now()}`,
+    const documentData = {
       filename: originalname,
-      originalName: originalname,
-      fileType: mimetype,
-      fileSize: size,
+      original_name: originalname,
+      file_type: mimetype,
+      file_size: size,
       category,
       summary,
       processed: true,
-      uploadedAt: new Date().toISOString(),
-      userId: user.id,
-      note: "File uploaded successfully (Vercel demo mode)"
+      user_id: user.id,
+      // Default organization_id - in real app this would come from user's org
+      organization_id: user.id // Using user.id as org for now
     };
 
-    // Store document in memory
-    if (!documentsStore[user.id]) {
-      documentsStore[user.id] = [];
+    console.log('Inserting document into database:', documentData);
+
+    // Store document in Supabase
+    const result = await db.documents.insert(documentData);
+
+    if (result.error) {
+      console.error('Database insert error:', result.error);
+      return res.status(500).json({ error: "Failed to save document to database" });
     }
-    documentsStore[user.id].push(document);
 
+    const document = result.data;
     console.log('Document stored successfully:', document.id);
-    console.log('Total documents for user:', documentsStore[user.id].length);
 
-    res.json(document);
+    // Return document in frontend-expected format
+    res.json({
+      id: document.id,
+      filename: document.filename,
+      originalName: document.original_name,
+      fileType: document.file_type,
+      fileSize: document.file_size,
+      category: document.category,
+      summary: document.summary,
+      processed: document.processed,
+      uploadedAt: document.uploaded_at,
+      userId: document.user_id
+    });
   } catch (error) {
     console.error("Upload error:", error);
     res.status(500).json({ error: "Failed to process upload" });
@@ -169,13 +181,36 @@ app.post("/api/documents/upload", requireAuth, upload.single('file'), async (req
 app.get("/api/documents", requireAuth, async (req, res) => {
   try {
     const user = (req as any).user;
-    const userDocuments = documentsStore[user.id] || [];
 
     console.log('Documents list request for user:', user.id);
-    console.log('Total documents in store for user:', userDocuments.length);
-    console.log('Document IDs:', userDocuments.map(d => d.id));
 
-    res.json(userDocuments);
+    // Fetch documents from Supabase
+    const result = await db.documents.findByUserId(user.id);
+
+    if (result.error) {
+      console.error('Database query error:', result.error);
+      return res.status(500).json({ error: "Failed to fetch documents from database" });
+    }
+
+    const documents = result.data || [];
+    console.log('Total documents from database:', documents.length);
+    console.log('Document IDs:', documents.map((d: any) => d.id));
+
+    // Transform to frontend format
+    const transformedDocs = documents.map((doc: any) => ({
+      id: doc.id,
+      filename: doc.filename,
+      originalName: doc.original_name,
+      fileType: doc.file_type,
+      fileSize: doc.file_size,
+      category: doc.category,
+      summary: doc.summary,
+      processed: doc.processed,
+      uploadedAt: doc.uploaded_at,
+      userId: doc.user_id
+    }));
+
+    res.json(transformedDocs);
   } catch (error) {
     console.error('Documents list error:', error);
     res.status(500).json({ error: "Failed to fetch documents" });
@@ -188,16 +223,17 @@ app.delete("/api/documents/:id", requireAuth, async (req, res) => {
     const user = (req as any).user;
     const documentId = req.params.id;
 
-    if (!documentsStore[user.id]) {
-      return res.status(404).json({ error: "Document not found" });
+    console.log('Deleting document:', documentId, 'for user:', user.id);
+
+    // Delete from Supabase
+    const result = await db.documents.deleteById(documentId, user.id);
+
+    if (result.error) {
+      console.error('Database delete error:', result.error);
+      return res.status(500).json({ error: "Failed to delete document from database" });
     }
 
-    const documentIndex = documentsStore[user.id].findIndex(doc => doc.id === documentId);
-    if (documentIndex === -1) {
-      return res.status(404).json({ error: "Document not found" });
-    }
-
-    documentsStore[user.id].splice(documentIndex, 1);
+    console.log('Document deleted successfully');
     res.json({ message: "Document deleted successfully" });
   } catch (error) {
     console.error("Delete error:", error);
@@ -209,8 +245,17 @@ app.delete("/api/documents/:id", requireAuth, async (req, res) => {
 app.get("/api/projects", requireAuth, async (req, res) => {
   try {
     const user = (req as any).user;
-    const userProjects = projectsStore[user.id] || [];
-    res.json(userProjects);
+
+    // Fetch projects from Supabase
+    const result = await db.projects.findByUserId(user.id);
+
+    if (result.error) {
+      console.error('Projects query error:', result.error);
+      return res.status(500).json({ error: "Failed to fetch projects from database" });
+    }
+
+    const projects = result.data || [];
+    res.json(projects);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch projects" });
   }
@@ -219,30 +264,32 @@ app.get("/api/projects", requireAuth, async (req, res) => {
 app.post("/api/projects", requireAuth, async (req, res) => {
   try {
     const user = (req as any).user;
-    const project = {
-      id: `project-${Date.now()}`,
+    const projectData = {
       ...req.body,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      userId: user.id
+      user_id: user.id,
+      organization_id: user.id, // Using user.id as org for now
+      status: req.body.status || 'draft'
     };
 
-    if (!projectsStore[user.id]) {
-      projectsStore[user.id] = [];
-    }
-    projectsStore[user.id].push(project);
+    // Insert project into Supabase
+    const result = await db.projects.insert(projectData);
 
-    res.json(project);
+    if (result.error) {
+      console.error('Project insert error:', result.error);
+      return res.status(500).json({ error: "Failed to create project" });
+    }
+
+    res.json(result.data);
   } catch (error) {
     res.status(500).json({ error: "Failed to create project" });
   }
 });
 
-// Settings endpoints
+// Settings endpoints (simplified for now)
 app.get("/api/settings", requireAuth, async (req, res) => {
   try {
     const user = (req as any).user;
-    const userSettings = settingsStore[user.id] || {
+    const defaultSettings = {
       id: `settings-${user.id}`,
       userId: user.id,
       defaultTone: "professional",
@@ -258,7 +305,7 @@ app.get("/api/settings", requireAuth, async (req, res) => {
       autoDetection: true,
       updatedAt: new Date().toISOString()
     };
-    res.json(userSettings);
+    res.json(defaultSettings);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch settings" });
   }
@@ -267,14 +314,12 @@ app.get("/api/settings", requireAuth, async (req, res) => {
 app.put("/api/settings", requireAuth, async (req, res) => {
   try {
     const user = (req as any).user;
+    // Just return the sent settings for now
     const updatedSettings = {
-      ...settingsStore[user.id],
       ...req.body,
       userId: user.id,
       updatedAt: new Date().toISOString()
     };
-
-    settingsStore[user.id] = updatedSettings;
     res.json(updatedSettings);
   } catch (error) {
     res.status(500).json({ error: "Failed to update settings" });
@@ -284,11 +329,18 @@ app.put("/api/settings", requireAuth, async (req, res) => {
 // Questions endpoints
 app.get("/api/projects/:projectId/questions", requireAuth, async (req, res) => {
   try {
-    const user = (req as any).user;
     const projectId = req.params.projectId;
-    const userQuestions = questionsStore[user.id] || [];
-    const projectQuestions = userQuestions.filter(q => q.projectId === projectId);
-    res.json(projectQuestions);
+
+    // Fetch questions from Supabase
+    const result = await db.questions.findByProjectId(projectId);
+
+    if (result.error) {
+      console.error('Questions query error:', result.error);
+      return res.status(500).json({ error: "Failed to fetch questions from database" });
+    }
+
+    const questions = result.data || [];
+    res.json(questions);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch questions" });
   }
