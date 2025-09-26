@@ -6,7 +6,7 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+  password: text("password"), // Make nullable for OAuth users
   organizationName: text("organization_name"),
   organizationType: text("organization_type"),
   ein: text("ein"),
@@ -15,6 +15,9 @@ export const users = pgTable("users", {
   email: text("email"),
   mission: text("mission"),
   focusAreas: text("focus_areas").array(),
+  // Google OAuth fields
+  googleId: text("google_id").unique(),
+  avatar: text("avatar"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
