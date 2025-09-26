@@ -77,6 +77,13 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
       }
       console.log('Authentication successful for user:', user.id);
       (req as any).user = user;
+
+      // Also store the token for database operations
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        (req as any).authToken = authHeader.substring(7);
+      }
+
       next();
     })
     .catch(error => {
@@ -147,12 +154,16 @@ app.post("/api/documents/upload", requireAuth, upload.single('file'), async (req
 
     console.log('Inserting document into database:', documentData);
 
-    // Store document in Supabase
-    const result = await db.documents.insert(documentData);
+    // Store document in Supabase with auth token
+    const authToken = (req as any).authToken;
+    const result = await db.documents.insert(documentData, authToken);
 
     if (result.error) {
       console.error('Database insert error:', result.error);
-      return res.status(500).json({ error: "Failed to save document to database" });
+      return res.status(500).json({
+        error: "Failed to save document to database",
+        details: result.error.message || result.error
+      });
     }
 
     const document = result.data;
@@ -184,12 +195,16 @@ app.get("/api/documents", requireAuth, async (req, res) => {
 
     console.log('Documents list request for user:', user.id);
 
-    // Fetch documents from Supabase
-    const result = await db.documents.findByUserId(user.id);
+    // Fetch documents from Supabase with auth token
+    const authToken = (req as any).authToken;
+    const result = await db.documents.findByUserId(user.id, authToken);
 
     if (result.error) {
       console.error('Database query error:', result.error);
-      return res.status(500).json({ error: "Failed to fetch documents from database" });
+      return res.status(500).json({
+        error: "Failed to fetch documents from database",
+        details: result.error.message || result.error
+      });
     }
 
     const documents = result.data || [];

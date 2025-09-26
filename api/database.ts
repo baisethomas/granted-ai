@@ -11,14 +11,49 @@ export const supabase = createClient(supabaseUrl, supabaseServiceKey);
 export const db = {
   // Documents
   documents: {
-    async insert(data: any) {
-      return await supabase.from('documents').insert(data).select().single();
+    async insert(data: any, authToken?: string) {
+      try {
+        // Use user's auth token if provided
+        const client = authToken ? createClient(supabaseUrl, supabaseServiceKey, {
+          global: { headers: { Authorization: `Bearer ${authToken}` } }
+        }) : supabase;
+
+        const result = await client.from('documents').insert(data).select().single();
+        console.log('Database insert result:', result);
+        return result;
+      } catch (error) {
+        console.error('Database insert error:', error);
+        return { error };
+      }
     },
-    async findByUserId(userId: string) {
-      return await supabase.from('documents').select('*').eq('user_id', userId);
+    async findByUserId(userId: string, authToken?: string) {
+      try {
+        // Use user's auth token if provided
+        const client = authToken ? createClient(supabaseUrl, supabaseServiceKey, {
+          global: { headers: { Authorization: `Bearer ${authToken}` } }
+        }) : supabase;
+
+        const result = await client.from('documents').select('*').eq('user_id', userId);
+        console.log('Database query result:', result);
+        return result;
+      } catch (error) {
+        console.error('Database query error:', error);
+        return { error };
+      }
     },
-    async deleteById(id: string, userId: string) {
-      return await supabase.from('documents').delete().eq('id', id).eq('user_id', userId);
+    async deleteById(id: string, userId: string, authToken?: string) {
+      try {
+        const client = authToken ? createClient(supabaseUrl, supabaseServiceKey, {
+          global: { headers: { Authorization: `Bearer ${authToken}` } }
+        }) : supabase;
+
+        const result = await client.from('documents').delete().eq('id', id).eq('user_id', userId);
+        console.log('Database delete result:', result);
+        return result;
+      } catch (error) {
+        console.error('Database delete error:', error);
+        return { error };
+      }
     }
   },
 
