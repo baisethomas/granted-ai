@@ -77,20 +77,7 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
     });
 }
 
-// Routes
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Grant Writing Platform API',
-    status: 'working',
-    timestamp: new Date().toISOString(),
-    features: {
-      auth: 'Supabase',
-      uploads: 'enabled',
-      cors: 'enabled'
-    }
-  });
-});
-
+// API Routes first (specific routes before catch-all)
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -177,39 +164,58 @@ app.get('/api/status', (req, res) => {
 import path from "path";
 import fs from "fs";
 
+// Root route - check for frontend files
 app.get('/', (req, res) => {
+  // List what files are actually available
+  const debugInfo: any = {
+    message: 'Grant Writing Platform API - Frontend Debug',
+    timestamp: new Date().toISOString(),
+    directories_checked: [],
+    files_found: []
+  };
+
   // Check multiple possible locations for index.html
   const possiblePaths = [
     '/var/task/dist/public/index.html',
+    '/var/task/dist/public',
     '/tmp/dist/public/index.html',
     path.join(process.cwd(), 'dist/public/index.html'),
     path.join(__dirname, '../dist/public/index.html')
   ];
 
-  for (const htmlPath of possiblePaths) {
+  for (const checkPath of possiblePaths) {
     try {
-      if (fs.existsSync(htmlPath)) {
-        console.log('Found index.html at:', htmlPath);
-        return res.sendFile(htmlPath);
+      debugInfo.directories_checked.push(checkPath);
+      if (fs.existsSync(checkPath)) {
+        debugInfo.files_found.push(checkPath);
+        if (checkPath.endsWith('index.html')) {
+          console.log('Found index.html at:', checkPath);
+          return res.sendFile(checkPath);
+        }
       }
     } catch (error) {
-      console.log('Failed to check path:', htmlPath, error);
+      debugInfo.directories_checked.push(`${checkPath} (error: ${error})`);
     }
   }
 
-  // If no frontend found, show API info
-  res.json({
-    message: 'Grant Writing Platform API',
-    status: 'working - Frontend not found',
-    timestamp: new Date().toISOString(),
-    frontend_note: 'Frontend files not available in this deployment',
-    api_endpoints: {
-      auth: '/api/auth/me',
-      upload: '/api/documents/upload',
-      status: '/api/status'
-    },
-    suggestion: 'Use local development (npm run dev) for full UI experience'
-  });
+  // List actual directory contents to debug
+  try {
+    const taskContents = fs.readdirSync('/var/task');
+    debugInfo.var_task_contents = taskContents;
+  } catch (error) {
+    debugInfo.var_task_error = String(error);
+  }
+
+  // If no frontend found, show debug info
+  debugInfo.status = 'Frontend files not found';
+  debugInfo.api_endpoints = {
+    auth: '/api/auth/me',
+    upload: '/api/documents/upload',
+    status: '/api/status'
+  };
+  debugInfo.suggestion = 'Frontend build may not be included in deployment';
+
+  res.json(debugInfo);
 });
 
 // Static file serving for assets
