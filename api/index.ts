@@ -77,10 +77,17 @@ app.use((req, res, next) => {
 // Inline auth helper (no external dependencies)
 async function getAuthenticatedUser(req: express.Request) {
   const authHeader = req.headers.authorization;
+  console.log('Auth header received:', authHeader ? 'Bearer token present' : 'No auth header');
+
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
+    console.log('Token length:', token.length);
+    console.log('Token starts with:', token.substring(0, 20) + '...');
+
     try {
       const { data: { user }, error } = await supabaseAuth.auth.getUser(token);
+      console.log('Supabase auth response:', { user: user?.id, error: error?.message });
+
       if (user && !error) {
         return {
           id: user.id,
@@ -93,6 +100,7 @@ async function getAuthenticatedUser(req: express.Request) {
       console.log('Supabase auth failed:', error);
     }
   }
+  console.log('Auth failed - returning null');
   return null;
 }
 

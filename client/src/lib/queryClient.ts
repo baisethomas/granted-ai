@@ -11,10 +11,19 @@ export const API_BASE_URL: string =
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
 
+  console.log('Frontend session check:', {
+    hasSession: !!session,
+    hasAccessToken: !!session?.access_token,
+    tokenLength: session?.access_token?.length || 0
+  });
+
   const headers: Record<string, string> = {};
 
   if (session?.access_token) {
     headers.Authorization = `Bearer ${session.access_token}`;
+    console.log('Adding auth header with token:', session.access_token.substring(0, 20) + '...');
+  } else {
+    console.log('No session or access token found');
   }
 
   return headers;
