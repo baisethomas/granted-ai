@@ -84,10 +84,23 @@ export default function Upload() {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: ({ file, category }: { file: File; category?: string }) => 
+    mutationFn: ({ file, category }: { file: File; category?: string }) =>
       api.uploadDocument(file, category),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('Upload successful:', data);
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      toast({
+        title: "Document uploaded",
+        description: `${data.originalName} has been uploaded successfully.`,
+      });
+    },
+    onError: (error) => {
+      console.error('Upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Failed to upload document",
+        variant: "destructive",
+      });
     },
   });
 

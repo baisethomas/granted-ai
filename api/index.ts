@@ -66,14 +66,19 @@ async function getAuthenticatedUser(req: express.Request) {
 
 // Auth middleware
 function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+  console.log('Auth middleware called for:', req.method, req.path);
+  console.log('Authorization header:', req.headers.authorization ? 'Present' : 'Missing');
+
   getAuthenticatedUser(req)
     .then(user => {
       if (!user) {
+        console.log('Authentication failed - no user found');
         return res.status(401).json({
           error: "Authentication required",
           hint: "Include 'Authorization: Bearer <token>' header with Supabase token"
         });
       }
+      console.log('Authentication successful for user:', user.id);
       (req as any).user = user;
       next();
     })
@@ -110,13 +115,22 @@ app.get('/api/auth/me', async (req, res) => {
 // Document upload (protected route)
 app.post("/api/documents/upload", requireAuth, upload.single('file'), async (req, res) => {
   try {
+    console.log('Upload request received:', {
+      hasFile: !!req.file,
+      user: (req as any).user?.id,
+      category: req.body.category
+    });
+
     if (!req.file) {
+      console.log('No file in request');
       return res.status(400).json({ error: "No file uploaded" });
     }
 
     const user = (req as any).user;
     const { originalname, mimetype, size } = req.file;
     const category = req.body.category || "organization-info";
+
+    console.log('Processing file:', { originalname, mimetype, size, category });
 
     // Simple file processing (no external AI service for now)
     const summary = `Uploaded ${originalname} (${mimetype}, ${Math.round(size/1024)}KB) in category: ${category}`;
@@ -140,6 +154,9 @@ app.post("/api/documents/upload", requireAuth, upload.single('file'), async (req
       documentsStore[user.id] = [];
     }
     documentsStore[user.id].push(document);
+
+    console.log('Document stored successfully:', document.id);
+    console.log('Total documents for user:', documentsStore[user.id].length);
 
     res.json(document);
   } catch (error) {
