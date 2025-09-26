@@ -1,12 +1,24 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "dist/index.js",
-      "use": "@vercel/node"
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": null,
+  "outputDirectory": "dist/public",
+  "functions": {
+    "dist/index.js": {
+      "maxDuration": 30
     }
-  ],
+  },
   "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/dist/index.js"
+    },
+    {
+      "src": "/auth/(.*)",
+      "dest": "/dist/index.js"
+    },
     {
       "src": "/(.*)",
       "dest": "/dist/index.js"
@@ -14,10 +26,5 @@
   ],
   "env": {
     "NODE_ENV": "production"
-  },
-  "functions": {
-    "dist/index.js": {
-      "maxDuration": 30
-    }
   }
 }
