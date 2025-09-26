@@ -3,8 +3,6 @@ import { config } from "dotenv";
 config();
 
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "../server/routes";
-import { serveStatic, log } from "../server/vite";
 import { setupAuth } from "../server/auth";
 
 const app = express();
@@ -13,50 +11,37 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Basic logging middleware
 app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-      log(logLine);
-    }
-  });
-
+  console.log(`${req.method} ${req.path}`);
   next();
 });
 
-// Setup auth and routes
+// Setup auth
 setupAuth(app);
 
-// Register routes without creating HTTP server
-(async () => {
-  try {
-    // Import and manually setup routes instead of using registerRoutes
-    // which creates an HTTP server that we don't need in Vercel
-    const { registerRoutes } = await import("../server/routes");
-    await registerRoutes(app);
+// Basic health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
-    // Error handler
-    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-      const status = err.status || err.statusCode || 500;
-      const message = err.message || "Internal Server Error";
-      res.status(status).json({ message });
-    });
+// Catch-all route for debugging
+app.use('*', (req, res) => {
+  console.log(`Unhandled route: ${req.method} ${req.originalUrl}`);
+  res.status(404).json({
+    error: 'Route not found',
+    method: req.method,
+    path: req.originalUrl
+  });
+});
 
-    // Serve static files in production
-    if (process.env.NODE_ENV === "production") {
-      serveStatic(app);
-    }
-  } catch (error) {
-    console.error("Failed to setup routes:", error);
-  }
-})();
+// Error handler
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error("Error:", err);
+  const status = err.status || err.statusCode || 500;
+  const message = err.message || "Internal Server Error";
+  res.status(status).json({ message, error: err.stack });
+});
 
 // Export the Express app for Vercel
 export default app;
