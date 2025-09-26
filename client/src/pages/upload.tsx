@@ -79,9 +79,19 @@ export default function Upload() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: documents = [], isLoading } = useQuery({
+  const { data: documents = [], isLoading, error } = useQuery({
     queryKey: ["/api/documents"],
+    meta: {
+      onSuccess: (data: any) => {
+        console.log('Documents query result:', data);
+      },
+      onError: (error: any) => {
+        console.error('Documents query error:', error);
+      }
+    }
   });
+
+  console.log('Current documents state:', { documents, isLoading, error });
 
   const uploadMutation = useMutation({
     mutationFn: ({ file, category }: { file: File; category?: string }) =>
@@ -205,9 +215,16 @@ export default function Upload() {
                 {documents.length} document{documents.length !== 1 ? 's' : ''} uploaded
               </p>
             </div>
-            <Button variant="outline" size="sm">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                console.log('Manual refresh triggered');
+                queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+              }}
+            >
               <RefreshCw className="mr-1 h-4 w-4" />
-              Re-process All
+              Refresh
             </Button>
           </div>
         </CardHeader>

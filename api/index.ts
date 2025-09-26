@@ -170,8 +170,14 @@ app.get("/api/documents", requireAuth, async (req, res) => {
   try {
     const user = (req as any).user;
     const userDocuments = documentsStore[user.id] || [];
+
+    console.log('Documents list request for user:', user.id);
+    console.log('Total documents in store for user:', userDocuments.length);
+    console.log('Document IDs:', userDocuments.map(d => d.id));
+
     res.json(userDocuments);
   } catch (error) {
+    console.error('Documents list error:', error);
     res.status(500).json({ error: "Failed to fetch documents" });
   }
 });
