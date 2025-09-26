@@ -1,9 +1,9 @@
--- Enable UUID extension
+-- Enable UUID extension for generating IDs
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create users table (if it doesn't exist)
 CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::text,
   username TEXT NOT NULL UNIQUE,
   password TEXT,
   organization_name TEXT,
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Create organizations table
 CREATE TABLE IF NOT EXISTS organizations (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::text,
   name TEXT NOT NULL,
   plan TEXT DEFAULT 'starter',
   billing_customer_id TEXT,
@@ -31,9 +31,9 @@ CREATE TABLE IF NOT EXISTS organizations (
 
 -- Create memberships table
 CREATE TABLE IF NOT EXISTS memberships (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES users(id) NOT NULL,
-  organization_id UUID REFERENCES organizations(id) NOT NULL,
+  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  user_id VARCHAR REFERENCES users(id) NOT NULL,
+  organization_id VARCHAR REFERENCES organizations(id) NOT NULL,
   role TEXT NOT NULL DEFAULT 'writer',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -41,9 +41,9 @@ CREATE TABLE IF NOT EXISTS memberships (
 
 -- Create projects table
 CREATE TABLE IF NOT EXISTS projects (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES users(id) NOT NULL,
-  organization_id UUID REFERENCES organizations(id) NOT NULL,
+  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  user_id VARCHAR REFERENCES users(id) NOT NULL,
+  organization_id VARCHAR REFERENCES organizations(id) NOT NULL,
   title TEXT NOT NULL,
   funder TEXT NOT NULL,
   amount TEXT,
@@ -56,9 +56,9 @@ CREATE TABLE IF NOT EXISTS projects (
 
 -- Create documents table
 CREATE TABLE IF NOT EXISTS documents (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES users(id) NOT NULL,
-  organization_id UUID REFERENCES organizations(id) NOT NULL,
+  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  user_id VARCHAR REFERENCES users(id) NOT NULL,
+  organization_id VARCHAR REFERENCES organizations(id) NOT NULL,
   filename TEXT NOT NULL,
   original_name TEXT NOT NULL,
   file_type TEXT NOT NULL,
@@ -74,8 +74,8 @@ CREATE TABLE IF NOT EXISTS documents (
 
 -- Create questions table
 CREATE TABLE IF NOT EXISTS questions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  project_id UUID REFERENCES projects(id) NOT NULL,
+  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  project_id VARCHAR REFERENCES projects(id) NOT NULL,
   question TEXT NOT NULL,
   response TEXT,
   response_status TEXT DEFAULT 'pending',
