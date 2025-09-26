@@ -1,3 +1,4 @@
+import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -78,6 +79,21 @@ const getCategoryLabel = (category?: string) => {
 export default function Upload() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Check auth status
+  React.useEffect(() => {
+    const checkAuth = async () => {
+      const { supabase } = await import("@/lib/supabase");
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('Upload page auth check:', {
+        hasSession: !!session,
+        hasUser: !!session?.user,
+        hasAccessToken: !!session?.access_token,
+        userId: session?.user?.id
+      });
+    };
+    checkAuth();
+  }, []);
 
   const { data: documents = [], isLoading, error } = useQuery({
     queryKey: ["/api/documents"],
