@@ -1,10 +1,24 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { supabase } from "./supabase";
 
 export const API_BASE_URL: string =
   // Prefer Vite client env if provided
   (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_BASE_URL) ||
   // Fallback to empty string to use same-origin relative paths
   "";
+
+// Helper to get auth headers
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+
+  const headers: Record<string, string> = {};
+
+  if (session?.access_token) {
+    headers.Authorization = `Bearer ${session.access_token}`;
+  }
+
+  return headers;
+}
 
 interface ApiError extends Error {
   status: number;
@@ -58,11 +72,19 @@ export async function apiRequest(
 ): Promise<Response> {
   const fullUrl = API_BASE_URL ? `${API_BASE_URL}${url}` : url;
   const fetchWithTimeout = createFetchWithTimeout(timeoutMs);
-  
+
+  // Get auth headers (includes Supabase token)
+  const authHeaders = await getAuthHeaders();
+
+  const headers = {
+    ...authHeaders,
+    ...(data ? { "Content-Type": "application/json" } : {}),
+  };
+
   try {
     const res = await fetchWithTimeout(fullUrl, {
       method,
-      headers: data ? { "Content-Type": "application/json" } : {},
+      headers,
       body: data ? JSON.stringify(data) : undefined,
       credentials: "include",
     });

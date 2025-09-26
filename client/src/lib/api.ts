@@ -116,9 +116,19 @@ export const api = {
     formData.append('file', file);
     if (category) formData.append('category', category);
 
+    // Get Supabase auth token
+    const { supabase } = await import("./supabase");
+    const { data: { session } } = await supabase.auth.getSession();
+
+    const headers: Record<string, string> = {};
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`;
+    }
+
     const url = API_BASE_URL ? `${API_BASE_URL}/api/documents/upload` : "/api/documents/upload";
     const res = await fetch(url, {
       method: "POST",
+      headers,
       body: formData,
       credentials: "include",
     });

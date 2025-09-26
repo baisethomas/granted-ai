@@ -10,9 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Route, useLocation } from "wouter";
-// Using backend authentication instead of Supabase
-// import { AuthProvider, useAuth } from "@/hooks/useAuth";
-// import { Login } from "@/components/Login";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { Login } from "@/components/Login";
 
 // Import landing page components
 import { HeroSection } from "@/components/landing/hero-section";
@@ -36,24 +35,7 @@ import Pricing from "@/pages/pricing";
 function AppContent() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [location, setLocation] = useLocation();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  // Check authentication on mount
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const currentUser = await api.me();
-        setUser(currentUser);
-      } catch (error) {
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, []);
+  const { user, loading, signOut } = useAuth();
 
   // Handle redirect to /app when user logs in
   useEffect(() => {
@@ -97,7 +79,7 @@ function AppContent() {
         <TooltipProvider>
           <ErrorBoundary fallback={AuthErrorFallback}>
             <Route path="/auth">
-              <AuthPage onAuthed={(user) => setUser(user)} />
+              <Login />
             </Route>
             <Route path="/pricing">
               <Pricing />
@@ -134,7 +116,7 @@ function AppContent() {
       <TooltipProvider>
         <ErrorBoundary>
           <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-            <MarketingHeader onLogout={async () => { await api.logout(); setUser(null); setLocation("/"); }} />
+            <MarketingHeader onLogout={async () => { await signOut(); setLocation("/"); }} />
             <AppLayoutWithTabs activeTab={activeTab} onTabChange={setActiveTab}>
               {renderActiveView()}
             </AppLayoutWithTabs>
@@ -224,9 +206,13 @@ function AppNavigation({
   );
 }
 
-// Main App component using backend authentication
+// Main App component with Supabase AuthProvider
 function App() {
-  return <AppContent />;
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
 }
 
 export default App;
