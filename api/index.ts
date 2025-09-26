@@ -160,104 +160,23 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// Serve static files for SPA - try multiple possible locations
-import path from "path";
-import fs from "fs";
-
-// Root route - check for frontend files
+// Root route - redirect to API status since frontend is handled by Vercel static
 app.get('/', (req, res) => {
-  // List what files are actually available
-  const debugInfo: any = {
-    message: 'Grant Writing Platform API - Frontend Debug',
-    timestamp: new Date().toISOString(),
-    directories_checked: [],
-    files_found: []
-  };
-
-  // Check multiple possible locations for index.html
-  const possiblePaths = [
-    '/var/task/dist/public/index.html',
-    '/var/task/dist/public',
-    '/tmp/dist/public/index.html',
-    path.join(process.cwd(), 'dist/public/index.html'),
-    path.join(__dirname, '../dist/public/index.html')
-  ];
-
-  for (const checkPath of possiblePaths) {
-    try {
-      debugInfo.directories_checked.push(checkPath);
-      if (fs.existsSync(checkPath)) {
-        debugInfo.files_found.push(checkPath);
-        if (checkPath.endsWith('index.html')) {
-          console.log('Found index.html at:', checkPath);
-          return res.sendFile(checkPath);
-        }
-      }
-    } catch (error) {
-      debugInfo.directories_checked.push(`${checkPath} (error: ${error})`);
-    }
-  }
-
-  // List actual directory contents to debug
-  try {
-    const taskContents = fs.readdirSync('/var/task');
-    debugInfo.var_task_contents = taskContents;
-  } catch (error) {
-    debugInfo.var_task_error = String(error);
-  }
-
-  // If no frontend found, show debug info
-  debugInfo.status = 'Frontend files not found';
-  debugInfo.api_endpoints = {
-    auth: '/api/auth/me',
-    upload: '/api/documents/upload',
-    status: '/api/status'
-  };
-  debugInfo.suggestion = 'Frontend build may not be included in deployment';
-
-  res.json(debugInfo);
+  res.redirect('/api/status');
 });
 
-// Static file serving for assets
-app.get('/*.(js|css|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)', (req, res) => {
-  const filePath = `/var/task/dist/public${req.path}`;
-  try {
-    if (fs.existsSync(filePath)) {
-      res.sendFile(filePath);
-    } else {
-      res.status(404).json({ error: 'Static file not found', path: req.path });
-    }
-  } catch {
-    res.status(404).json({ error: 'Static file error', path: req.path });
-  }
-});
-
-// Catch-all for SPA routing
-app.get('*', (req, res) => {
-  // For non-API routes, try to serve index.html
-  if (!req.path.startsWith('/api/')) {
-    const possiblePaths = [
-      '/var/task/dist/public/index.html',
-      '/tmp/dist/public/index.html',
-      path.join(process.cwd(), 'dist/public/index.html')
-    ];
-
-    for (const htmlPath of possiblePaths) {
-      try {
-        if (fs.existsSync(htmlPath)) {
-          return res.sendFile(htmlPath);
-        }
-      } catch (error) {
-        // Continue to next path
-      }
-    }
-  }
-
+// API catch-all for unknown API routes
+app.all('/api/*', (req, res) => {
   res.status(404).json({
-    error: 'Page not found',
+    error: 'API endpoint not found',
     path: req.path,
-    note: 'Frontend files not available - API only deployment',
-    suggestion: 'Visit /api/status for API information'
+    available_endpoints: {
+      auth: '/api/auth/me',
+      upload: '/api/documents/upload',
+      documents: '/api/documents',
+      status: '/api/status',
+      health: '/health'
+    }
   });
 });
 
