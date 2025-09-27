@@ -82,6 +82,32 @@ app.get("/api/stats", (req, res) => res.json({ activeProjects: 0 }));
 app.get("/api/settings", (req, res) => res.json({ defaultTone: "professional" }));
 app.get("/api/projects/:id/questions", (req, res) => res.json([]));
 
+// Extract questions from uploaded document (simplified)
+app.post("/api/extract-questions", upload.single('file'), (req, res) => {
+  console.log('Extract questions request received');
+
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded" });
+  }
+
+  // Simple mock extraction - return some sample questions
+  const sampleQuestions = [
+    "Describe your organization's mission and primary objectives.",
+    "What specific problem does your proposed project address?",
+    "How will you measure the success of your project?",
+    "What is your organization's experience with similar projects?",
+    "Provide a detailed budget breakdown for the requested funds."
+  ];
+
+  console.log('Returning sample questions for:', req.file.originalname);
+
+  res.json({
+    questions: sampleQuestions,
+    filename: req.file.originalname,
+    extractedCount: sampleQuestions.length
+  });
+});
+
 // Health check
 app.get("/api/status", (req, res) => {
   res.json({
