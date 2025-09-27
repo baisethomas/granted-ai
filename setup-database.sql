@@ -112,4 +112,4 @@ CREATE POLICY "Users can view questions for own projects" ON questions FOR SELEC
     WHERE projects.id = questions.project_id
     AND projects.user_id = auth.uid()::text
   )
-);
+)
