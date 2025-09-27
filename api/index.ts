@@ -178,24 +178,84 @@ app.post("/api/documents/upload", upload.single('file'), async (req, res) => {
     // Simple file processing (no external AI service for now)
     const summary = `Uploaded ${originalname} (${mimetype}, ${Math.round(size/1024)}KB) in category: ${category}`;
 
-    // For now, let's skip database and just return success to test file upload
-    const mockDocument = {
-      id: `doc-${Date.now()}`,
+    // Try database storage with detailed error handling
+    const documentData = {
       filename: originalname,
-      originalName: originalname,
-      fileType: mimetype,
-      fileSize: size,
+      original_name: originalname,
+      file_type: mimetype,
+      file_size: size,
       category,
       summary,
       processed: true,
-      uploadedAt: new Date().toISOString(),
-      userId: user.id
+      user_id: user.id,
+      organization_id: user.id
     };
 
-    console.log('Returning mock document:', mockDocument);
-    console.log('=== UPLOAD REQUEST SUCCESS ===');
+    console.log('Attempting database insert:', documentData);
 
-    res.json(mockDocument);
+    try {
+      const result = await db.documents.insert(documentData);
+      console.log('Database result:', result);
+
+      if (result.error) {
+        console.error('Database insert failed:', result.error);
+        // Fall back to mock data if database fails
+        const mockDocument = {
+          id: `doc-${Date.now()}`,
+          filename: originalname,
+          originalName: originalname,
+          fileType: mimetype,
+          fileSize: size,
+          category,
+          summary,
+          processed: true,
+          uploadedAt: new Date().toISOString(),
+          userId: user.id,
+          note: "Database failed, using mock data"
+        };
+        console.log('Database failed, returning mock:', mockDocument);
+        return res.json(mockDocument);
+      }
+
+      const document = result.data;
+      console.log('Database insert successful:', document);
+
+      // Return document in frontend format
+      const responseDoc = {
+        id: document.id,
+        filename: document.filename,
+        originalName: document.original_name,
+        fileType: document.file_type,
+        fileSize: document.file_size,
+        category: document.category,
+        summary: document.summary,
+        processed: document.processed,
+        uploadedAt: document.uploaded_at,
+        userId: document.user_id
+      };
+
+      console.log('=== UPLOAD REQUEST SUCCESS (DATABASE) ===');
+      res.json(responseDoc);
+
+    } catch (dbError) {
+      console.error('Database operation threw error:', dbError);
+      // Fall back to mock data
+      const mockDocument = {
+        id: `doc-${Date.now()}`,
+        filename: originalname,
+        originalName: originalname,
+        fileType: mimetype,
+        fileSize: size,
+        category,
+        summary,
+        processed: true,
+        uploadedAt: new Date().toISOString(),
+        userId: user.id,
+        note: "Database error, using mock data"
+      };
+      console.log('Database error, returning mock:', mockDocument);
+      res.json(mockDocument);
+    }
   } catch (error) {
     console.error("=== UPLOAD ERROR ===");
     console.error("Upload error:", error);
