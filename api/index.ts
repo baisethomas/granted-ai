@@ -193,74 +193,41 @@ app.post("/api/documents/upload", upload.single('file'), async (req, res) => {
 
     console.log('Attempting database insert:', documentData);
 
-    try {
-      const result = await db.documents.insert(documentData);
-      console.log('Database result:', result);
-      console.log('Result.error:', result.error);
-      console.log('Result.data:', result.data);
+    // Direct Supabase insert - simplified CRUD
+    const { data, error } = await supabaseDB
+      .from('documents')
+      .insert(documentData)
+      .select()
+      .single();
 
-      if (result.error) {
-        console.error('Database insert failed:', result.error);
-        console.error('Error code:', result.error.code);
-        console.error('Error message:', result.error.message);
-        console.error('Error details:', result.error.details);
-        // Fall back to mock data if database fails
-        const mockDocument = {
-          id: `doc-${Date.now()}`,
-          filename: originalname,
-          originalName: originalname,
-          fileType: mimetype,
-          fileSize: size,
-          category,
-          summary,
-          processed: true,
-          uploadedAt: new Date().toISOString(),
-          userId: user.id,
-          note: "Database failed, using mock data"
-        };
-        console.log('Database failed, returning mock:', mockDocument);
-        return res.json(mockDocument);
-      }
+    console.log('Direct Supabase insert result:', { data, error });
 
-      const document = result.data;
-      console.log('Database insert successful:', document);
-
-      // Return document in frontend format
-      const responseDoc = {
-        id: document.id,
-        filename: document.filename,
-        originalName: document.original_name,
-        fileType: document.file_type,
-        fileSize: document.file_size,
-        category: document.category,
-        summary: document.summary,
-        processed: document.processed,
-        uploadedAt: document.uploaded_at,
-        userId: document.user_id
-      };
-
-      console.log('=== UPLOAD REQUEST SUCCESS (DATABASE) ===');
-      res.json(responseDoc);
-
-    } catch (dbError) {
-      console.error('Database operation threw error:', dbError);
-      // Fall back to mock data
-      const mockDocument = {
-        id: `doc-${Date.now()}`,
-        filename: originalname,
-        originalName: originalname,
-        fileType: mimetype,
-        fileSize: size,
-        category,
-        summary,
-        processed: true,
-        uploadedAt: new Date().toISOString(),
-        userId: user.id,
-        note: "Database error, using mock data"
-      };
-      console.log('Database error, returning mock:', mockDocument);
-      res.json(mockDocument);
+    if (error) {
+      console.error('Supabase insert error:', error);
+      return res.status(500).json({
+        error: "Failed to save document",
+        details: error.message
+      });
     }
+
+    console.log('Document saved successfully:', data);
+
+    // Return document in frontend format
+    const responseDoc = {
+      id: data.id,
+      filename: data.filename,
+      originalName: data.original_name,
+      fileType: data.file_type,
+      fileSize: data.file_size,
+      category: data.category,
+      summary: data.summary,
+      processed: data.processed,
+      uploadedAt: data.uploaded_at,
+      userId: data.user_id
+    };
+
+    console.log('=== UPLOAD SUCCESS - DOCUMENT SAVED ===');
+    res.json(responseDoc);
   } catch (error) {
     console.error("=== UPLOAD ERROR ===");
     console.error("Upload error:", error);
@@ -279,45 +246,45 @@ app.get("/api/documents", async (req, res) => {
     console.log('=== DOCUMENTS LIST REQUEST ===');
     console.log('Fetching documents for user:', user.id);
 
-    try {
-      const result = await db.documents.findByUserId(user.id);
-      console.log('Database query result:', result);
+    // Direct Supabase query - simplified CRUD
+    const { data: documents, error } = await supabaseDB
+      .from('documents')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('uploaded_at', { ascending: false });
 
-      if (result.error) {
-        console.error('Database query failed:', result.error);
-        console.log('Returning empty array due to database error');
-        return res.json([]);
-      }
+    console.log('Direct Supabase query result:', { documents, error });
 
-      const documents = result.data || [];
-      console.log('Found documents count:', documents.length);
-
-      if (documents.length > 0) {
-        console.log('Document IDs:', documents.map((d: any) => d.id));
-      }
-
-      // Transform to frontend format
-      const transformedDocs = documents.map((doc: any) => ({
-        id: doc.id,
-        filename: doc.filename,
-        originalName: doc.original_name,
-        fileType: doc.file_type,
-        fileSize: doc.file_size,
-        category: doc.category,
-        summary: doc.summary,
-        processed: doc.processed,
-        uploadedAt: doc.uploaded_at,
-        userId: doc.user_id
-      }));
-
-      console.log('=== DOCUMENTS LIST SUCCESS ===');
-      res.json(transformedDocs);
-
-    } catch (dbError) {
-      console.error('Database query threw error:', dbError);
-      console.log('Returning empty array due to database exception');
-      res.json([]);
+    if (error) {
+      console.error('Supabase query error:', error);
+      return res.status(500).json({
+        error: "Failed to fetch documents",
+        details: error.message
+      });
     }
+
+    console.log('Found documents count:', documents?.length || 0);
+
+    if (documents && documents.length > 0) {
+      console.log('Document IDs:', documents.map((d: any) => d.id));
+    }
+
+    // Transform to frontend format
+    const transformedDocs = (documents || []).map((doc: any) => ({
+      id: doc.id,
+      filename: doc.filename,
+      originalName: doc.original_name,
+      fileType: doc.file_type,
+      fileSize: doc.file_size,
+      category: doc.category,
+      summary: doc.summary,
+      processed: doc.processed,
+      uploadedAt: doc.uploaded_at,
+      userId: doc.user_id
+    }));
+
+    console.log('=== DOCUMENTS LIST SUCCESS ===');
+    res.json(transformedDocs);
   } catch (error) {
     console.error('Documents list error:', error);
     res.status(500).json({ error: "Failed to fetch documents" });
