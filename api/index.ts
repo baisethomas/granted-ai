@@ -196,9 +196,14 @@ app.post("/api/documents/upload", upload.single('file'), async (req, res) => {
     try {
       const result = await db.documents.insert(documentData);
       console.log('Database result:', result);
+      console.log('Result.error:', result.error);
+      console.log('Result.data:', result.data);
 
       if (result.error) {
         console.error('Database insert failed:', result.error);
+        console.error('Error code:', result.error.code);
+        console.error('Error message:', result.error.message);
+        console.error('Error details:', result.error.details);
         // Fall back to mock data if database fails
         const mockDocument = {
           id: `doc-${Date.now()}`,
