@@ -267,12 +267,52 @@ app.post("/api/documents/upload", upload.single('file'), async (req, res) => {
   }
 });
 
-// Documents list (temporarily return empty for testing)
+// Documents list (test database retrieval)
 app.get("/api/documents", async (req, res) => {
   try {
-    console.log('Documents list request - returning empty array for testing');
-    // Return empty array for now to test basic functionality
-    res.json([]);
+    const user = { id: 'test-user-123' };
+    console.log('=== DOCUMENTS LIST REQUEST ===');
+    console.log('Fetching documents for user:', user.id);
+
+    try {
+      const result = await db.documents.findByUserId(user.id);
+      console.log('Database query result:', result);
+
+      if (result.error) {
+        console.error('Database query failed:', result.error);
+        console.log('Returning empty array due to database error');
+        return res.json([]);
+      }
+
+      const documents = result.data || [];
+      console.log('Found documents count:', documents.length);
+
+      if (documents.length > 0) {
+        console.log('Document IDs:', documents.map((d: any) => d.id));
+      }
+
+      // Transform to frontend format
+      const transformedDocs = documents.map((doc: any) => ({
+        id: doc.id,
+        filename: doc.filename,
+        originalName: doc.original_name,
+        fileType: doc.file_type,
+        fileSize: doc.file_size,
+        category: doc.category,
+        summary: doc.summary,
+        processed: doc.processed,
+        uploadedAt: doc.uploaded_at,
+        userId: doc.user_id
+      }));
+
+      console.log('=== DOCUMENTS LIST SUCCESS ===');
+      res.json(transformedDocs);
+
+    } catch (dbError) {
+      console.error('Database query threw error:', dbError);
+      console.log('Returning empty array due to database exception');
+      res.json([]);
+    }
   } catch (error) {
     console.error('Documents list error:', error);
     res.status(500).json({ error: "Failed to fetch documents" });
