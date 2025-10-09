@@ -9,6 +9,7 @@
     "start": "NODE_ENV=production node dist/index.js",
     "vercel-build": "npm run build",
     "check": "tsc",
+    "test": "tsx --test tests/**/*.test.ts",
     "db:push": "drizzle-kit push",
     "lint": "eslint client/src --ext .ts,.tsx"
   },

@@ -72,6 +72,15 @@ export class MemStorage implements IStorage {
   private responseVersions: Map<string, ResponseVersion> = new Map();
   private userSettings: Map<string, UserSettings> = new Map();
 
+  reset(): void {
+    this.users.clear();
+    this.projects.clear();
+    this.documents.clear();
+    this.grantQuestions.clear();
+    this.responseVersions.clear();
+    this.userSettings.clear();
+  }
+
   async getUser(id: string): Promise<User | undefined> {
     return this.users.get(id);
   }
