@@ -16,6 +16,36 @@ function getUserId(req: any): string {
   return req.user.id;
 }
 
+async function getProjectForUser(projectId: string, userId: string) {
+  const project = await storage.getProject(projectId);
+  if (!project || project.userId !== userId) {
+    return null;
+  }
+  return project;
+}
+
+async function getDocumentForUser(documentId: string, userId: string) {
+  const document = await storage.getDocument(documentId);
+  if (!document || document.userId !== userId) {
+    return null;
+  }
+  return document;
+}
+
+async function getQuestionForUser(questionId: string, userId: string) {
+  const question = await storage.getGrantQuestion(questionId);
+  if (!question) {
+    return null;
+  }
+
+  const project = await storage.getProject(question.projectId);
+  if (!project || project.userId !== userId) {
+    return null;
+  }
+
+  return { question, project };
+}
+
 // Configure multer for file uploads
 const upload = multer({ 
   dest: 'uploads/',
@@ -65,7 +95,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/projects/:id", async (req, res) => {
     try {
-      const project = await storage.getProject(req.params.id);
+      const userId = getUserId(req);
+      const project = await getProjectForUser(req.params.id, userId);
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
       }
@@ -77,11 +108,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/projects/:id", async (req, res) => {
     try {
-      const project = await storage.updateProject(req.params.id, req.body);
+      const userId = getUserId(req);
+      const project = await getProjectForUser(req.params.id, userId);
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
       }
-      res.json(project);
+
+      const { userId: _ignoredUserId, organizationId: _ignoredOrgId, ...updates } = req.body ?? {};
+      const updatedProject = await storage.updateProject(req.params.id, updates);
+      res.json(updatedProject);
     } catch (error) {
       res.status(500).json({ error: "Failed to update project" });
     }
@@ -90,18 +125,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/projects/:id/finalize", async (req, res) => {
     try {
       const userId = getUserId(req);
-      const project = await storage.getProject(req.params.id);
-      
+      const project = await getProjectForUser(req.params.id, userId);
+
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
       }
 
       // Update project status to 'final'
-      const finalizedProject = await storage.updateProject(req.params.id, { 
-        status: 'final', 
-        updatedAt: new Date() 
+      const finalizedProject = await storage.updateProject(req.params.id, {
+        status: 'final',
+        updatedAt: new Date()
       });
-      
+
       console.log(`Project ${req.params.id} finalized by user ${userId}`);
       res.json(finalizedProject);
     } catch (error) {
@@ -165,10 +200,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/documents/:id", async (req, res) => {
     try {
-      const success = await storage.deleteDocument(req.params.id);
-      if (!success) {
+      const userId = getUserId(req);
+      const document = await getDocumentForUser(req.params.id, userId);
+      if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
+
+      await storage.deleteDocument(req.params.id);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete document" });
@@ -178,7 +216,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Grant questions routes
   app.get("/api/projects/:projectId/questions", async (req, res) => {
     try {
-      const questions = await storage.getGrantQuestions(req.params.projectId);
+      const userId = getUserId(req);
+      const project = await getProjectForUser(req.params.projectId, userId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const questions = await storage.getGrantQuestions(project.id);
       res.json(questions);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch questions" });
@@ -187,8 +231,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/projects/:projectId/questions", async (req, res) => {
     try {
+      const userId = getUserId(req);
+      const project = await getProjectForUser(req.params.projectId, userId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
       const validatedData = insertGrantQuestionSchema.parse(req.body);
-      const question = await storage.createGrantQuestion(req.params.projectId, validatedData);
+      const question = await storage.createGrantQuestion(project.id, validatedData);
       res.json(question);
     } catch (error) {
       res.status(400).json({ error: "Invalid question data" });
@@ -196,19 +246,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/questions/:id/generate", async (req, res) => {
-    let questionId = req.params.id;
-    
+    const questionId = req.params.id;
+
     try {
-      const question = await storage.getGrantQuestion(questionId);
-      if (!question) {
+      const userId = getUserId(req);
+      const ownership = await getQuestionForUser(questionId, userId);
+      if (!ownership) {
         return res.status(404).json({ error: "Question not found" });
       }
+
+      const { question } = ownership;
 
       // Update status to generating
       console.log(`Starting AI generation for question ${questionId}: ${question.question.substring(0, 100)}...`);
       await storage.updateGrantQuestion(questionId, { responseStatus: "generating" });
 
-      const userId = getUserId(req);
       const { tone = "professional", emphasisAreas = [] } = req.body;
 
       // Get user context from documents
@@ -361,23 +413,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update response content endpoint
   app.put("/api/questions/:id/response", async (req, res) => {
     const questionId = req.params.id;
-    
+
     try {
+      const userId = getUserId(req);
       const { content, preserveVersion = false } = req.body;
-      
+
       if (!content || typeof content !== 'string') {
         return res.status(400).json({ error: "Content is required and must be a string" });
       }
-      
+
       // Get current question to verify it exists
-      const question = await storage.getGrantQuestion(questionId);
-      if (!question) {
+      const ownership = await getQuestionForUser(questionId, userId);
+      if (!ownership) {
         return res.status(404).json({ error: "Question not found" });
       }
-      
+
+      const { question } = ownership;
+
       // Calculate word count
       const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
-      
+
       // Check word limit if specified
       if (question.wordLimit && wordCount > question.wordLimit) {
         return res.status(400).json({ 
@@ -386,26 +441,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
           wordLimit: question.wordLimit
         });
       }
-      
+
+      if (preserveVersion) {
+        const versions = await storage.getResponseVersions(questionId);
+        const nextVersion = versions.length + 1;
+
+        await storage.createResponseVersion(questionId, content, "edited", nextVersion);
+      }
+
       // Update the response
       const updatedQuestion = await storage.updateGrantQuestion(questionId, {
         response: content,
-        responseStatus: "edited", // Mark as edited to distinguish from AI-generated
+        responseStatus: question.response !== content ? "edited" : question.responseStatus,
         errorMessage: null // Clear any previous error
       });
-      
+
       if (!updatedQuestion) {
         return res.status(500).json({ error: "Failed to update response" });
       }
-      
+
       res.json({
         id: updatedQuestion.id,
         content: updatedQuestion.response,
         lastModified: new Date(),
-        status: "edited",
+        status: updatedQuestion.responseStatus,
         wordCount
       });
-      
+
     } catch (error: any) {
       console.error(`Failed to update response for question ${questionId}:`, error);
       res.status(500).json({ error: "Failed to update response" });
@@ -415,12 +477,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Retry endpoint for failed/timeout questions
   app.post("/api/questions/:id/retry", async (req, res) => {
     const questionId = req.params.id;
-    
+
     try {
-      const question = await storage.getGrantQuestion(questionId);
-      if (!question) {
+      const userId = getUserId(req);
+      const ownership = await getQuestionForUser(questionId, userId);
+      if (!ownership) {
         return res.status(404).json({ error: "Question not found" });
       }
+
+      const { question } = ownership;
 
       // Check if question is in a retryable state
       const retryableStatuses = ["failed", "timeout", "needs_context"];
@@ -461,64 +526,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update question response directly
-  app.put("/api/questions/:id/response", async (req, res) => {
-    try {
-      const questionId = req.params.id;
-      const { content, preserveVersion = false } = req.body;
-      
-      if (!content || typeof content !== 'string') {
-        return res.status(400).json({ error: "Valid content is required" });
-      }
-
-      const question = await storage.getGrantQuestion(questionId);
-      if (!question) {
-        return res.status(404).json({ error: "Question not found" });
-      }
-
-      // Calculate word count
-      const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
-      
-      // Check word limit if specified
-      if (question.wordLimit && wordCount > question.wordLimit) {
-        return res.status(400).json({ 
-          error: "Content exceeds word limit",
-          wordCount,
-          limit: question.wordLimit
-        });
-      }
-
-      // If preserving version, create a new version entry
-      if (preserveVersion) {
-        const versions = await storage.getResponseVersions(questionId);
-        const nextVersion = versions.length + 1;
-        
-        await storage.createResponseVersion(questionId, content, "edited", nextVersion);
-      }
-
-      // Update the main response
-      const updatedQuestion = await storage.updateGrantQuestion(questionId, {
-        response: content,
-        responseStatus: question.response !== content ? "edited" : question.responseStatus
-      });
-
-      res.json({
-        id: questionId,
-        content: content,
-        lastModified: new Date(),
-        status: updatedQuestion.responseStatus,
-        wordCount: wordCount
-      });
-
-    } catch (error) {
-      console.error("Response update error:", error);
-      res.status(500).json({ error: "Failed to update response" });
-    }
-  });
-
   // Response versions routes
   app.get("/api/questions/:questionId/versions", async (req, res) => {
     try {
+      const userId = getUserId(req);
+      const ownership = await getQuestionForUser(req.params.questionId, userId);
+      if (!ownership) {
+        return res.status(404).json({ error: "Question not found" });
+      }
+
       const versions = await storage.getResponseVersions(req.params.questionId);
       res.json(versions);
     } catch (error) {
@@ -528,6 +544,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/questions/:questionId/versions/:versionId/current", async (req, res) => {
     try {
+      const userId = getUserId(req);
+      const ownership = await getQuestionForUser(req.params.questionId, userId);
+      if (!ownership) {
+        return res.status(404).json({ error: "Question not found" });
+      }
+
       const success = await storage.setCurrentVersion(req.params.questionId, req.params.versionId);
       res.json({ success });
     } catch (error) {
