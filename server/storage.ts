@@ -1,7 +1,7 @@
-import { 
-  type User, 
-  type InsertUser, 
-  type Project, 
+import {
+  type User,
+  type InsertUser,
+  type Project,
   type InsertProject,
   type Document,
   type InsertDocument,
@@ -9,7 +9,9 @@ import {
   type InsertGrantQuestion,
   type ResponseVersion,
   type UserSettings,
-  type InsertUserSettings
+  type InsertUserSettings,
+  type DocumentExtraction,
+  type DocumentProcessingJob,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db, schema } from "./db";
@@ -37,6 +39,25 @@ export interface IStorage {
   createDocument(userId: string, document: InsertDocument): Promise<Document>;
   updateDocument(id: string, updates: Partial<Document>): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
+  setDocumentExtraction(
+    documentId: string,
+    data: {
+      rawText: string;
+      rawTextBytes: number;
+      extractionStatus: string;
+      extractionError?: string | null;
+    }
+  ): Promise<void>;
+  getDocumentExtraction(documentId: string): Promise<DocumentExtraction | undefined>;
+  createProcessingJob(
+    documentId: string,
+    jobType: string,
+    initialStatus?: string
+  ): Promise<DocumentProcessingJob>;
+  updateProcessingJob(
+    jobId: string,
+    updates: Partial<DocumentProcessingJob>
+  ): Promise<DocumentProcessingJob | undefined>;
 
   // Grant Question methods
   getGrantQuestions(projectId: string): Promise<GrantQuestion[]>;
@@ -71,6 +92,8 @@ export class MemStorage implements IStorage {
   private grantQuestions: Map<string, GrantQuestion> = new Map();
   private responseVersions: Map<string, ResponseVersion> = new Map();
   private userSettings: Map<string, UserSettings> = new Map();
+  private documentExtractions: Map<string, DocumentExtraction> = new Map();
+  private documentProcessingJobs: Map<string, DocumentProcessingJob> = new Map();
 
   async getUser(id: string): Promise<User | undefined> {
     return this.users.get(id);
@@ -159,12 +182,26 @@ export class MemStorage implements IStorage {
 
   async createDocument(userId: string, insertDocument: InsertDocument): Promise<Document> {
     const id = randomUUID();
+    const now = new Date();
     const document: Document = {
       ...insertDocument,
       id,
       userId,
-      processed: false,
-      uploadedAt: new Date()
+      organizationId: insertDocument.organizationId || userId,
+      processed: insertDocument.processed ?? false,
+      processingStatus: insertDocument.processingStatus || "pending",
+      storageBucket: insertDocument.storageBucket || "documents",
+      storagePath: insertDocument.storagePath || null,
+      storageUrl: insertDocument.storageUrl || null,
+      uploadedAt: now,
+      processedAt: insertDocument.processedAt ?? null,
+      summaryExtractedAt: insertDocument.summaryExtractedAt ?? null,
+      embeddingGeneratedAt: insertDocument.embeddingGeneratedAt ?? null,
+      processingError: insertDocument.processingError ?? null,
+      summary: insertDocument.summary ?? null,
+      chunkCount: insertDocument.chunkCount ?? 0,
+      embeddingModel: insertDocument.embeddingModel ?? null,
+      embeddingStatus: insertDocument.embeddingStatus ?? "pending",
     };
     this.documents.set(id, document);
     return document;
@@ -180,7 +217,75 @@ export class MemStorage implements IStorage {
   }
 
   async deleteDocument(id: string): Promise<boolean> {
-    return this.documents.delete(id);
+    const deleted = this.documents.delete(id);
+    if (deleted) {
+      this.documentExtractions.delete(id);
+      Array.from(this.documentProcessingJobs.values())
+        .filter((job) => job.documentId === id)
+        .forEach((job) => this.documentProcessingJobs.delete(job.id));
+    }
+    return deleted;
+  }
+
+  async setDocumentExtraction(
+    documentId: string,
+    data: {
+      rawText: string;
+      rawTextBytes: number;
+      extractionStatus: string;
+      extractionError?: string | null;
+    }
+  ): Promise<void> {
+    this.documentExtractions.set(documentId, {
+      documentId,
+      rawText: data.rawText,
+      rawTextBytes: data.rawTextBytes,
+      extractionStatus: data.extractionStatus,
+      extractionError: data.extractionError ?? null,
+      extractedAt: new Date(),
+    } as DocumentExtraction);
+  }
+
+  async getDocumentExtraction(documentId: string): Promise<DocumentExtraction | undefined> {
+    return this.documentExtractions.get(documentId);
+  }
+
+  async createProcessingJob(
+    documentId: string,
+    jobType: string,
+    initialStatus = "queued"
+  ): Promise<DocumentProcessingJob> {
+    const id = randomUUID();
+    const now = new Date();
+    const job: DocumentProcessingJob = {
+      id,
+      documentId,
+      jobType,
+      status: initialStatus,
+      attempts: 0,
+      lastError: null,
+      startedAt: initialStatus === "running" ? now : null,
+      finishedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.documentProcessingJobs.set(id, job);
+    return job;
+  }
+
+  async updateProcessingJob(
+    jobId: string,
+    updates: Partial<DocumentProcessingJob>
+  ): Promise<DocumentProcessingJob | undefined> {
+    const job = this.documentProcessingJobs.get(jobId);
+    if (!job) return undefined;
+    const updated: DocumentProcessingJob = {
+      ...job,
+      ...updates,
+      updatedAt: new Date(),
+    };
+    this.documentProcessingJobs.set(jobId, updated);
+    return updated;
   }
 
   async getGrantQuestions(projectId: string): Promise<GrantQuestion[]> {
@@ -379,7 +484,11 @@ export class DbStorage implements IStorage {
   }
 
   async createDocument(userId: string, insertDocument: InsertDocument): Promise<Document> {
-    const rows = await db?.insert(schema.documents).values({ ...(insertDocument as any), userId }).returning();
+    const values: InsertDocument & { organizationId?: string } = {
+      ...insertDocument,
+      organizationId: insertDocument.organizationId || userId,
+    };
+    const rows = await db?.insert(schema.documents).values({ ...(values as any), userId }).returning();
     return rows![0];
   }
 
@@ -389,8 +498,86 @@ export class DbStorage implements IStorage {
   }
 
   async deleteDocument(id: string): Promise<boolean> {
-    const rows = await db?.delete(schema.documents).where(eq(schema.documents.id, id)).returning();
+    const rows = await db
+      ?.delete(schema.documents)
+      .where(eq(schema.documents.id, id))
+      .returning();
     return !!rows?.length;
+  }
+
+  async setDocumentExtraction(
+    documentId: string,
+    data: {
+      rawText: string;
+      rawTextBytes: number;
+      extractionStatus: string;
+      extractionError?: string | null;
+    }
+  ): Promise<void> {
+    if (!db) return;
+    const existing = await db
+      .select()
+      .from(schema.documentExtractions)
+      .where(eq(schema.documentExtractions.documentId, documentId));
+
+    if (existing && existing.length > 0) {
+      await db
+        .update(schema.documentExtractions)
+        .set({
+          rawText: data.rawText,
+          rawTextBytes: data.rawTextBytes,
+          extractionStatus: data.extractionStatus,
+          extractionError: data.extractionError ?? null,
+          extractedAt: new Date(),
+        })
+        .where(eq(schema.documentExtractions.documentId, documentId));
+    } else {
+      await db.insert(schema.documentExtractions).values({
+        documentId,
+        rawText: data.rawText,
+        rawTextBytes: data.rawTextBytes,
+        extractionStatus: data.extractionStatus,
+        extractionError: data.extractionError ?? null,
+      });
+    }
+  }
+
+  async getDocumentExtraction(documentId: string): Promise<DocumentExtraction | undefined> {
+    const rows = await db
+      ?.select()
+      .from(schema.documentExtractions)
+      .where(eq(schema.documentExtractions.documentId, documentId));
+    return rows?.[0];
+  }
+
+  async createProcessingJob(
+    documentId: string,
+    jobType: string,
+    initialStatus = "queued"
+  ): Promise<DocumentProcessingJob> {
+    const rows = await db
+      ?.insert(schema.documentProcessingJobs)
+      .values({
+        documentId,
+        jobType,
+        status: initialStatus,
+        attempts: 0,
+        startedAt: initialStatus === "running" ? new Date() : null,
+      })
+      .returning();
+    return rows![0];
+  }
+
+  async updateProcessingJob(
+    jobId: string,
+    updates: Partial<DocumentProcessingJob>
+  ): Promise<DocumentProcessingJob | undefined> {
+    const rows = await db
+      ?.update(schema.documentProcessingJobs)
+      .set({ ...(updates as any), updatedAt: new Date() })
+      .where(eq(schema.documentProcessingJobs.id, jobId))
+      .returning();
+    return rows?.[0];
   }
 
   async getGrantQuestions(projectId: string): Promise<GrantQuestion[]> {
@@ -470,3 +657,9 @@ export class DbStorage implements IStorage {
 
 const useDb = !!process.env.DATABASE_URL;
 export const storage: IStorage = useDb ? new DbStorage() : new MemStorage();
+
+if (useDb) {
+  console.info("[storage] Using DbStorage with configured DATABASE_URL.");
+} else {
+  console.warn("[storage] DATABASE_URL not set. Using in-memory storage; data will not persist across restarts.");
+}

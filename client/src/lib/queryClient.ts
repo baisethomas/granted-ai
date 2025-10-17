@@ -7,9 +7,24 @@ export const API_BASE_URL: string =
   // Fallback to empty string to use same-origin relative paths
   "";
 
-// Helper to get auth headers (simplified - no auth required)
-async function getAuthHeaders(): Promise<Record<string, string>> {
-  console.log('Simple mode - no auth headers needed');
+// Helper to get auth headers using Supabase session
+export async function getAuthHeaders(): Promise<Record<string, string>> {
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession();
+
+  if (error) {
+    console.warn("Failed to retrieve Supabase session:", error.message);
+    return {};
+  }
+
+  if (session?.access_token) {
+    return {
+      Authorization: `Bearer ${session.access_token}`,
+    };
+  }
+
   return {};
 }
 
@@ -115,8 +130,10 @@ export const getQueryFn: <T>(options: {
     const fetchWithTimeout = createFetchWithTimeout(timeout);
     
     try {
+      const headers = await getAuthHeaders();
       const res = await fetchWithTimeout(fullUrl, {
         credentials: "include",
+        headers,
       });
 
       if (unauthorizedBehavior === "returnNull" && res.status === 401) {

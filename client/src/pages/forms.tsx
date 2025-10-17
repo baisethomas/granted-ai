@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FileUpload } from "@/components/ui/file-upload";
 import { api } from "@/lib/api";
+import { getAuthHeaders } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Keyboard, 
@@ -158,9 +159,13 @@ export default function Forms() {
 
       // First, analyze for clarifications
       try {
+        const authHeaders = await getAuthHeaders();
         const clarificationResponse = await fetch('/api/clarifications/analyze', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...authHeaders
+          },
           body: JSON.stringify({
             projectId: pid,
             questions: questions,

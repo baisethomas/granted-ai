@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, check } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, check, vector } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -66,10 +66,63 @@ export const documents = pgTable("documents", {
   processed: boolean("processed").default(false),
   summary: text("summary"),
   category: text("category"),
-  embeddingStatus: text("embedding_status").default("pending"), // pending, processing, complete, error
+  storageBucket: text("storage_bucket").default("documents"),
+  storagePath: text("storage_path"),
+  storageUrl: text("storage_url"),
+  processingStatus: text("processing_status").default("pending"),
+  processingError: text("processing_error"),
+  processedAt: timestamp("processed_at"),
+  summaryExtractedAt: timestamp("summary_extracted_at"),
+  embeddingGeneratedAt: timestamp("embedding_generated_at"),
+  embeddingStatus: text("embedding_status").default("pending"),
   chunkCount: integer("chunk_count").default(0),
   embeddingModel: text("embedding_model"),
   uploadedAt: timestamp("uploaded_at").defaultNow(),
+});
+
+export const documentExtractions = pgTable("document_extractions", {
+  documentId: varchar("document_id").primaryKey().references(() => documents.id, { onDelete: "cascade" }),
+  rawText: text("raw_text"),
+  rawTextBytes: integer("raw_text_bytes"),
+  extractedAt: timestamp("extracted_at").defaultNow(),
+  extractionStatus: text("extraction_status").default("pending"),
+  extractionError: text("extraction_error"),
+});
+
+export const docChunks = pgTable("doc_chunks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentId: varchar("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
+  chunkIndex: integer("chunk_index").notNull(),
+  content: text("content").notNull(),
+  tokenCount: integer("token_count"),
+  sectionLabel: text("section_label"),
+  embedding: vector("embedding", { dimensions: 1536 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const documentProcessingJobs = pgTable("document_processing_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentId: varchar("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
+  jobType: text("job_type").notNull(),
+  status: text("status").notNull().default("queued"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  startedAt: timestamp("started_at"),
+  finishedAt: timestamp("finished_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const embeddingCache = pgTable("embedding_cache", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contentHash: text("content_hash").unique().notNull(),
+  contentPreview: text("content_preview"),
+  embedding: vector("embedding", { dimensions: 1536 }),
+  tokenCount: integer("token_count"),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastUsedAt: timestamp("last_used_at").defaultNow(),
+  usageCount: integer("usage_count").default(1),
 });
 
 export const questions = pgTable("questions", {
@@ -89,10 +142,14 @@ export const UserInsertSchema = createInsertSchema(users);
 export const OrganizationInsertSchema = createInsertSchema(organizations);
 export const ProjectInsertSchema = createInsertSchema(projects);
 export const DocumentInsertSchema = createInsertSchema(documents);
+export const DocumentExtractionInsertSchema = createInsertSchema(documentExtractions);
+export const DocumentProcessingJobInsertSchema = createInsertSchema(documentProcessingJobs);
 export const QuestionInsertSchema = createInsertSchema(questions);
 
 export type User = typeof users.$inferSelect;
 export type Organization = typeof organizations.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type Document = typeof documents.$inferSelect;
+export type DocumentExtraction = typeof documentExtractions.$inferSelect;
+export type DocumentProcessingJob = typeof documentProcessingJobs.$inferSelect;
 export type Question = typeof questions.$inferSelect;

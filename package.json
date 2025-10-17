@@ -10,7 +10,8 @@
     "vercel-build": "npm run build",
     "check": "tsc",
     "db:push": "drizzle-kit push",
-    "lint": "eslint client/src --ext .ts,.tsx"
+    "lint": "eslint client/src --ext .ts,.tsx",
+    "test:auth": "tsx test/auth-smoke.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.37.0",

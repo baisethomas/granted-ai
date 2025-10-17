@@ -21,6 +21,14 @@ export interface Document {
   category?: string;
   summary?: string;
   processed: boolean;
+  processingStatus: string;
+  processingError?: string | null;
+  storageBucket?: string | null;
+  storagePath?: string | null;
+  storageUrl?: string | null;
+  processedAt?: string | null;
+  summaryExtractedAt?: string | null;
+  embeddingGeneratedAt?: string | null;
   uploadedAt: Date;
 }
 
@@ -187,10 +195,19 @@ export const api = {
     const formData = new FormData();
     formData.append('file', file);
 
+    const { supabase } = await import("./supabase");
+    const { data: { session } } = await supabase.auth.getSession();
+
+    const headers: Record<string, string> = {};
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`;
+    }
+
     const url = API_BASE_URL ? `${API_BASE_URL}/api/extract-questions` : "/api/extract-questions";
     const res = await fetch(url, {
       method: "POST",
       body: formData,
+      headers,
       credentials: "include",
     });
 

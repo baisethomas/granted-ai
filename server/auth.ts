@@ -6,6 +6,7 @@ import session from "express-session";
 import MemoryStoreFactory from "memorystore";
 import crypto from "crypto";
 import { storage } from "./storage";
+import { supabaseAdminClient } from "./middleware/supabaseAuth.js";
 
 const MemoryStore = MemoryStoreFactory(session);
 
@@ -182,7 +183,27 @@ export function setupAuth(app: Express) {
     });
   });
 
-  app.get("/api/auth/me", (req: Request, res: Response) => {
+  app.get("/api/auth/me", async (req: Request, res: Response) => {
+    const header = req.headers.authorization;
+    if (header?.startsWith("Bearer ") && supabaseAdminClient) {
+      try {
+        const token = header.slice(7).trim();
+        const { data, error } = await supabaseAdminClient.auth.getUser(token);
+        if (!error && data.user) {
+          const { user } = data;
+          return res.json({
+            id: user.id,
+            email: user.email,
+            username: (user.user_metadata as any)?.username || user.email || user.id,
+            organizationName: (user.user_metadata as any)?.organizationName,
+            avatar: (user.user_metadata as any)?.avatar_url,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to resolve Supabase user for /api/auth/me:", error);
+      }
+    }
+
     if (!req.user) return res.json(null);
     const u = req.user as any;
     res.json({ id: u.id, username: u.username, organizationName: u.organizationName, email: u.email, avatar: u.avatar });
@@ -199,5 +220,4 @@ export function setupAuth(app: Express) {
     }
   );
 }
-
 

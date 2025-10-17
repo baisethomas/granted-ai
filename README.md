@@ -1,4 +1,27 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Environment Configuration
+
+The Express backend validates its environment at startup. Set the following variables in `.env` (or system environment) before running the server:
+
+| Variable options | Purpose | Required |
+| --- | --- | --- |
+| `SUPABASE_URL` (`SUPABASE_PROJECT_URL`, `VITE_SUPABASE_URL`, or `NEXT_PUBLIC_SUPABASE_URL`) | Supabase project REST endpoint used to verify JWTs | Yes |
+| `SUPABASE_SERVICE_ROLE_KEY` (`SUPABASE_SERVICE_KEY`, `SUPABASE_SECRET_KEY`) | Service role key used by the API to validate Supabase-authenticated requests | Yes |
+| `DATABASE_URL` | Postgres connection string for Drizzle ORM | Recommended (falls back to in-memory storage if omitted) |
+| `DOCUMENTS_BUCKET` | Supabase Storage bucket for uploads (defaults to `documents`) | Optional |
+
+When `DATABASE_URL` is not provided the API will use an in-memory store, and all data will reset whenever the process restarts.
+
+After starting the server you can confirm auth is working by running:
+
+```bash
+SUPABASE_TEST_ACCESS_TOKEN=<your-jwt> npm run test:auth
+```
+
+The script verifies that anonymous requests are rejected while a valid Supabase JWT can reach protected endpoints.
+
+---
+
+This project was originally created with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app); the default Next.js instructions follow.
 
 ## Getting Started
 

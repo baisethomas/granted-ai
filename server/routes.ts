@@ -6,14 +6,15 @@ import { fileProcessor } from "./services/fileProcessor.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { insertProjectSchema, insertGrantQuestionSchema, insertUserSettingsSchema } from "@shared/schema";
+import { insertProjectSchema, insertGrantQuestionSchema, insertUserSettingsSchema, type DocumentProcessingJob, type Document } from "@shared/schema";
+import { requireSupabaseUser, supabaseAdminClient, type AuthenticatedRequest } from "./middleware/supabaseAuth.js";
 
 // Helper function to get authenticated user ID
-function getUserId(req: any): string {
-  if (!req.user || !req.user.id) {
+function getUserId(req: AuthenticatedRequest): string {
+  if (!req.supabaseUser || !req.supabaseUser.id) {
     throw new Error("User not authenticated");
   }
-  return req.user.id;
+  return req.supabaseUser.id;
 }
 
 // Configure multer for file uploads
@@ -29,7 +30,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Projects routes
-  app.get("/api/projects", async (req, res) => {
+  app.get("/api/projects", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = getUserId(req);
       const projects = await storage.getProjects(userId);
@@ -40,7 +41,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/projects", async (req, res) => {
+  app.post("/api/projects", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = getUserId(req);
       console.log("Received project data:", JSON.stringify(req.body, null, 2));
@@ -63,7 +64,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/projects/:id", async (req, res) => {
+  app.get("/api/projects/:id", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const project = await storage.getProject(req.params.id);
       if (!project) {
@@ -75,7 +76,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/projects/:id", async (req, res) => {
+  app.put("/api/projects/:id", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const project = await storage.updateProject(req.params.id, req.body);
       if (!project) {
@@ -87,7 +88,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/projects/:id/finalize", async (req, res) => {
+  app.put("/api/projects/:id/finalize", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = getUserId(req);
       const project = await storage.getProject(req.params.id);
@@ -111,20 +112,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Documents routes
-  app.get("/api/documents", async (req, res) => {
+  app.get("/api/documents", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = getUserId(req);
       const documents = await storage.getDocuments(userId);
-      res.json(documents);
+
+      const enriched = await Promise.all(
+        documents.map(async (doc) => {
+          let signedUrl: string | null = null;
+          if (doc.storageBucket && doc.storagePath && supabaseAdminClient) {
+            const { data } = await supabaseAdminClient.storage
+              .from(doc.storageBucket)
+              .createSignedUrl(doc.storagePath, 60 * 60); // 1 hour
+            signedUrl = data?.signedUrl ?? null;
+          }
+          return {
+            ...doc,
+            storageUrl: signedUrl || doc.storageUrl || null,
+          };
+        })
+      );
+
+      res.json(enriched);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch documents" });
     }
   });
 
-  app.post("/api/documents/upload", upload.single('file'), async (req, res) => {
+  app.post("/api/documents/upload", requireSupabaseUser, upload.single('file'), async (req: AuthenticatedRequest, res) => {
+    let documentRecord: Document | undefined;
+    let processingJob: DocumentProcessingJob | undefined;
+    const tempFiles: string[] = [];
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      if (!supabaseAdminClient) {
+        return res.status(500).json({ error: "Storage is not configured" });
       }
 
       const userId = getUserId(req);
@@ -134,37 +159,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Read file buffer
       const filePath = path.join('uploads', filename);
       const buffer = fs.readFileSync(filePath);
+      tempFiles.push(filePath);
 
-      // Process the file
-      const processed = await fileProcessor.processFile(buffer, originalname, mimetype);
+      const bucket = process.env.DOCUMENTS_BUCKET || "documents";
+      const sanitizedName = originalname.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+      const storagePath = `${userId}/${Date.now()}-${sanitizedName}`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabaseAdminClient.storage
+        .from(bucket)
+        .upload(storagePath, buffer, {
+          contentType: mimetype,
+          duplex: "half",
+        });
+
+      if (uploadError) {
+        console.error("Supabase storage upload error:", uploadError);
+        return res.status(500).json({ error: "Failed to store file" });
+      }
 
       // Create document record
-      const document = await storage.createDocument(userId, {
-        filename,
+      documentRecord = await storage.createDocument(userId, {
+        filename: sanitizedName,
         originalName: originalname,
         fileType: mimetype,
         fileSize: size,
-        category
+        category,
+        organizationId: userId,
+        storageBucket: bucket,
+        storagePath,
+        processingStatus: "processing",
+        processed: false,
       });
 
+      processingJob = await storage.createProcessingJob(
+        documentRecord.id,
+        "extraction",
+        "running"
+      );
+
+      // Process the file
+      const processed = await fileProcessor.processFile(
+        buffer,
+        originalname,
+        mimetype,
+        documentRecord
+      );
+
       // Update with processing results
-      await storage.updateDocument(document.id, {
+      const updatedDocument = await storage.updateDocument(documentRecord.id, {
         summary: processed.summary,
-        processed: true
+        processed: true,
+        processingStatus: "complete",
+        summaryExtractedAt: new Date(),
+        processedAt: new Date(),
+      });
+
+      if (!updatedDocument) {
+        throw new Error("Failed to persist document metadata");
+      }
+
+      await storage.updateProcessingJob(processingJob.id, {
+        status: "succeeded",
+        finishedAt: new Date(),
+        lastError: null,
       });
 
       // Clean up uploaded file
-      fs.unlinkSync(filePath);
-
-      res.json({ ...document, summary: processed.summary, processed: true });
+      res.json({
+        ...updatedDocument,
+        summary: processed.summary,
+        processed: true,
+      });
     } catch (error) {
       console.error("Upload error:", error);
+      if (documentRecord) {
+        await storage.updateDocument(documentRecord.id, {
+          processingStatus: "failed",
+          processingError: error instanceof Error ? error.message : "Unknown error",
+        });
+        await storage.setDocumentExtraction(documentRecord.id, {
+          rawText: "",
+          rawTextBytes: 0,
+          extractionStatus: "failed",
+          extractionError: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+      if (processingJob) {
+        await storage.updateProcessingJob(processingJob.id, {
+          status: "failed",
+          finishedAt: new Date(),
+          lastError: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
       res.status(500).json({ error: "Failed to process upload" });
+    } finally {
+      tempFiles.forEach((file) => {
+        try {
+          fs.existsSync(file) && fs.unlinkSync(file);
+        } catch (cleanupError) {
+          console.warn("Failed to clean temp upload:", cleanupError);
+        }
+      });
     }
   });
 
-  app.delete("/api/documents/:id", async (req, res) => {
+  app.delete("/api/documents/:id", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
+      const document = await storage.getDocument(req.params.id);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      if (document.storageBucket && document.storagePath && supabaseAdminClient) {
+        const { error: removeError } = await supabaseAdminClient.storage
+          .from(document.storageBucket)
+          .remove([document.storagePath]);
+        if (removeError) {
+          console.error("Failed to delete document from storage:", removeError);
+        }
+      }
+
       const success = await storage.deleteDocument(req.params.id);
       if (!success) {
         return res.status(404).json({ error: "Document not found" });
@@ -176,7 +291,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Grant questions routes
-  app.get("/api/projects/:projectId/questions", async (req, res) => {
+  app.get("/api/projects/:projectId/questions", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const questions = await storage.getGrantQuestions(req.params.projectId);
       res.json(questions);
@@ -185,7 +300,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/projects/:projectId/questions", async (req, res) => {
+  app.post("/api/projects/:projectId/questions", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const validatedData = insertGrantQuestionSchema.parse(req.body);
       const question = await storage.createGrantQuestion(req.params.projectId, validatedData);
@@ -195,7 +310,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/questions/:id/generate", async (req, res) => {
+  app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     let questionId = req.params.id;
     
     try {
@@ -358,62 +473,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update response content endpoint
-  app.put("/api/questions/:id/response", async (req, res) => {
-    const questionId = req.params.id;
-    
-    try {
-      const { content, preserveVersion = false } = req.body;
-      
-      if (!content || typeof content !== 'string') {
-        return res.status(400).json({ error: "Content is required and must be a string" });
-      }
-      
-      // Get current question to verify it exists
-      const question = await storage.getGrantQuestion(questionId);
-      if (!question) {
-        return res.status(404).json({ error: "Question not found" });
-      }
-      
-      // Calculate word count
-      const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
-      
-      // Check word limit if specified
-      if (question.wordLimit && wordCount > question.wordLimit) {
-        return res.status(400).json({ 
-          error: `Response exceeds word limit of ${question.wordLimit} words (current: ${wordCount} words)`,
-          wordCount,
-          wordLimit: question.wordLimit
-        });
-      }
-      
-      // Update the response
-      const updatedQuestion = await storage.updateGrantQuestion(questionId, {
-        response: content,
-        responseStatus: "edited", // Mark as edited to distinguish from AI-generated
-        errorMessage: null // Clear any previous error
-      });
-      
-      if (!updatedQuestion) {
-        return res.status(500).json({ error: "Failed to update response" });
-      }
-      
-      res.json({
-        id: updatedQuestion.id,
-        content: updatedQuestion.response,
-        lastModified: new Date(),
-        status: "edited",
-        wordCount
-      });
-      
-    } catch (error: any) {
-      console.error(`Failed to update response for question ${questionId}:`, error);
-      res.status(500).json({ error: "Failed to update response" });
-    }
-  });
-
   // Retry endpoint for failed/timeout questions
-  app.post("/api/questions/:id/retry", async (req, res) => {
+  app.post("/api/questions/:id/retry", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     const questionId = req.params.id;
     
     try {
@@ -462,7 +523,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update question response directly
-  app.put("/api/questions/:id/response", async (req, res) => {
+  app.put("/api/questions/:id/response", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const questionId = req.params.id;
       const { content, preserveVersion = false } = req.body;
@@ -517,7 +578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Response versions routes
-  app.get("/api/questions/:questionId/versions", async (req, res) => {
+  app.get("/api/questions/:questionId/versions", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const versions = await storage.getResponseVersions(req.params.questionId);
       res.json(versions);
@@ -526,7 +587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/questions/:questionId/versions/:versionId/current", async (req, res) => {
+  app.post("/api/questions/:questionId/versions/:versionId/current", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const success = await storage.setCurrentVersion(req.params.questionId, req.params.versionId);
       res.json({ success });
@@ -536,7 +597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User settings routes
-  app.get("/api/settings", async (req, res) => {
+  app.get("/api/settings", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = getUserId(req);
       let settings = await storage.getUserSettings(userId);
@@ -564,7 +625,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/settings", async (req, res) => {
+  app.put("/api/settings", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = getUserId(req);
       const validatedData = insertUserSettingsSchema.parse(req.body);
@@ -581,7 +642,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Stats routes
-  app.get("/api/stats", async (req, res) => {
+  app.get("/api/stats", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = getUserId(req);
       const stats = await storage.getUserStats(userId);
@@ -592,7 +653,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // File extraction route
-  app.post("/api/extract-questions", upload.single('file'), async (req, res) => {
+  app.post("/api/extract-questions", requireSupabaseUser, upload.single('file'), async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });

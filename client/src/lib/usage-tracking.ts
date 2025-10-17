@@ -1,3 +1,5 @@
+import { getAuthHeaders } from "./queryClient";
+
 export interface UsageEvent {
   organizationId: number;
   userId?: number;
@@ -51,9 +53,10 @@ export class UsageTracker {
    */
   static async trackUsage(event: Partial<UsageEvent>): Promise<void> {
     try {
+      const authHeaders = await getAuthHeaders();
       await fetch(`${this.API_BASE}/usage`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
           action: 'track',
           event: {
@@ -82,9 +85,10 @@ export class UsageTracker {
     requestedAmount: number = 1
   ): Promise<{ allowed: boolean; reason?: string; usage?: any }> {
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(`${this.API_BASE}/limits`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
           organizationId,
           limitType,
@@ -108,7 +112,10 @@ export class UsageTracker {
    */
   static async getUsageStats(organizationId: number): Promise<UsageStats | null> {
     try {
-      const response = await fetch(`${this.API_BASE}/usage?organizationId=${organizationId}`);
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${this.API_BASE}/usage?organizationId=${organizationId}`, {
+        headers: authHeaders,
+      });
       
       if (!response.ok) {
         return null;
@@ -236,7 +243,10 @@ export class UsageTracker {
     priority: number;
   }> | null> {
     try {
-      const response = await fetch(`${this.API_BASE}/optimization?organizationId=${organizationId}`);
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${this.API_BASE}/optimization?organizationId=${organizationId}`, {
+        headers: authHeaders,
+      });
       
       if (!response.ok) {
         return null;

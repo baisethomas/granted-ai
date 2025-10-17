@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { createHash } from 'crypto';
+import { getAuthHeaders } from '../queryClient';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
@@ -186,9 +187,10 @@ export class EmbeddingService {
    */
   private static async getCachedEmbedding(contentHash: string): Promise<any> {
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch('/api/embeddings/cache', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ action: 'get', hash: contentHash })
       });
       
@@ -212,9 +214,10 @@ export class EmbeddingService {
     tokenCount: number
   ): Promise<void> {
     try {
+      const authHeaders = await getAuthHeaders();
       await fetch('/api/embeddings/cache', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
           action: 'set',
           hash: contentHash,
@@ -234,9 +237,10 @@ export class EmbeddingService {
    */
   private static async updateCacheUsage(contentHash: string): Promise<void> {
     try {
+      const authHeaders = await getAuthHeaders();
       await fetch('/api/embeddings/cache', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ action: 'update_usage', hash: contentHash })
       });
     } catch (error) {
