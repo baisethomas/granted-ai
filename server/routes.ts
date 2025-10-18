@@ -6,7 +6,7 @@ import { fileProcessor } from "./services/fileProcessor.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { insertProjectSchema, insertGrantQuestionSchema, insertUserSettingsSchema, type DocumentProcessingJob, type Document } from "@shared/schema";
+import { insertProjectSchema, insertGrantQuestionSchema, insertUserSettingsSchema, type Document } from "@shared/schema";
 import { requireSupabaseUser, supabaseAdminClient, type AuthenticatedRequest } from "./middleware/supabaseAuth.js";
 
 // Helper function to get authenticated user ID
@@ -141,7 +141,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/documents/upload", requireSupabaseUser, upload.single('file'), async (req: AuthenticatedRequest, res) => {
     let documentRecord: Document | undefined;
-    let processingJob: DocumentProcessingJob | undefined;
     const tempFiles: string[] = [];
     try {
       if (!req.file) {
@@ -192,12 +191,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         processed: false,
       });
 
-      processingJob = await storage.createProcessingJob(
-        documentRecord.id,
-        "extraction",
-        "running"
-      );
-
       // Process the file
       const processed = await fileProcessor.processFile(
         buffer,
@@ -213,17 +206,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         processingStatus: "complete",
         summaryExtractedAt: new Date(),
         processedAt: new Date(),
+        embeddingStatus: "pending",
       });
 
       if (!updatedDocument) {
         throw new Error("Failed to persist document metadata");
       }
 
-      await storage.updateProcessingJob(processingJob.id, {
-        status: "succeeded",
-        finishedAt: new Date(),
-        lastError: null,
-      });
+      await storage.createProcessingJob(documentRecord.id, "embedding", "queued");
 
       // Clean up uploaded file
       res.json({
@@ -243,13 +233,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           rawTextBytes: 0,
           extractionStatus: "failed",
           extractionError: error instanceof Error ? error.message : "Unknown error",
-        });
-      }
-      if (processingJob) {
-        await storage.updateProcessingJob(processingJob.id, {
-          status: "failed",
-          finishedAt: new Date(),
-          lastError: error instanceof Error ? error.message : "Unknown error",
         });
       }
       res.status(500).json({ error: "Failed to process upload" });

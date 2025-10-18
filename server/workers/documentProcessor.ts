@@ -60,7 +60,7 @@ export async function processDocumentJobs(options: ProcessOptions = {}) {
   } = options;
 
   const jobs = await storage.getProcessingJobs({
-    jobType: "extraction",
+    jobType: "embedding",
     status: "queued",
     limit: batchSize,
   });
@@ -76,6 +76,11 @@ export async function processDocumentJobs(options: ProcessOptions = {}) {
         status: "running",
         attempts: (job.attempts ?? 0) + 1,
         startedAt: new Date(),
+      });
+
+      await storage.updateDocument(job.documentId, {
+        embeddingStatus: "processing",
+        processingError: null,
       });
 
       const document = await storage.getDocument(job.documentId);
