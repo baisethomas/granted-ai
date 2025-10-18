@@ -13,9 +13,13 @@ import {
   type DocumentExtraction,
   type DocumentProcessingJob,
   type DocChunk,
+  type DraftCitation,
+  type InsertDraftCitation,
+  type AssumptionLabel,
+  type InsertAssumptionLabel,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
-import { db, schema } from "./db";
+import { db, schema, sql as rawSql } from "./db";
 import { eq, and, asc } from "drizzle-orm";
 
 export interface IStorage {
@@ -75,6 +79,38 @@ export interface IStorage {
       embedding?: number[] | null;
     }
   ): Promise<void>;
+  searchDocChunksByEmbedding(
+    userId: string,
+    embedding: number[],
+    limit: number
+  ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>>;
+  searchDocChunksByKeyword(
+    userId: string,
+    keywords: string,
+    limit: number
+  ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>>;
+  createDraftCitation(citation: InsertDraftCitation): Promise<DraftCitation>;
+  getDraftCitations(draftId: string): Promise<DraftCitation[]>;
+  deleteDraftCitations(draftId: string): Promise<void>;
+  createAssumptionLabel(label: InsertAssumptionLabel): Promise<AssumptionLabel>;
+  getAssumptionLabels(projectId: string, draftId?: string): Promise<AssumptionLabel[]>;
+  deleteAssumptionLabels(projectId: string, draftId?: string): Promise<void>;
+  getProcessingJobs(options: {
+    jobType: string;
+    status?: string;
+    limit?: number;
+  }): Promise<DocumentProcessingJob[]>;
+  deleteChunksForDocument(documentId: string): Promise<void>;
+  insertDocChunk(
+    documentId: string,
+    data: {
+      chunkIndex: number;
+      content: string;
+      tokenCount: number;
+      sectionLabel?: string | null;
+      embedding?: number[] | null;
+    }
+  ): Promise<void>;
 
   // Grant Question methods
   getGrantQuestions(projectId: string): Promise<GrantQuestion[]>;
@@ -112,6 +148,8 @@ export class MemStorage implements IStorage {
   private documentExtractions: Map<string, DocumentExtraction> = new Map();
   private documentProcessingJobs: Map<string, DocumentProcessingJob> = new Map();
   private documentChunks: Map<string, DocChunk[]> = new Map();
+  private draftCitations: Map<string, DraftCitation[]> = new Map();
+  private assumptionLabels: Map<string, AssumptionLabel[]> = new Map();
 
   async getUser(id: string): Promise<User | undefined> {
     return this.users.get(id);
@@ -348,6 +386,114 @@ export class MemStorage implements IStorage {
     } as DocChunk;
     chunks.push(chunk);
     this.documentChunks.set(documentId, chunks);
+  }
+
+  async createDraftCitation(citation: InsertDraftCitation): Promise<DraftCitation> {
+    const id = randomUUID();
+    const entry: DraftCitation = {
+      ...(citation as DraftCitation),
+      id,
+      chunkRefs: citation.chunkRefs ?? [],
+      createdAt: new Date(),
+    };
+    const existing = this.draftCitations.get(citation.draftId) || [];
+    existing.push(entry);
+    this.draftCitations.set(citation.draftId, existing);
+    return entry;
+  }
+
+  async getDraftCitations(draftId: string): Promise<DraftCitation[]> {
+    return this.draftCitations.get(draftId) || [];
+  }
+
+  async deleteDraftCitations(draftId: string): Promise<void> {
+    this.draftCitations.delete(draftId);
+  }
+
+  async createAssumptionLabel(label: InsertAssumptionLabel): Promise<AssumptionLabel> {
+    const id = randomUUID();
+    const entry: AssumptionLabel = {
+      ...(label as AssumptionLabel),
+      id,
+      resolved: label.resolved ?? false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const existing = this.assumptionLabels.get(label.projectId) || [];
+    existing.push(entry);
+    this.assumptionLabels.set(label.projectId, existing);
+    return entry;
+  }
+
+  async getAssumptionLabels(projectId: string, draftId?: string): Promise<AssumptionLabel[]> {
+    const entries = this.assumptionLabels.get(projectId) || [];
+    return draftId ? entries.filter((assumption) => assumption.draftId === draftId) : entries;
+  }
+
+  async deleteAssumptionLabels(projectId: string, draftId?: string): Promise<void> {
+    if (!draftId) {
+      this.assumptionLabels.delete(projectId);
+      return;
+    }
+    const entries = this.assumptionLabels.get(projectId) || [];
+    this.assumptionLabels.set(
+      projectId,
+      entries.filter((assumption) => assumption.draftId !== draftId)
+    );
+  }
+
+  async searchDocChunksByEmbedding(
+    userId: string,
+    embedding: number[],
+    limit: number
+  ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>> {
+    const docMap = Array.from(this.documents.values()).filter((d) => d.userId === userId);
+    const docLookup = new Map(docMap.map((doc) => [doc.id, doc]));
+    const allChunks: Array<{ chunk: DocChunk; document: Document; similarity?: number }> = [];
+
+    for (const doc of docMap) {
+      const chunks = this.documentChunks.get(doc.id) || [];
+      for (const chunk of chunks) {
+        if (!chunk.embedding) continue;
+        const similarity =
+          chunk.embedding.reduce((sum, value, index) => sum + value * (embedding[index] ?? 0), 0) ||
+          0;
+        allChunks.push({
+          chunk,
+          document: doc,
+          similarity,
+        });
+      }
+    }
+
+    return allChunks
+      .sort((a, b) => (b.similarity ?? 0) - (a.similarity ?? 0))
+      .slice(0, limit);
+  }
+
+  async searchDocChunksByKeyword(
+    userId: string,
+    keywords: string,
+    limit: number
+  ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>> {
+    const lower = keywords.toLowerCase();
+    const docMap = Array.from(this.documents.values()).filter((d) => d.userId === userId);
+    const results: Array<{ chunk: DocChunk; document: Document; similarity?: number }> = [];
+
+    for (const doc of docMap) {
+      const chunks = this.documentChunks.get(doc.id) || [];
+      for (const chunk of chunks) {
+        if (chunk.content.toLowerCase().includes(lower)) {
+          results.push({
+            chunk,
+            document: doc,
+            similarity: 0.5,
+          });
+        }
+      }
+    }
+
+    return results.slice(0, limit);
   }
 
   async getGrantQuestions(projectId: string): Promise<GrantQuestion[]> {
@@ -685,6 +831,236 @@ export class DbStorage implements IStorage {
       sectionLabel: data.sectionLabel ?? null,
       embedding: data.embedding ?? null,
     } as any);
+  }
+
+  async createDraftCitation(citation: InsertDraftCitation): Promise<DraftCitation> {
+    const rows = await db
+      ?.insert(schema.draftCitations)
+      .values(citation as any)
+      .returning();
+    return rows![0];
+  }
+
+  async getDraftCitations(draftId: string): Promise<DraftCitation[]> {
+    const rows = await db
+      ?.select()
+      .from(schema.draftCitations)
+      .where(eq(schema.draftCitations.draftId, draftId));
+    return rows || [];
+  }
+
+  async deleteDraftCitations(draftId: string): Promise<void> {
+    await db
+      ?.delete(schema.draftCitations)
+      .where(eq(schema.draftCitations.draftId, draftId));
+  }
+
+  async createAssumptionLabel(label: InsertAssumptionLabel): Promise<AssumptionLabel> {
+    const rows = await db
+      ?.insert(schema.assumptionLabels)
+      .values(label as any)
+      .returning();
+    return rows![0];
+  }
+
+  async getAssumptionLabels(projectId: string, draftId?: string): Promise<AssumptionLabel[]> {
+    if (!db) return [];
+    let condition = eq(schema.assumptionLabels.projectId, projectId);
+    if (draftId) {
+      condition = and(condition, eq(schema.assumptionLabels.draftId, draftId));
+    }
+    const rows = await db
+      .select()
+      .from(schema.assumptionLabels)
+      .where(condition);
+    return rows || [];
+  }
+
+  async deleteAssumptionLabels(projectId: string, draftId?: string): Promise<void> {
+    if (!db) return;
+    let condition = eq(schema.assumptionLabels.projectId, projectId);
+    if (draftId) {
+      condition = and(condition, eq(schema.assumptionLabels.draftId, draftId));
+    }
+    await db
+      .delete(schema.assumptionLabels)
+      .where(condition);
+  }
+
+  async searchDocChunksByEmbedding(
+    userId: string,
+    embedding: number[],
+    limit: number
+  ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>> {
+    if (!rawSql) return [];
+    const vectorLiteral = `[${embedding.join(",")}]`;
+    const query = `
+      SELECT
+        dc.id AS chunk_id,
+        dc.document_id AS chunk_document_id,
+        dc.chunk_index,
+        dc.content,
+        dc.token_count,
+        dc.section_label,
+        dc.created_at AS chunk_created_at,
+        dc.updated_at AS chunk_updated_at,
+        d.id AS document_id,
+        d.user_id AS document_user_id,
+        d.organization_id,
+        d.original_name,
+        d.filename,
+        d.filename,
+        d.summary,
+        d.file_type,
+        d.file_size,
+        d.category,
+        d.processing_status,
+        d.processing_error,
+        d.processed,
+        d.processed_at,
+        d.summary_extracted_at,
+        d.embedding_status,
+        d.embedding_generated_at,
+        d.embedding_model,
+        d.chunk_count,
+        d.storage_bucket,
+        d.storage_path,
+        d.storage_url,
+        d.uploaded_at,
+        1 - (dc.embedding <=> '${vectorLiteral}'::vector) AS similarity
+      FROM doc_chunks dc
+      INNER JOIN documents d ON d.id = dc.document_id
+      WHERE d.user_id = $1
+      ORDER BY dc.embedding <=> '${vectorLiteral}'::vector
+      LIMIT $2;
+    `;
+    const result = await rawSql(query, [userId, limit]);
+    return (result?.rows || []).map((row: any) => ({
+      chunk: {
+        id: row.chunk_id,
+        documentId: row.chunk_document_id,
+        chunkIndex: row.chunk_index,
+        content: row.content,
+        tokenCount: row.token_count,
+        sectionLabel: row.section_label,
+        embedding: null,
+        createdAt: row.chunk_created_at,
+        updatedAt: row.chunk_updated_at,
+      } as DocChunk,
+      document: {
+        id: row.document_id,
+        userId: row.document_user_id,
+        organizationId: row.organization_id,
+        filename: row.filename,
+        originalName: row.original_name,
+        summary: row.summary,
+        fileType: row.file_type,
+        fileSize: row.file_size,
+        category: row.category,
+        processingStatus: row.processing_status,
+        processingError: row.processing_error,
+        processed: row.processed,
+        processedAt: row.processed_at,
+        summaryExtractedAt: row.summary_extracted_at,
+        embeddingStatus: row.embedding_status,
+        embeddingGeneratedAt: row.embedding_generated_at,
+        embeddingModel: row.embedding_model,
+        chunkCount: row.chunk_count,
+        storageBucket: row.storage_bucket,
+        storagePath: row.storage_path,
+        storageUrl: row.storage_url,
+        uploadedAt: row.uploaded_at,
+      } as Document,
+      similarity: typeof row.similarity === "number" ? row.similarity : undefined,
+    }));
+  }
+
+  async searchDocChunksByKeyword(
+    userId: string,
+    keywords: string,
+    limit: number
+  ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>> {
+    if (!rawSql) return [];
+    const result = await rawSql(
+      `
+      SELECT
+        dc.id AS chunk_id,
+        dc.document_id AS chunk_document_id,
+        dc.chunk_index,
+        dc.content,
+        dc.token_count,
+        dc.section_label,
+        dc.created_at AS chunk_created_at,
+        dc.updated_at AS chunk_updated_at,
+        d.id AS document_id,
+        d.user_id AS document_user_id,
+        d.organization_id,
+        d.original_name,
+        d.summary,
+        d.file_type,
+        d.file_size,
+        d.category,
+        d.processing_status,
+        d.processing_error,
+        d.processed,
+        d.processed_at,
+        d.summary_extracted_at,
+        d.embedding_status,
+        d.embedding_generated_at,
+        d.embedding_model,
+        d.chunk_count,
+        d.storage_bucket,
+        d.storage_path,
+        d.storage_url,
+        d.uploaded_at
+      FROM doc_chunks dc
+      INNER JOIN documents d ON d.id = dc.document_id
+      WHERE d.user_id = $1
+        AND dc.content ILIKE $2
+      ORDER BY dc.updated_at DESC
+      LIMIT $3;
+    `,
+      [userId, `%${keywords}%`, limit]
+    );
+
+    return (result?.rows || []).map((row: any) => ({
+      chunk: {
+        id: row.chunk_id,
+        documentId: row.chunk_document_id,
+        chunkIndex: row.chunk_index,
+        content: row.content,
+        tokenCount: row.token_count,
+        sectionLabel: row.section_label,
+        embedding: null,
+        createdAt: row.chunk_created_at,
+        updatedAt: row.chunk_updated_at,
+      } as DocChunk,
+      document: {
+        id: row.document_id,
+        userId: row.document_user_id,
+        organizationId: row.organization_id,
+        filename: row.filename,
+        originalName: row.original_name,
+        summary: row.summary,
+        fileType: row.file_type,
+        fileSize: row.file_size,
+        category: row.category,
+        processingStatus: row.processing_status,
+        processingError: row.processing_error,
+        processed: row.processed,
+        processedAt: row.processed_at,
+        summaryExtractedAt: row.summary_extracted_at,
+        embeddingStatus: row.embedding_status,
+        embeddingGeneratedAt: row.embedding_generated_at,
+        embeddingModel: row.embedding_model,
+        chunkCount: row.chunk_count,
+        storageBucket: row.storage_bucket,
+        storagePath: row.storage_path,
+        storageUrl: row.storage_url,
+        uploadedAt: row.uploaded_at,
+      } as Document,
+      similarity: undefined,
+    }));
   }
 
   async getGrantQuestions(projectId: string): Promise<GrantQuestion[]> {

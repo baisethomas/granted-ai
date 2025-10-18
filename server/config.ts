@@ -57,4 +57,10 @@ export function validateEnvironment(): void {
 
   const bucket = process.env.DOCUMENTS_BUCKET || "documents";
   console.info(`[env] Using Supabase Storage bucket '${bucket}' for document uploads.`);
+
+  if (process.env.DOCUMENT_WORKER_API_KEY) {
+    console.info("[env] Document worker API key configured.");
+  } else {
+    console.warn("[env] DOCUMENT_WORKER_API_KEY not set. Scheduled worker endpoint will reject requests.");
+  }
 }

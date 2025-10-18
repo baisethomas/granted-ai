@@ -8,6 +8,7 @@ The Express backend validates its environment at startup. Set the following vari
 | `SUPABASE_SERVICE_ROLE_KEY` (`SUPABASE_SERVICE_KEY`, `SUPABASE_SECRET_KEY`) | Service role key used by the API to validate Supabase-authenticated requests | Yes |
 | `DATABASE_URL` | Postgres connection string for Drizzle ORM | Recommended (falls back to in-memory storage if omitted) |
 | `DOCUMENTS_BUCKET` | Supabase Storage bucket for uploads (defaults to `documents`) | Optional |
+| `DOCUMENT_WORKER_API_KEY` | Shared secret used to secure the `/api/workers/process-documents` endpoint | Optional (required for scheduled processing) |
 
 When `DATABASE_URL` is not provided the API will use an in-memory store, and all data will reset whenever the process restarts.
 
@@ -24,6 +25,16 @@ To process pending document ingestion jobs (chunking + embeddings) run:
 ```bash
 npm run doc:process
 ```
+
+### Scheduling automated document processing
+
+1. Generate a strong random value and set it as `DOCUMENT_WORKER_API_KEY` in your deployment environment.
+2. Deploy the new secured endpoint: `POST /api/workers/process-documents` with header `X-API-KEY: <DOCUMENT_WORKER_API_KEY>`.
+3. In Supabase, navigate to **Database → Cron** and create a schedule (e.g., every 10 minutes) that calls the endpoint above.
+   - Method: `POST`
+   - URL: `https://<your-domain>/api/workers/process-documents`
+   - Header: `X-API-KEY: <DOCUMENT_WORKER_API_KEY>`
+4. Monitor logs in Supabase Cron or your deployment provider; the endpoint returns a summary of processed jobs for quick diagnostics.
 
 ---
 

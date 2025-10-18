@@ -3,6 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage.js";
 import { aiService } from "./services/ai.js";
 import { fileProcessor } from "./services/fileProcessor.js";
+import { retrieveRelevantChunks } from "./services/retrieval.js";
+import { processDocumentJobs } from "./workers/documentProcessor.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -273,11 +275,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/workers/process-documents", async (req, res) => {
+    try {
+      const expectedKey = process.env.DOCUMENT_WORKER_API_KEY;
+      if (!expectedKey) {
+        return res.status(500).json({ error: "Worker API key not configured" });
+      }
+
+      const headerValue = req.headers["x-api-key"] || req.headers["authorization"];
+      let providedKey = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+      if (typeof providedKey === "string" && providedKey.startsWith("Bearer ")) {
+        providedKey = providedKey.slice(7).trim();
+      }
+
+      if (typeof providedKey !== "string" || providedKey !== expectedKey) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const batchSize = Number(req.query.batchSize) || Number(process.env.DOCUMENT_WORKER_BATCH_SIZE || "5");
+      const summary = await processDocumentJobs({ batchSize });
+
+      res.json({
+        ok: true,
+        summary,
+      });
+    } catch (error: any) {
+      console.error("Document worker endpoint failed:", error);
+      res.status(500).json({ error: "Worker execution failed", details: error.message });
+    }
+  });
+
   // Grant questions routes
   app.get("/api/projects/:projectId/questions", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const questions = await storage.getGrantQuestions(req.params.projectId);
-      res.json(questions);
+      const enriched = await Promise.all(
+        questions.map(async (question: any) => {
+          const projectId = question.projectId ?? question.project_id ?? req.params.projectId;
+          const citations = await storage.getDraftCitations(question.id);
+          const assumptions = await storage.getAssumptionLabels(projectId, question.id);
+          return {
+            ...question,
+            citations,
+            assumptions,
+          };
+        })
+      );
+      res.json(enriched);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch questions" });
     }
@@ -312,50 +356,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get user context from documents
       const documents = await storage.getDocuments(userId);
       
-      // Build comprehensive organizational context
-      let context = '';
-      if (documents && documents.length > 0) {
-        const processedDocs = documents.filter(d => d.processed && d.summary);
-        
-        if (processedDocs.length > 0) {
-          context = 'ORGANIZATIONAL CONTEXT:\n\n';
-          
-          // Group documents by category for better context organization
-          const docsByCategory = processedDocs.reduce((acc, doc) => {
-            const category = doc.category || 'general';
-            if (!acc[category]) acc[category] = [];
-            acc[category].push(doc);
-            return acc;
-          }, {} as Record<string, any[]>);
-          
-          // Format context by category
-          Object.entries(docsByCategory).forEach(([category, docs]) => {
-            context += `${category.toUpperCase().replace(/-/g, ' ')}:\n`;
-            docs.forEach(doc => {
-              context += `• ${doc.originalName}: ${doc.summary}\n`;
-            });
-            context += '\n';
-          });
-        }
-      }
-      
-      console.log(`Generated context for user ${userId} (${context.length} chars):`, context.substring(0, 500) + '...');
+      const processedDocs = documents.filter((doc) => doc.processed && doc.summary);
+      const organizationContext = processedDocs
+        .map((doc) => `${doc.originalName}: ${doc.summary}`)
+        .join('\n');
 
-      // Get user info
+      const retrievalResult = await retrieveRelevantChunks({
+        userId,
+        query: question.question,
+        limit: 8,
+        semanticLimit: 8,
+        keywordLimit: 4,
+      });
+
       const user = await storage.getUser(userId);
 
       try {
         const startTime = Date.now();
         
-        // Generate response with enhanced error handling
-        const response = await aiService.generateGrantResponse({
+        const grounded = await aiService.generateGroundedResponse({
           question: question.question,
-          context,
           tone,
           wordLimit: question.wordLimit || undefined,
           emphasisAreas,
-          organizationInfo: user
+          organizationInfo: {
+            ...user,
+            contextSummary: organizationContext,
+          },
+          retrievedChunks: retrievalResult.chunks.map((chunk) => ({
+            documentName: chunk.documentName,
+            documentId: chunk.documentId,
+            content: chunk.content,
+            chunkIndex: chunk.chunkIndex,
+            similarity: chunk.similarity,
+          })),
         });
+
+        const projectId = (question as any).project_id || (question as any).projectId;
+
+        await storage.deleteDraftCitations(question.id);
+        for (const citation of grounded.citations || []) {
+          if (!citation.documentId) continue;
+          await storage.createDraftCitation({
+            draftId: question.id,
+            section: "response",
+            sourceDocumentId: citation.documentId,
+            chunkRefs: [
+              {
+                chunkIndex: citation.chunkIndex ?? 0,
+                quote: citation.quote ?? "",
+              },
+            ],
+          });
+        }
+
+        if (projectId) {
+          await storage.deleteAssumptionLabels(projectId, question.id);
+          for (const assumption of grounded.assumptions || []) {
+            await storage.createAssumptionLabel({
+              projectId,
+              draftId: question.id,
+              text: assumption,
+              category: "general",
+              confidence: 50,
+              suggestedQuestion: assumption,
+              position: { start: 0, end: 0 },
+            });
+          }
+        }
+
+        let responseText = grounded.text?.trim() || '';
+        if (grounded.citations?.length) {
+          responseText = responseText.replace(/\s+$/, '');
+          const citationsBlock = grounded.citations
+            .map((citation, index) => {
+              return `[#${index + 1}] ${citation.documentName} (chunk ${citation.chunkIndex + 1})${
+                citation.quote ? ` – "${citation.quote}"` : ''
+              }`;
+            })
+            .join('\n');
+          responseText += `\n\nCitations:\n${citationsBlock}`;
+        }
+
+        if (grounded.assumptions?.length) {
+          const assumptionsBlock = grounded.assumptions
+            .map((assumption, index) => `${index + 1}. ${assumption}`)
+            .join('\n');
+          responseText += `\n\nAssumptions & Follow-ups:\n${assumptionsBlock}`;
+        }
         
         const duration = Date.now() - startTime;
         console.log(`AI generation completed in ${duration}ms for question ${questionId}`);
@@ -363,16 +451,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Determine the status based on the response type
         let responseStatus: string;
         let errorMessage: string | null = null;
-        
-        if (response.includes("I'm having trouble generating a detailed response")) {
-          responseStatus = "timeout";
-          errorMessage = "Generation timed out - please try again";
-        } else if (response.includes("Based on the available information, I need additional details")) {
+        if (!retrievalResult.chunks.length) {
           responseStatus = "needs_context";
-          errorMessage = "Insufficient context - please add more organizational documents";
-        } else if (response.includes("Unable to generate AI response at this time")) {
+          errorMessage = "No relevant document context found. Upload more documents or refine the question.";
+        } else if (grounded.text?.includes("Unable to complete a grounded draft")) {
           responseStatus = "failed";
-          errorMessage = "AI service error - please try again";
+          errorMessage = "AI service unavailable; provided excerpts instead.";
+        } else if (grounded.text?.includes("Using available snippets")) {
+          responseStatus = "needs_context";
+          errorMessage = "Limited context available; refine uploads for a stronger draft.";
         } else {
           responseStatus = "complete";
         }
@@ -383,21 +470,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const versions = await storage.getResponseVersions(question.id);
         const nextVersion = versions.length + 1;
         
-        await storage.createResponseVersion(question.id, response, tone, nextVersion);
+        await storage.createResponseVersion(question.id, responseText, tone, nextVersion);
 
         // Update question with response and status
         const updatedQuestion = await storage.updateGrantQuestion(questionId, {
-          response,
+          response: responseText,
           responseStatus,
           ...(errorMessage && { errorMessage })
         });
 
         // Return appropriate status code based on result
+        const payload = {
+          ...updatedQuestion,
+          citations: grounded.citations,
+          assumptions: grounded.assumptions,
+          retrievedChunks: retrievalResult.chunks,
+        };
+
         if (responseStatus === "complete") {
-          res.json(updatedQuestion);
+          res.json(payload);
         } else {
           res.status(206).json({ // 206 Partial Content - request completed but with limitations
-            ...updatedQuestion,
+            ...payload,
             warning: errorMessage,
             canRetry: responseStatus === "timeout" || responseStatus === "failed"
           });

@@ -62,6 +62,34 @@ export interface GenerateResponseOptions {
   organizationInfo?: any;
 }
 
+export interface RetrievedContextChunk {
+  documentName: string;
+  documentId: string;
+  content: string;
+  chunkIndex: number;
+  similarity?: number;
+}
+
+export interface GeneratedGroundedResponse {
+  text: string;
+  citations: Array<{
+    documentName: string;
+    documentId: string;
+    chunkIndex: number;
+    quote?: string;
+  }>;
+  assumptions: string[];
+}
+
+export interface GenerateGroundedResponseOptions {
+  question: string;
+  tone: string;
+  wordLimit?: number;
+  emphasisAreas?: string[];
+  organizationInfo?: any;
+  retrievedChunks: RetrievedContextChunk[];
+}
+
 export class AIService {
   // Helper function to create timeout promise
   private createTimeoutPromise(timeoutMs: number): Promise<never> {
@@ -220,6 +248,125 @@ Please try again in a moment, or use this framework to draft your response manua
     }
     
     return suggestions.join('\n');
+  }
+
+  async generateGroundedResponse(
+    options: GenerateGroundedResponseOptions
+  ): Promise<GeneratedGroundedResponse> {
+    const {
+      question,
+      tone,
+      wordLimit,
+      emphasisAreas = [],
+      organizationInfo,
+      retrievedChunks,
+    } = options;
+
+    if (!retrievedChunks.length || !hasValidApiKey) {
+      const excerpts = retrievedChunks
+        .slice(0, 3)
+        .map((chunk) => `- ${chunk.documentName}: ${chunk.content}`)
+        .join('\n');
+
+      return {
+        text:
+          `Using available snippets, here is a high-level draft. Please refine with additional details.\n\n${excerpts}`,
+        citations: retrievedChunks.slice(0, 3).map((chunk) => ({
+          documentName: chunk.documentName,
+          documentId: chunk.documentId,
+          chunkIndex: chunk.chunkIndex,
+          quote: chunk.content.slice(0, 160),
+        })),
+        assumptions: [
+          'Fallback summarization used because no valid LLM key was configured or no context snippets existed.',
+        ],
+      };
+    }
+
+    const contextLines = retrievedChunks
+      .map((chunk, index) => {
+        const similarity =
+          typeof chunk.similarity === 'number'
+            ? ` (relevance ${Math.round(chunk.similarity * 100)}%)`
+            : '';
+        return `[#${index + 1}] ${chunk.documentName}${similarity}\n${chunk.content}`;
+      })
+      .join('\n\n');
+
+    const instructions = `You are an expert grant writer. Use the provided snippets to answer the question with explicit citations. Return JSON with fields: text (string), citations (array of {marker, documentName, documentId, chunkIndex, quote}), and assumptions (array of strings). Do not fabricate details.`;
+
+    const userPrompt = `Grant Question: ${question}\n\nTone: ${tone}\n${
+      wordLimit ? `Target word count: ${wordLimit}` : ''
+    }\n${
+      emphasisAreas.length ? `Emphasis areas: ${emphasisAreas.join(', ')}` : ''
+    }\nOrganization info: ${organizationInfo ? JSON.stringify(organizationInfo) : 'N/A'}\n\nContext Snippets:\n${contextLines}`;
+
+    try {
+      const response = await openai.chat.completions.create({
+        model: process.env.GRANTED_DEFAULT_MODEL || 'gpt-4o-mini',
+        response_format: { type: 'json_object' },
+        temperature: 0.4,
+        max_tokens: wordLimit ? Math.min(wordLimit * 3, 1500) : 1500,
+        messages: [
+          { role: 'system', content: instructions },
+          { role: 'user', content: userPrompt },
+        ],
+      });
+
+      const content = response.choices[0]?.message?.content?.trim();
+      if (!content) {
+        throw new Error('Empty response from model');
+      }
+
+      const parsed = JSON.parse(content);
+      const citations = Array.isArray(parsed.citations) ? parsed.citations : [];
+      const normalizedCitations = citations.map((entry: any, idx: number) => {
+        const matchingChunk = retrievedChunks.find((chunk, index) => {
+          if (typeof entry.chunkIndex === 'number') {
+            return chunk.chunkIndex === entry.chunkIndex;
+          }
+          if (typeof entry.marker === 'string') {
+            const match = entry.marker.match(/#(\d+)/);
+            if (match) {
+              const markerIndex = parseInt(match[1], 10) - 1;
+              return index === markerIndex;
+            }
+          }
+          return false;
+        });
+        const fallback = retrievedChunks[idx] ?? retrievedChunks[0];
+        const reference = matchingChunk || fallback;
+        return {
+          documentName: entry.documentName || reference.documentName,
+          documentId: entry.documentId || reference.documentId,
+          chunkIndex:
+            typeof entry.chunkIndex === 'number' ? entry.chunkIndex : reference.chunkIndex,
+          quote: entry.quote || reference.content.slice(0, 160),
+        };
+      });
+
+      return {
+        text: parsed.text || parsed.answer || '',
+        citations: normalizedCitations,
+        assumptions: Array.isArray(parsed.assumptions) ? parsed.assumptions : [],
+      };
+    } catch (error) {
+      console.error('generateGroundedResponse failed:', error);
+      const fallbackChunks = retrievedChunks.slice(0, 3);
+      return {
+        text:
+          `Unable to complete a grounded draft. Here are key excerpts to guide manual drafting:\n\n${fallbackChunks
+            .map((chunk) => `- ${chunk.documentName}: ${chunk.content}`)
+            .join('\n')}`,
+        citations: fallbackChunks.map((chunk) => ({
+          documentName: chunk.documentName,
+          documentId: chunk.documentId,
+          chunkIndex: chunk.chunkIndex,
+          quote: chunk.content.slice(0, 160),
+        })),
+        assumptions: ['Model output unavailable; provided raw excerpts instead.'],
+      };
+    }
   }
 
   async generateGrantResponse(options: GenerateResponseOptions): Promise<string> {

@@ -7,6 +7,15 @@ interface ProcessOptions {
   chunkOverlap?: number;
 }
 
+export interface ProcessDocumentJobsResult {
+  requested: number;
+  processed: number;
+  succeeded: number;
+  failed: number;
+  skipped: number;
+  details: Array<{ jobId: string; documentId: string; status: "succeeded" | "failed" | "skipped" }>;
+}
+
 interface TextChunk {
   content: string;
   tokenCount: number;
@@ -52,7 +61,7 @@ function chunkText(
   return chunks;
 }
 
-export async function processDocumentJobs(options: ProcessOptions = {}) {
+export async function processDocumentJobs(options: ProcessOptions = {}): Promise<ProcessDocumentJobsResult> {
   const {
     batchSize = 5,
     chunkSize = DEFAULT_CHUNK_SIZE,
@@ -65,9 +74,18 @@ export async function processDocumentJobs(options: ProcessOptions = {}) {
     limit: batchSize,
   });
 
+  const summary: ProcessDocumentJobsResult = {
+    requested: jobs.length,
+    processed: 0,
+    succeeded: 0,
+    failed: 0,
+    skipped: 0,
+    details: [],
+  };
+
   if (!jobs.length) {
     console.log("[worker] No document jobs to process.");
-    return;
+    return summary;
   }
 
   for (const job of jobs) {
@@ -98,6 +116,7 @@ export async function processDocumentJobs(options: ProcessOptions = {}) {
       await storage.deleteChunksForDocument(job.documentId);
 
       let embeddingModel: string | null = null;
+      let failedChunks = 0;
 
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
@@ -112,6 +131,7 @@ export async function processDocumentJobs(options: ProcessOptions = {}) {
             `[worker] Embedding failed for document ${job.documentId}, chunk ${i}:`,
             embeddingError
           );
+          failedChunks += 1;
         }
 
         await storage.insertDocChunk(job.documentId, {
@@ -139,6 +159,14 @@ export async function processDocumentJobs(options: ProcessOptions = {}) {
       console.log(
         `[worker] Processed document ${job.documentId} with ${chunks.length} chunks.`
       );
+      summary.processed += 1;
+      if (!embeddingModel || failedChunks === chunks.length) {
+        summary.skipped += 1;
+        summary.details.push({ jobId: job.id, documentId: job.documentId, status: "skipped" });
+      } else {
+        summary.succeeded += 1;
+        summary.details.push({ jobId: job.id, documentId: job.documentId, status: "succeeded" });
+      }
     } catch (error) {
       console.error(
         `[worker] Failed to process document job ${job.id}:`,
@@ -153,6 +181,11 @@ export async function processDocumentJobs(options: ProcessOptions = {}) {
         embeddingStatus: "failed",
         processingError: error instanceof Error ? error.message : String(error),
       });
+      summary.processed += 1;
+      summary.failed += 1;
+      summary.details.push({ jobId: job.id, documentId: job.documentId, status: "failed" });
     }
   }
+
+  return summary;
 }

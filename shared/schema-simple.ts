@@ -114,6 +114,31 @@ export const documentProcessingJobs = pgTable("document_processing_jobs", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const draftCitations = pgTable("draft_citations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  draftId: varchar("draft_id").notNull(),
+  section: text("section").notNull(),
+  sourceDocumentId: varchar("source_document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
+  chunkRefs: jsonb("chunk_refs"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const assumptionLabels = pgTable("assumption_labels", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").references(() => projects.id).notNull(),
+  draftId: varchar("draft_id"),
+  text: text("text").notNull(),
+  category: text("category").notNull(),
+  confidence: integer("confidence").notNull(),
+  suggestedQuestion: text("suggested_question").notNull(),
+  position: jsonb("position").notNull(),
+  resolved: boolean("resolved").default(false),
+  resolvedBy: varchar("resolved_by"),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const embeddingCache = pgTable("embedding_cache", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   contentHash: text("content_hash").unique().notNull(),
@@ -145,6 +170,8 @@ export const DocumentInsertSchema = createInsertSchema(documents);
 export const DocumentExtractionInsertSchema = createInsertSchema(documentExtractions);
 export const DocumentProcessingJobInsertSchema = createInsertSchema(documentProcessingJobs);
 export const QuestionInsertSchema = createInsertSchema(questions);
+export const DraftCitationInsertSchema = createInsertSchema(draftCitations);
+export const AssumptionLabelInsertSchema = createInsertSchema(assumptionLabels);
 
 export type User = typeof users.$inferSelect;
 export type Organization = typeof organizations.$inferSelect;
@@ -155,3 +182,7 @@ export type DocumentProcessingJob = typeof documentProcessingJobs.$inferSelect;
 export type DocChunk = typeof docChunks.$inferSelect;
 export type InsertDocChunk = typeof docChunks.$inferInsert;
 export type Question = typeof questions.$inferSelect;
+export type DraftCitation = typeof draftCitations.$inferSelect;
+export type InsertDraftCitation = typeof draftCitations.$inferInsert;
+export type AssumptionLabel = typeof assumptionLabels.$inferSelect;
+export type InsertAssumptionLabel = typeof assumptionLabels.$inferInsert;

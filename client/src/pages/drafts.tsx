@@ -826,6 +826,54 @@ export default function Drafts() {
                               </>
                             )}
                           </div>
+
+                          {question.citations && question.citations.length > 0 && (
+                            <div className="mt-6 border border-slate-200 bg-slate-50 rounded-lg p-4">
+                              <div className="flex items-center mb-3">
+                                <FileText className="h-4 w-4 text-blue-600 mr-2" />
+                                <h5 className="text-sm font-semibold text-slate-800">Sources & Citations</h5>
+                              </div>
+                              <ul className="space-y-2 text-sm text-slate-700">
+                                {question.citations.map((citation: any, citationIndex: number) => (
+                                  <li key={`${question.id}-citation-${citationIndex}`} className="flex flex-col">
+                                    <span className="font-medium text-slate-900">
+                                      [{citationIndex + 1}] {citation.documentName || citation.documentId}
+                                    </span>
+                                    <span className="text-slate-600">
+                                      Chunk {typeof citation.chunkIndex === "number" ? citation.chunkIndex + 1 : citationIndex + 1}
+                                    </span>
+                                    {citation.quote && (
+                                      <span className="text-slate-500 text-xs mt-1">
+                                        “{citation.quote.length > 200 ? `${citation.quote.slice(0, 200)}…` : citation.quote}”
+                                      </span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {question.assumptions && question.assumptions.length > 0 && (
+                            <div className="mt-4 border-l-4 border-amber-500 bg-amber-50 rounded-r-lg p-4 space-y-2">
+                              <div className="flex items-center text-amber-700">
+                                <AlertTriangle className="h-4 w-4 mr-2" />
+                                <h5 className="text-sm font-semibold">Assumptions flagged by AI</h5>
+                              </div>
+                              <ul className="space-y-2 text-sm text-amber-800">
+                                {question.assumptions.map((assumption: any, assumptionIndex: number) => (
+                                  <li key={`${question.id}-assumption-${assumptionIndex}`} className="flex items-start space-x-2">
+                                    <span className="font-medium text-amber-700">{assumptionIndex + 1}.</span>
+                                    <div className="flex-1">
+                                      <p>{assumption.text || assumption}</p>
+                                      {assumption.category && (
+                                        <p className="text-xs text-amber-600 mt-1 uppercase tracking-wide">{assumption.category}</p>
+                                      )}
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </>
                       ) : question.responseStatus === "generating" ? (
                         <div className="flex items-center justify-center py-12">

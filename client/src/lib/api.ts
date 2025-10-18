@@ -41,6 +41,27 @@ export interface GrantQuestion {
   response?: string;
   responseStatus: string;
   createdAt: Date;
+  citations?: Array<{
+    documentName: string;
+    documentId: string;
+    chunkIndex: number;
+    quote?: string;
+  }>;
+  assumptions?: Array<{
+    id: string;
+    text: string;
+    category: string;
+    confidence: number;
+    suggestedQuestion?: string;
+    resolved?: boolean;
+  }>;
+  retrievedChunks?: Array<{
+    documentName: string;
+    documentId: string;
+    chunkIndex: number;
+    content: string;
+    similarity?: number;
+  }>;
 }
 
 export interface UserSettings {
