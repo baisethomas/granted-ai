@@ -16,7 +16,9 @@ import {
   MoreHorizontal,
   Check,
   Clock,
-  Trash2
+  Trash2,
+  Download,
+  AlertTriangle
 } from "lucide-react";
 
 const documentCategories = [
@@ -74,6 +76,63 @@ const getCategoryColor = (category?: string) => {
 const getCategoryLabel = (category?: string) => {
   const cat = documentCategories.find(c => c.id === category);
   return cat?.title || category || 'Other';
+};
+
+const getProcessingBadge = (document: any) => {
+  const status = document.processingStatus || (document.processed ? "complete" : "pending");
+  switch (status) {
+    case "complete":
+      return {
+        color: "bg-green-100 text-green-800",
+        icon: Check,
+        label: "Ready",
+      };
+    case "failed":
+      return {
+        color: "bg-red-100 text-red-800",
+        icon: AlertTriangle,
+        label: "Failed",
+      };
+    case "processing":
+    case "pending":
+    default:
+      return {
+        color: "bg-yellow-100 text-yellow-800",
+        icon: Clock,
+        label: "Processing",
+      };
+  }
+};
+
+const getEmbeddingBadge = (document: any) => {
+  const status = document.embeddingStatus || "pending";
+  switch (status) {
+    case "complete":
+      return {
+        color: "bg-blue-100 text-blue-800",
+        icon: Check,
+        label: "Embeddings Ready",
+      };
+    case "failed":
+      return {
+        color: "bg-red-100 text-red-800",
+        icon: AlertTriangle,
+        label: "Embedding Failed",
+      };
+    case "skipped":
+      return {
+        color: "bg-slate-100 text-slate-700",
+        icon: MoreHorizontal,
+        label: "Embeddings Skipped",
+      };
+    case "pending":
+    default:
+      return {
+        color: "bg-slate-100 text-slate-700",
+        icon: Clock,
+        label: "Embeddings Pending",
+      };
+  }
 };
 
 export default function Upload() {
@@ -162,9 +221,10 @@ export default function Upload() {
     return `${size.toFixed(1)} ${units[unitIndex]}`;
   };
 
-  const formatDate = (date: string) => {
+  const formatDate = (dateInput: string | Date) => {
+    if (!dateInput) return "";
     const now = new Date();
-    const uploadDate = new Date(date);
+    const uploadDate = new Date(dateInput);
     const diffInHours = Math.floor((now.getTime() - uploadDate.getTime()) / (1000 * 60 * 60));
     
     if (diffInHours < 1) return 'Just now';
@@ -267,27 +327,62 @@ export default function Upload() {
                       <p className="text-sm text-slate-600">
                         {document.fileType.split('/')[1].toUpperCase()} • {formatFileSize(document.fileSize)} • Uploaded {formatDate(document.uploadedAt)}
                       </p>
+                      {document.summary && (
+                        <p className="text-sm text-slate-500 mt-1 line-clamp-2">
+                          {document.summary}
+                        </p>
+                      )}
+                      {document.processingError && (
+                        <p className="text-sm text-red-600 mt-1">
+                          {document.processingError}
+                        </p>
+                      )}
+                      {document.processedAt && (
+                        <p className="text-xs text-slate-500 mt-1">
+                          Processed {formatDate(document.processedAt)}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center space-x-4">
                     <Badge className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryColor(document.category)}`}>
                       {getCategoryLabel(document.category)}
                     </Badge>
-                    <Badge className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      document.processed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {document.processed ? (
-                        <>
-                          <Check className="mr-1 h-3 w-3" />
-                          Processed
-                        </>
-                      ) : (
-                        <>
-                          <Clock className="mr-1 h-3 w-3" />
-                          Processing
-                        </>
-                      )}
-                    </Badge>
+                    {(() => {
+                      const status = getProcessingBadge(document);
+                      const Icon = status.icon;
+                      return (
+                        <Badge className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
+                          <Icon className="mr-1 h-3 w-3" />
+                          {status.label}
+                        </Badge>
+                      );
+                    })()}
+                    {document.embeddingStatus && (
+                      (() => {
+                        const badge = getEmbeddingBadge(document);
+                        const Icon = badge.icon;
+                        return (
+                          <Badge className={`hidden md:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
+                            <Icon className="mr-1 h-3 w-3" />
+                            {badge.label}
+                          </Badge>
+                        );
+                      })()
+                    )}
+                    {document.storageUrl && (
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        className="hidden md:flex items-center space-x-1"
+                      >
+                        <a href={document.storageUrl} target="_blank" rel="noopener noreferrer">
+                          <Download className="h-4 w-4 mr-1" />
+                          Download
+                        </a>
+                      </Button>
+                    )}
                     <Button 
                       variant="ghost" 
                       size="sm" 

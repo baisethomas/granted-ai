@@ -12,10 +12,11 @@ import {
   type InsertUserSettings,
   type DocumentExtraction,
   type DocumentProcessingJob,
+  type DocChunk,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db, schema } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -58,6 +59,22 @@ export interface IStorage {
     jobId: string,
     updates: Partial<DocumentProcessingJob>
   ): Promise<DocumentProcessingJob | undefined>;
+  getProcessingJobs(options: {
+    jobType: string;
+    status?: string;
+    limit?: number;
+  }): Promise<DocumentProcessingJob[]>;
+  deleteChunksForDocument(documentId: string): Promise<void>;
+  insertDocChunk(
+    documentId: string,
+    data: {
+      chunkIndex: number;
+      content: string;
+      tokenCount: number;
+      sectionLabel?: string | null;
+      embedding?: number[] | null;
+    }
+  ): Promise<void>;
 
   // Grant Question methods
   getGrantQuestions(projectId: string): Promise<GrantQuestion[]>;
@@ -94,6 +111,7 @@ export class MemStorage implements IStorage {
   private userSettings: Map<string, UserSettings> = new Map();
   private documentExtractions: Map<string, DocumentExtraction> = new Map();
   private documentProcessingJobs: Map<string, DocumentProcessingJob> = new Map();
+  private documentChunks: Map<string, DocChunk[]> = new Map();
 
   async getUser(id: string): Promise<User | undefined> {
     return this.users.get(id);
@@ -286,6 +304,50 @@ export class MemStorage implements IStorage {
     };
     this.documentProcessingJobs.set(jobId, updated);
     return updated;
+  }
+
+  async getProcessingJobs(options: {
+    jobType: string;
+    status?: string;
+    limit?: number;
+  }): Promise<DocumentProcessingJob[]> {
+    const { jobType, status, limit } = options;
+    const jobs = Array.from(this.documentProcessingJobs.values()).filter((job) => {
+      if (job.jobType !== jobType) return false;
+      if (status && job.status !== status) return false;
+      return true;
+    });
+    return typeof limit === "number" ? jobs.slice(0, limit) : jobs;
+  }
+
+  async deleteChunksForDocument(documentId: string): Promise<void> {
+    this.documentChunks.delete(documentId);
+  }
+
+  async insertDocChunk(
+    documentId: string,
+    data: {
+      chunkIndex: number;
+      content: string;
+      tokenCount: number;
+      sectionLabel?: string | null;
+      embedding?: number[] | null;
+    }
+  ): Promise<void> {
+    const chunks = this.documentChunks.get(documentId) || [];
+    const chunk: DocChunk = {
+      id: randomUUID(),
+      documentId,
+      chunkIndex: data.chunkIndex,
+      content: data.content,
+      tokenCount: data.tokenCount,
+      sectionLabel: data.sectionLabel ?? null,
+      embedding: data.embedding ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as DocChunk;
+    chunks.push(chunk);
+    this.documentChunks.set(documentId, chunks);
   }
 
   async getGrantQuestions(projectId: string): Promise<GrantQuestion[]> {
@@ -578,6 +640,51 @@ export class DbStorage implements IStorage {
       .where(eq(schema.documentProcessingJobs.id, jobId))
       .returning();
     return rows?.[0];
+  }
+
+  async getProcessingJobs(options: {
+    jobType: string;
+    status?: string;
+    limit?: number;
+  }): Promise<DocumentProcessingJob[]> {
+    if (!db) return [];
+    const { jobType, status, limit = 10 } = options;
+    let whereClause = eq(schema.documentProcessingJobs.jobType, jobType);
+    if (status) {
+      whereClause = and(whereClause, eq(schema.documentProcessingJobs.status, status));
+    }
+    const rows = await db
+      .select()
+      .from(schema.documentProcessingJobs)
+      .where(whereClause)
+      .limit(limit)
+      .orderBy(asc(schema.documentProcessingJobs.createdAt));
+    return rows || [];
+  }
+
+  async deleteChunksForDocument(documentId: string): Promise<void> {
+    await db?.delete(schema.docChunks).where(eq(schema.docChunks.documentId, documentId));
+  }
+
+  async insertDocChunk(
+    documentId: string,
+    data: {
+      chunkIndex: number;
+      content: string;
+      tokenCount: number;
+      sectionLabel?: string | null;
+      embedding?: number[] | null;
+    }
+  ): Promise<void> {
+    await db?.insert(schema.docChunks).values({
+      id: randomUUID(),
+      documentId,
+      chunkIndex: data.chunkIndex,
+      content: data.content,
+      tokenCount: data.tokenCount,
+      sectionLabel: data.sectionLabel ?? null,
+      embedding: data.embedding ?? null,
+    } as any);
   }
 
   async getGrantQuestions(projectId: string): Promise<GrantQuestion[]> {

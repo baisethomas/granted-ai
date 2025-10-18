@@ -19,6 +19,12 @@ SUPABASE_TEST_ACCESS_TOKEN=<your-jwt> npm run test:auth
 
 The script verifies that anonymous requests are rejected while a valid Supabase JWT can reach protected endpoints.
 
+To process pending document ingestion jobs (chunking + embeddings) run:
+
+```bash
+npm run doc:process
+```
+
 ---
 
 This project was originally created with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app); the default Next.js instructions follow.

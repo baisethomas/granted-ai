@@ -152,4 +152,6 @@ export type Project = typeof projects.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type DocumentExtraction = typeof documentExtractions.$inferSelect;
 export type DocumentProcessingJob = typeof documentProcessingJobs.$inferSelect;
+export type DocChunk = typeof docChunks.$inferSelect;
+export type InsertDocChunk = typeof docChunks.$inferInsert;
 export type Question = typeof questions.$inferSelect;

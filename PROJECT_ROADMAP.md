@@ -13,13 +13,12 @@ This document tracks execution across the phased plan to align the Express + Vit
 | Phase 5 – Exports & Billing | DOCX/PDF grounding, usage tracking + plan enforcement, billing APIs | Not Started | |
 | Phase 6 – QA & Launch | End-to-end tests, perf + security passes, docs & runbooks | Not Started | |
 
-## Current Focus: Phase 1 Tasks
+## Current Focus: Phase 2 Tasks (In Progress)
 
-- [x] Enforce Supabase-authenticated requests across protected Express routes.
-- [x] Ensure SPA adds Supabase JWT to all API calls (queries, mutations, uploads).
-- [x] Provide `/api/auth/me` response sourced from Supabase tokens for client session checks.
-- [x] Validate required env vars (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) at startup and document fallback behaviour.
-- [x] Confirm Drizzle Postgres path is usable in non-local deployments (env validation, fallback logging).
-- [x] Add basic auth/persistence smoke tests (TBD script or integration harness).
+- [x] Stream uploads into Supabase Storage and persist document lifecycle metadata.
+- [x] Archive raw extraction text and log document processing jobs.
+- [x] Implement background worker to chunk text, generate embeddings, and update job/document status.
+- [ ] Surface processing status/telemetry in the Upload UI (badges, errors, signed URLs).
+- [ ] Enable automated/scheduled worker execution in deployment environments.
 
 _Update this checklist as subtasks complete to keep the team in sync._
