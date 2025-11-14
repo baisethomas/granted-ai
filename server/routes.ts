@@ -10,6 +10,8 @@ import path from "path";
 import fs from "fs";
 import { insertProjectSchema, insertGrantQuestionSchema, insertUserSettingsSchema, type Document } from "@shared/schema";
 import { requireSupabaseUser, supabaseAdminClient, type AuthenticatedRequest } from "./middleware/supabaseAuth.js";
+import { logger } from "./utils/logger.js";
+import { uploadLimiter } from "./middleware/rateLimit.js";
 
 // Helper function to get authenticated user ID
 function getUserId(req: AuthenticatedRequest): string {
@@ -31,6 +33,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     fs.mkdirSync('uploads');
   }
 
+  // Health check endpoint (no authentication required)
+  app.get("/api/health", async (req, res) => {
+    try {
+      const checks: Record<string, string> = {
+        status: "ok",
+        timestamp: new Date().toISOString(),
+      };
+
+      // Check database connection
+      const hasDatabase = typeof process.env.DATABASE_URL === "string" && process.env.DATABASE_URL.length > 0;
+      checks.database = hasDatabase ? "configured" : "not configured";
+
+      // Check Supabase configuration
+      const supabaseUrl = process.env.SUPABASE_URL || 
+                         process.env.SUPABASE_PROJECT_URL || 
+                         process.env.VITE_SUPABASE_URL || 
+                         process.env.NEXT_PUBLIC_SUPABASE_URL;
+      checks.supabase = supabaseUrl ? "configured" : "not configured";
+
+      // Check storage bucket
+      const bucket = process.env.DOCUMENTS_BUCKET || "documents";
+      checks.storage = `bucket: ${bucket}`;
+
+      res.json(checks);
+    } catch (error) {
+      res.status(503).json({
+        status: "degraded",
+        error: error instanceof Error ? error.message : "Unknown error",
+        timestamp: new Date().toISOString(),
+      });
+    }
+  });
+
   // Projects routes
   app.get("/api/projects", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
@@ -38,7 +73,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const projects = await storage.getProjects(userId);
       res.json(projects);
     } catch (error) {
-      console.error("Failed to fetch projects:", error);
+      logger.error("Failed to fetch projects", { error, userId, requestId: req.id });
       res.status(500).json({ error: "Failed to fetch projects" });
     }
   });
@@ -46,7 +81,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/projects", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = getUserId(req);
-      console.log("Received project data:", JSON.stringify(req.body, null, 2));
+      logger.debug("Received project data", { body: req.body, userId, requestId: req.id });
       
       // Convert deadline string to Date object if it's a string
       if (req.body.deadline && typeof req.body.deadline === 'string') {
@@ -54,14 +89,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const validatedData = insertProjectSchema.parse(req.body);
-      console.log("Validated data:", JSON.stringify(validatedData, null, 2));
+      logger.debug("Validated project data", { validatedData, userId, requestId: req.id });
       const project = await storage.createProject(userId, validatedData);
       res.json(project);
     } catch (error) {
-      console.error("Project creation error:", error);
-      if (error instanceof Error) {
-        console.error("Error message:", error.message);
-      }
+      const userId = getUserId(req);
+      logger.error("Project creation error", { 
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+        requestId: req.id 
+      });
       res.status(400).json({ error: "Invalid project data" });
     }
   });
@@ -105,10 +142,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updatedAt: new Date() 
       });
       
-      console.log(`Project ${req.params.id} finalized by user ${userId}`);
+      logger.info("Project finalized", { projectId: req.params.id, userId, requestId: req.id });
       res.json(finalizedProject);
     } catch (error) {
-      console.error("Failed to finalize project:", error);
+      logger.error("Failed to finalize project", { 
+        error, 
+        projectId: req.params.id, 
+        userId, 
+        requestId: req.id 
+      });
       res.status(500).json({ error: "Failed to finalize project" });
     }
   });
@@ -141,7 +183,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/documents/upload", requireSupabaseUser, upload.single('file'), async (req: AuthenticatedRequest, res) => {
+  app.post("/api/documents/upload", requireSupabaseUser, uploadLimiter, upload.single('file'), async (req: AuthenticatedRequest, res) => {
     let documentRecord: Document | undefined;
     const tempFiles: string[] = [];
     try {
@@ -175,7 +217,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
       if (uploadError) {
-        console.error("Supabase storage upload error:", uploadError);
+        logger.error("Supabase storage upload error", { 
+          error: uploadError, 
+          userId, 
+          filename: originalname,
+          requestId: req.id 
+        });
         return res.status(500).json({ error: "Failed to store file" });
       }
 
@@ -224,7 +271,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         processed: true,
       });
     } catch (error) {
-      console.error("Upload error:", error);
+      logger.error("Upload error", { 
+        error, 
+        userId, 
+        filename: req.file?.originalname,
+        documentId: documentRecord?.id,
+        requestId: req.id 
+      });
       if (documentRecord) {
         await storage.updateDocument(documentRecord.id, {
           processingStatus: "failed",
@@ -243,7 +296,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           fs.existsSync(file) && fs.unlinkSync(file);
         } catch (cleanupError) {
-          console.warn("Failed to clean temp upload:", cleanupError);
+          logger.warn("Failed to clean temp upload", { error: cleanupError, file, requestId: req.id });
         }
       });
     }
@@ -261,7 +314,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .from(document.storageBucket)
           .remove([document.storagePath]);
         if (removeError) {
-          console.error("Failed to delete document from storage:", removeError);
+          logger.error("Failed to delete document from storage", { 
+            error: removeError, 
+            documentId: req.params.id,
+            requestId: req.id 
+          });
         }
       }
 
@@ -300,7 +357,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         summary,
       });
     } catch (error: any) {
-      console.error("Document worker endpoint failed:", error);
+      logger.error("Document worker endpoint failed", { 
+        error: error.message || error, 
+        requestId: req.id 
+      });
       res.status(500).json({ error: "Worker execution failed", details: error.message });
     }
   });
@@ -347,7 +407,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Update status to generating
-      console.log(`Starting AI generation for question ${questionId}: ${question.question.substring(0, 100)}...`);
+      logger.info("Starting AI generation", { 
+        questionId, 
+        questionPreview: question.question.substring(0, 100),
+        userId,
+        requestId: req.id 
+      });
       await storage.updateGrantQuestion(questionId, { responseStatus: "generating" });
 
       const userId = getUserId(req);
@@ -446,7 +511,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         const duration = Date.now() - startTime;
-        console.log(`AI generation completed in ${duration}ms for question ${questionId}`);
+        logger.info("AI generation completed", { 
+          questionId, 
+          duration, 
+          userId,
+          requestId: req.id 
+        });
 
         // Determine the status based on the response type
         let responseStatus: string;
@@ -464,7 +534,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           responseStatus = "complete";
         }
 
-        console.log(`Setting response status to: ${responseStatus} for question ${questionId}`);
+        logger.debug("Setting response status", { 
+          questionId, 
+          responseStatus, 
+          requestId: req.id 
+        });
 
         // Create response version
         const versions = await storage.getResponseVersions(question.id);
@@ -498,7 +572,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
       } catch (aiError: any) {
-        console.error(`AI generation failed for question ${questionId}:`, aiError);
+        logger.error("AI generation failed", { 
+          questionId, 
+          error: aiError.message || aiError,
+          userId,
+          requestId: req.id 
+        });
         
         // Determine failure type and set appropriate status
         let failureStatus: string;
@@ -518,7 +597,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           errorMessage = "AI generation failed due to service error";
         }
 
-        console.log(`Setting failure status to: ${failureStatus} for question ${questionId}`);
+        logger.debug("Setting failure status", { 
+          questionId, 
+          failureStatus, 
+          requestId: req.id 
+        });
         
         // Update status to reflect the specific failure type
         await storage.updateGrantQuestion(questionId, { 
@@ -530,7 +613,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         throw new Error(`AI generation failed: ${errorMessage}`);
       }
     } catch (error: any) {
-      console.error(`Generation endpoint error for question ${questionId}:`, error);
+      const userId = getUserId(req);
+      logger.error("Generation endpoint error", { 
+        questionId, 
+        error: error.message || error,
+        userId,
+        requestId: req.id 
+      });
       
       try {
         // Ensure status is updated even if other errors occur
@@ -539,7 +628,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           errorMessage: "Unexpected server error during generation"
         });
       } catch (updateError) {
-        console.error("Failed to update question status after error:", updateError);
+        logger.error("Failed to update question status after error", { 
+          questionId, 
+          error: updateError,
+          requestId: req.id 
+        });
       }
       
       res.status(500).json({ 
@@ -569,7 +662,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.log(`Retrying AI generation for question ${questionId} (previous status: ${question.responseStatus})`);
+      const userId = getUserId(req);
+      logger.info("Retrying AI generation", { 
+        questionId, 
+        previousStatus: question.responseStatus,
+        userId,
+        requestId: req.id 
+      });
 
       // Reset status and error message
       await storage.updateGrantQuestion(questionId, { 
@@ -591,7 +690,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // This approach avoids code duplication while providing clear status updates
 
     } catch (error: any) {
-      console.error(`Retry endpoint error for question ${questionId}:`, error);
+      const userId = getUserId(req);
+      logger.error("Retry endpoint error", { 
+        questionId, 
+        error: error.message || error,
+        userId,
+        requestId: req.id 
+      });
       res.status(500).json({ 
         error: "Failed to initiate retry",
         details: error.message
@@ -649,7 +754,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
     } catch (error) {
-      console.error("Response update error:", error);
+      const userId = getUserId(req);
+      logger.error("Response update error", { 
+        questionId: req.params.id, 
+        error,
+        userId,
+        requestId: req.id 
+      });
       res.status(500).json({ error: "Failed to update response" });
     }
   });
@@ -747,7 +858,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ questions });
     } catch (error) {
-      console.error("Question extraction error:", error);
+      logger.error("Question extraction error", { 
+        error, 
+        filename: req.file?.originalname,
+        requestId: req.id 
+      });
       res.status(500).json({ error: "Failed to extract questions" });
     }
   });

@@ -7,11 +7,21 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth } from "./auth";
 import { validateEnvironment } from "./config";
+import { requestId } from "./middleware/requestId";
+import { errorHandler } from "./middleware/errorHandler";
+import { apiLimiter } from "./middleware/rateLimit";
+import { logger } from "./utils/logger";
 
 const app = express();
+
+// Request ID middleware (must be first)
+app.use(requestId);
+
+// Body parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -19,18 +29,27 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      const logData = {
+        method: req.method,
+        path,
+        statusCode: res.statusCode,
+        duration,
+        requestId: req.id,
+      };
 
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
+      if (res.statusCode >= 400) {
+        logger.warn('API Request', logData);
+      } else {
+        logger.info('API Request', logData);
       }
-
-      log(logLine);
     }
   });
 
   next();
 });
+
+// Rate limiting (apply to all API routes except health check)
+app.use("/api", apiLimiter);
 
 (async () => {
   validateEnvironment();
@@ -40,13 +59,8 @@ app.use((req, res, next) => {
 
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
-  });
+  // Error handler middleware (must be last)
+  app.use(errorHandler);
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
