@@ -7,6 +7,8 @@ import MemoryStoreFactory from "memorystore";
 import crypto from "crypto";
 import { storage } from "./storage";
 import { supabaseAdminClient } from "./middleware/supabaseAuth.js";
+import { authLimiter } from "./middleware/rateLimit.js";
+import { logger } from "./utils/logger.js";
 
 const MemoryStore = MemoryStoreFactory(session);
 
@@ -137,7 +139,7 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  app.post("/api/auth/signup", async (req: Request, res: Response) => {
+  app.post("/api/auth/signup", authLimiter, async (req: Request, res: Response) => {
     try {
       const { username, password, organizationName } = req.body || {};
       if (!username || !password) {
@@ -163,7 +165,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/auth/login", (req: Request, res: Response, next: NextFunction) => {
+  app.post("/api/auth/login", authLimiter, (req: Request, res: Response, next: NextFunction) => {
     passport.authenticate("local", (err, user, info) => {
       if (err) return next(err);
       if (!user) return res.status(401).json({ error: info?.message || "unauthorized" });

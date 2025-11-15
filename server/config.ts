@@ -35,6 +35,27 @@ export function validateEnvironment(): void {
   const supabaseServiceRoleKey = resolveEnv(...supabaseServiceKeyCandidates);
   const hasDatabase = typeof process.env.DATABASE_URL === "string" && process.env.DATABASE_URL.length > 0;
 
+  // In production, require critical environment variables
+  if (process.env.NODE_ENV === 'production') {
+    const required = [];
+    
+    if (!supabaseUrl) {
+      required.push('SUPABASE_URL (or SUPABASE_PROJECT_URL, VITE_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_URL)');
+    }
+    
+    if (!supabaseServiceRoleKey) {
+      required.push('SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY, SUPABASE_SECRET_KEY)');
+    }
+    
+    if (required.length > 0) {
+      throw new Error(
+        `Missing required environment variables in production:\n${required.map(r => `  - ${r}`).join('\n')}\n\n` +
+        'Please check your .env file or environment configuration.'
+      );
+    }
+  }
+
+  // Warnings for development
   if (!supabaseUrl) {
     console.warn(
       "[env] Supabase URL is not configured. Set SUPABASE_URL (or equivalent) for authenticated API access."

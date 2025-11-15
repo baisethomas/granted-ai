@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { createClient, type User } from "@supabase/supabase-js";
+import { logger } from "../utils/logger.js";
 
 const supabaseUrl =
   process.env.SUPABASE_URL ||
@@ -45,7 +46,11 @@ export async function requireSupabaseUser(
   }
 
   if (!supabaseAdminClient) {
-    console.error("Supabase service role key or URL missing. Access denied.");
+    logger.error("Supabase service role key or URL missing. Access denied.", { 
+      path: req.path,
+      method: req.method,
+      requestId: req.id 
+    });
     return res.status(500).json({ error: "Server authentication is not configured" });
   }
 
@@ -65,7 +70,12 @@ export async function requireSupabaseUser(
     req.supabaseUser = data.user;
     return next();
   } catch (error) {
-    console.error("Supabase auth verification failed:", error);
+    logger.error("Supabase auth verification failed", { 
+      error,
+      path: req.path,
+      method: req.method,
+      requestId: req.id 
+    });
     return res.status(401).json({ error: "Unauthorized" });
   }
 }
