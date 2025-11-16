@@ -99,25 +99,27 @@ export default function Drafts() {
     onSuccess: async (data, variables) => {
       setGeneratingQuestionId(null);
       
-      // Normalize the response data - handle both snake_case and camelCase
+      // Normalize the response data - handle both snake_case and camelCase, and different response structures
+      // The API might return 'content' instead of 'response', and 'status' instead of 'responseStatus'
       const normalizedData = {
-        response: data.response || (data as any).response_text || data.response,
-        responseStatus: data.responseStatus || (data as any).response_status || data.responseStatus,
+        response: data.response || data.content || (data as any).response_text || '',
+        responseStatus: data.responseStatus || (data as any).response_status || 
+                       (data.status === 'completed' ? 'complete' : data.status) || 'complete',
         errorMessage: data.errorMessage || (data as any).error_message || data.errorMessage,
         citations: data.citations || [],
         assumptions: data.assumptions || [],
       };
       
-      // Debug: Log the response data
-      console.log("Response generation success:", {
-        questionId: variables.questionId,
-        responseStatus: normalizedData.responseStatus,
-        hasResponse: !!normalizedData.response,
-        responseLength: normalizedData.response?.length,
-        dataKeys: Object.keys(data),
-        normalizedData,
-        rawData: data
-      });
+      // Debug: Log the response data with full details
+      console.log("=== RESPONSE GENERATION SUCCESS ===");
+      console.log("Question ID:", variables.questionId);
+      console.log("Raw API Response:", JSON.stringify(data, null, 2));
+      console.log("Data Keys:", Object.keys(data));
+      console.log("Normalized Response:", normalizedData.response?.substring(0, 200) || "NO RESPONSE");
+      console.log("Normalized Status:", normalizedData.responseStatus);
+      console.log("Has Response:", !!normalizedData.response);
+      console.log("Response Length:", normalizedData.response?.length || 0);
+      console.log("Full Normalized Data:", normalizedData);
       
       // Optimistically update the cache with the returned response data
       queryClient.setQueryData(
@@ -139,12 +141,13 @@ export default function Drafts() {
           );
           
           const updatedQuestion = updated.find((q: any) => q.id === variables.questionId);
-          console.log("Updated cache:", {
-            questionId: variables.questionId,
-            updatedQuestion,
-            hasResponse: !!updatedQuestion?.response,
-            responseStatus: updatedQuestion?.responseStatus || updatedQuestion?.response_status
-          });
+          console.log("=== CACHE UPDATE ===");
+          console.log("Question ID:", variables.questionId);
+          console.log("Updated Question:", JSON.stringify(updatedQuestion, null, 2));
+          console.log("Has Response:", !!updatedQuestion?.response);
+          console.log("Response Status:", updatedQuestion?.responseStatus || updatedQuestion?.response_status);
+          console.log("Response Preview:", updatedQuestion?.response?.substring(0, 200) || "NO RESPONSE");
+          console.log("All Question Fields:", Object.keys(updatedQuestion || {}));
           
           return updated;
         }
