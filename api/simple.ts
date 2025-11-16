@@ -3,15 +3,58 @@ config();
 
 import express from "express";
 import multer from "multer";
-import { storage } from "../server/storage.js";
-import { aiService } from "../server/services/ai.js";
-import { retrieveRelevantChunks } from "../server/services/retrieval.js";
-import { requireSupabaseUser, type AuthenticatedRequest } from "../server/middleware/supabaseAuth.js";
 
 const app = express();
 
+// Lazy-load server modules to avoid initialization errors in serverless environment
+let storage: any;
+let aiService: any;
+let retrieveRelevantChunks: any;
+let requireSupabaseUser: any;
+let AuthenticatedRequest: any;
+
+async function loadServerModules() {
+  if (!storage) {
+    try {
+      const storageModule = await import("../server/storage.js");
+      storage = storageModule.storage;
+    } catch (error) {
+      console.error("Failed to load storage module:", error);
+      throw error;
+    }
+  }
+  if (!aiService) {
+    try {
+      const aiModule = await import("../server/services/ai.js");
+      aiService = aiModule.aiService;
+    } catch (error) {
+      console.error("Failed to load AI service module:", error);
+      throw error;
+    }
+  }
+  if (!retrieveRelevantChunks) {
+    try {
+      const retrievalModule = await import("../server/services/retrieval.js");
+      retrieveRelevantChunks = retrievalModule.retrieveRelevantChunks;
+    } catch (error) {
+      console.error("Failed to load retrieval module:", error);
+      throw error;
+    }
+  }
+  if (!requireSupabaseUser) {
+    try {
+      const authModule = await import("../server/middleware/supabaseAuth.js");
+      requireSupabaseUser = authModule.requireSupabaseUser;
+      AuthenticatedRequest = authModule.AuthenticatedRequest;
+    } catch (error) {
+      console.error("Failed to load auth module:", error);
+      throw error;
+    }
+  }
+}
+
 // Helper function to get authenticated user ID
-function getUserId(req: AuthenticatedRequest): string {
+function getUserId(req: any): string {
   if (!req.supabaseUser || !req.supabaseUser.id) {
     throw new Error("User not authenticated");
   }
@@ -170,7 +213,27 @@ app.post("/api/projects/:projectId/questions", (req, res) => {
 });
 
 // Generate response endpoint - REAL AI IMPLEMENTATION
-app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+app.post("/api/questions/:id/generate", async (req, res, next) => {
+  try {
+    await loadServerModules();
+    // Wrap the middleware call properly
+    return requireSupabaseUser(req as any, res, (err?: any) => {
+      if (err) {
+        return next(err);
+      }
+      // Authentication succeeded, handle the request
+      handleGenerateRequest(req as any, res).catch(next);
+    });
+  } catch (error: any) {
+    console.error("Failed to load server modules:", error);
+    res.status(500).json({
+      error: "Failed to initialize server modules",
+      details: error.message
+    });
+  }
+});
+
+async function handleGenerateRequest(req: any, res: express.Response) {
   let questionId = req.params.id;
   
   try {
@@ -407,6 +470,15 @@ app.get("/api/status", (req, res) => {
     api: "simple-version",
     documents: documents.length,
     timestamp: new Date().toISOString()
+  });
+});
+
+// Global error handler
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("Express error handler:", err);
+  res.status(err.status || 500).json({
+    error: err.message || "Internal Server Error",
+    ...(process.env.NODE_ENV === "development" && { stack: err.stack })
   });
 });
 
