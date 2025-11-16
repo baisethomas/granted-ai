@@ -78,6 +78,24 @@ export default function Drafts() {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     refetchOnReconnect: false,
+    // Mark as fresh after cache updates to prevent refetch
+    staleTime: Infinity,
+    // Use structuralSharing to preserve optimistic updates
+    structuralSharing: (oldData, newData) => {
+      // If we have optimistic updates in oldData, preserve them when newData comes in
+      if (oldData && newData && Array.isArray(oldData) && Array.isArray(newData)) {
+        const merged = newData.map((newQ: any) => {
+          const oldQ = oldData.find((q: any) => q.id === newQ.id);
+          // If old question has a response but new one doesn't, keep the old one
+          if (oldQ?.response && !newQ.response) {
+            return oldQ;
+          }
+          return newQ;
+        });
+        return merged;
+      }
+      return newData;
+    },
   });
 
   const { data: userSettings } = useQuery({
