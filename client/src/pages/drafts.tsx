@@ -31,7 +31,8 @@ import {
   CheckCircle2,
   ArrowRight,
   Target,
-  BookOpen
+  BookOpen,
+  Wand2
 } from "lucide-react";
 import CitationTooltip from "@/components/CitationTooltip";
 import EvidenceMap, { EvidenceMapData } from "@/components/EvidenceMap";
@@ -53,6 +54,7 @@ export default function Drafts() {
   const [finalizingProject, setFinalizingProject] = useState<boolean>(false);
   const [showEvidenceMap, setShowEvidenceMap] = useState<boolean>(false);
   const [evidenceMapData, setEvidenceMapData] = useState<EvidenceMapData[]>([]);
+  const [generatingQuestionId, setGeneratingQuestionId] = useState<string | null>(null);
 
   const { data: projects = [] } = useQuery({
     queryKey: ["/api/projects"],
@@ -81,11 +83,41 @@ export default function Drafts() {
       tone: string; 
       emphasisAreas: string[] 
     }) => api.generateResponse(questionId, { tone, emphasisAreas }),
-    onSuccess: () => {
+    onMutate: ({ questionId }) => {
+      // Set the question ID being generated
+      setGeneratingQuestionId(questionId);
+    },
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", selectedProject, "questions"] });
+      setGeneratingQuestionId(null);
+      
+      // Check if there are warnings or issues
+      if (data.responseStatus === "needs_context" || data.responseStatus === "failed" || data.responseStatus === "timeout") {
+        toast({
+          title: "Response generated with limitations",
+          description: data.errorMessage || "The response was generated but may need additional context or refinement.",
+          variant: "default",
+        });
+      } else if (data.warning) {
+        toast({
+          title: "Response generated",
+          description: data.warning,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Response generated",
+          description: "AI has generated a new response for your question.",
+        });
+      }
+    },
+    onError: (error: any, variables) => {
+      console.error("Response generation error:", error);
+      setGeneratingQuestionId(null);
       toast({
-        title: "Response generated",
-        description: "AI has generated a new response for your question.",
+        title: "Generation failed",
+        description: error.message || "Failed to generate response. Please try again.",
+        variant: "destructive",
       });
     },
   });
@@ -129,10 +161,14 @@ export default function Drafts() {
   });
 
   const handleRegenerateResponse = (questionId: string) => {
+    // Get user settings for tone and emphasis areas, or use defaults
+    const tone = userSettings?.defaultTone || "professional";
+    const emphasisAreas = userSettings?.emphasisAreas || ["Impact & Outcomes", "Innovation"];
+    
     generateResponseMutation.mutate({
       questionId,
-      tone: "professional",
-      emphasisAreas: ["Impact & Outcomes", "Innovation"]
+      tone,
+      emphasisAreas
     });
   };
 
@@ -769,10 +805,19 @@ export default function Drafts() {
                                     variant="ghost" 
                                     size="sm"
                                     onClick={() => handleRegenerateResponse(question.id)}
-                                    disabled={generateResponseMutation.isPending}
+                                    disabled={generateResponseMutation.isPending || generatingQuestionId === question.id}
                                   >
-                                    <RotateCcw className="mr-1 h-4 w-4" />
-                                    Regenerate
+                                    {generatingQuestionId === question.id ? (
+                                      <>
+                                        <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                                        Generating...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <RotateCcw className="mr-1 h-4 w-4" />
+                                        Regenerate
+                                      </>
+                                    )}
                                   </Button>
                                 </>
                               )}
@@ -886,15 +931,35 @@ export default function Drafts() {
                       ) : (
                         <div className="flex items-center justify-center py-12">
                           <div className="text-center">
-                            <Clock className="w-8 h-8 text-slate-400 mx-auto mb-4" />
-                            <p className="text-slate-600">Response not generated yet</p>
-                            <Button 
-                              className="mt-4"
-                              onClick={() => handleRegenerateResponse(question.id)}
-                              disabled={generateResponseMutation.isPending}
-                            >
-                              Generate Response
-                            </Button>
+                            {generatingQuestionId === question.id ? (
+                              <>
+                                <div className="animate-spin w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                                <p className="text-slate-600">AI is generating your response...</p>
+                                <p className="text-sm text-slate-500 mt-2">This may take up to 60 seconds</p>
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="w-8 h-8 text-slate-400 mx-auto mb-4" />
+                                <p className="text-slate-600">Response not generated yet</p>
+                                <Button 
+                                  className="mt-4"
+                                  onClick={() => handleRegenerateResponse(question.id)}
+                                  disabled={generateResponseMutation.isPending}
+                                >
+                                  {generateResponseMutation.isPending ? (
+                                    <>
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      Generating...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Wand2 className="mr-2 h-4 w-4" />
+                                      Generate Response
+                                    </>
+                                  )}
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </div>
                       )}

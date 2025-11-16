@@ -185,8 +185,52 @@ export const api = {
   },
 
   async generateResponse(questionId: string, options: { tone?: string; emphasisAreas?: string[] }): Promise<GrantQuestion> {
-    const res = await apiRequest("POST", `/api/questions/${questionId}/generate`, options);
-    return res.json();
+    const { supabase } = await import("./supabase");
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`;
+    }
+
+    const url = API_BASE_URL ? `${API_BASE_URL}/api/questions/${questionId}/generate` : `/api/questions/${questionId}/generate`;
+    
+    // Use longer timeout for AI generation (90 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
+    
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(options),
+        credentials: "include",
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      // Handle 206 Partial Content as success (with warnings)
+      if (res.status === 206) {
+        const data = await res.json();
+        return data;
+      }
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(errorData.error || errorData.message || `Failed to generate response: ${res.statusText}`);
+      }
+      
+      return res.json();
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        throw new Error('Request timeout: AI generation took too long. Please try again.');
+      }
+      throw error;
+    }
   },
 
   async updateResponse(questionId: string, content: string, preserveVersion = false): Promise<{ id: string; content: string; lastModified: Date; status: string; wordCount: number }> {
