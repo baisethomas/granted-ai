@@ -3,82 +3,71 @@ config();
 
 import express from "express";
 import multer from "multer";
+import { createClient } from "@supabase/supabase-js";
+import OpenAI from "openai";
 
 const app = express();
 
-// Try to import server modules at module level - wrap in try-catch
-let storage: any;
-let aiService: any;
-let retrieveRelevantChunks: any;
-let requireSupabaseUser: any;
-let AuthenticatedRequest: any;
-let modulesAvailable = false;
+// Initialize Supabase clients (inline to avoid import issues)
+const supabaseUrl =
+  process.env.SUPABASE_URL ||
+  process.env.SUPABASE_PROJECT_URL ||
+  process.env.VITE_SUPABASE_URL ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-// Attempt to load modules at initialization time
-try {
-  // Use dynamic import() but at module level - Vercel should handle this
-  const initModules = async () => {
-    try {
-      console.log("[api/simple] Attempting to load server modules...");
-      
-      const storageModule = await import("../server/storage.js");
-      storage = storageModule.storage;
-      console.log("[api/simple] Storage module loaded");
+const supabaseServiceRoleKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SERVICE_KEY ||
+  process.env.SUPABASE_SECRET_KEY;
 
-      const aiModule = await import("../server/services/ai.js");
-      aiService = aiModule.aiService;
-      console.log("[api/simple] AI service module loaded");
+const supabaseAdminClient =
+  supabaseUrl && supabaseServiceRoleKey
+    ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      })
+    : null;
 
-      const retrievalModule = await import("../server/services/retrieval.js");
-      retrieveRelevantChunks = retrievalModule.retrieveRelevantChunks;
-      console.log("[api/simple] Retrieval module loaded");
+// Initialize OpenAI client
+const openaiApiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+const openai = openaiApiKey && openaiApiKey.startsWith("sk-") 
+  ? new OpenAI({ apiKey: openaiApiKey })
+  : null;
 
-      const authModule = await import("../server/middleware/supabaseAuth.js");
-      requireSupabaseUser = authModule.requireSupabaseUser;
-      AuthenticatedRequest = authModule.AuthenticatedRequest;
-      console.log("[api/simple] Auth module loaded");
+// Inline auth middleware
+function requireSupabaseUser(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if (req.method === "OPTIONS") {
+    return next();
+  }
 
-      modulesAvailable = true;
-      console.log("[api/simple] All modules loaded successfully");
-    } catch (error: any) {
-      console.error("[api/simple] Failed to load modules:", error?.message || error);
-      console.error("[api/simple] Error stack:", error?.stack);
-      console.error("[api/simple] Error details:", {
-        name: error?.name,
-        code: error?.code,
-        message: error?.message
-      });
-      modulesAvailable = false;
-    }
-  };
-  
-  // Start loading but don't block - modules will be available when needed
-  initModules().catch((err) => {
-    console.error("[api/simple] Module initialization failed:", err);
-  });
-} catch (error: any) {
-  console.error("[api/simple] Failed to initialize module loader:", error?.message || error);
-  modulesAvailable = false;
+  if (!supabaseAdminClient) {
+    console.error("Supabase service role key or URL missing. Access denied.");
+    return res.status(500).json({ error: "Server authentication is not configured" });
+  }
+
+  const header = req.headers.authorization;
+  const token = header && header.startsWith("Bearer ") ? header.slice(7).trim() : null;
+
+  if (!token) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  supabaseAdminClient.auth.getUser(token)
+    .then(({ data, error }) => {
+      if (error || !data.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      (req as any).supabaseUser = data.user;
+      return next();
+    })
+    .catch((error) => {
+      console.error("Supabase auth verification failed:", error);
+      return res.status(401).json({ error: "Unauthorized" });
+    });
 }
 
-async function ensureModulesLoaded() {
-  if (modulesAvailable && storage && aiService && retrieveRelevantChunks && requireSupabaseUser) {
-    return;
-  }
-  
-  // Wait a bit for async initialization
-  let attempts = 0;
-  while (attempts < 10 && !modulesAvailable) {
-    await new Promise(resolve => setTimeout(resolve, 100));
-    attempts++;
-  }
-  
-  if (!modulesAvailable || !storage || !aiService || !retrieveRelevantChunks || !requireSupabaseUser) {
-    throw new Error("Server modules not available. Check Vercel logs for initialization errors.");
-  }
-}
-
-// Helper function to get authenticated user ID
 function getUserId(req: any): string {
   if (!req.supabaseUser || !req.supabaseUser.id) {
     throw new Error("User not authenticated");
@@ -237,241 +226,205 @@ app.post("/api/projects/:projectId/questions", (req, res) => {
   res.json(question);
 });
 
-// Generate response endpoint - REAL AI IMPLEMENTATION
-app.post("/api/questions/:id/generate", async (req, res, next) => {
-  try {
-    await ensureModulesLoaded();
-    
-    if (!requireSupabaseUser) {
-      throw new Error("Authentication middleware not available");
-    }
-    
-    // Wrap the middleware call properly
-    return requireSupabaseUser(req as any, res, (err?: any) => {
-      if (err) {
-        return next(err);
-      }
-      // Authentication succeeded, handle the request
-      handleGenerateRequest(req as any, res).catch(next);
-    });
-  } catch (error: any) {
-    console.error("[api/simple] Failed to load server modules:", error);
-    const errorMessage = error?.message || String(error);
-    const errorStack = error?.stack;
-    console.error("[api/simple] Error details:", {
-      message: errorMessage,
-      stack: errorStack,
-      name: error?.name,
-      code: error?.code,
-      modulesAvailable,
-      hasStorage: !!storage,
-      hasAiService: !!aiService,
-      hasRetrieval: !!retrieveRelevantChunks,
-      hasAuth: !!requireSupabaseUser
-    });
-    res.status(500).json({
-      error: "Failed to initialize server modules",
-      details: errorMessage,
-      ...(process.env.NODE_ENV === "development" && { stack: errorStack })
-    });
-  }
-});
+// Generate response endpoint - INLINE IMPLEMENTATION (no server module imports)
+app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, res) => {
+  const questionId = req.params.id;
+  const userId = getUserId(req);
+  const { tone = "professional", emphasisAreas = [] } = req.body;
 
-async function handleGenerateRequest(req: any, res: express.Response) {
-  let questionId = req.params.id;
-  
+  if (!supabaseAdminClient) {
+    return res.status(500).json({ error: "Supabase not configured" });
+  }
+
+  if (!openai) {
+    return res.status(500).json({ error: "OpenAI API key not configured" });
+  }
+
   try {
-    const question = await storage.getGrantQuestion(questionId);
-    if (!question) {
+    // Get question from Supabase
+    const { data: question, error: questionError } = await supabaseAdminClient
+      .from('grant_questions')
+      .select('*')
+      .eq('id', questionId)
+      .single();
+
+    if (questionError || !question) {
       return res.status(404).json({ error: "Question not found" });
     }
 
+    console.log(`[api/simple] Starting AI generation for question ${questionId}`);
+
     // Update status to generating
-    console.log(`Starting AI generation for question ${questionId}: ${question.question.substring(0, 100)}...`);
-    await storage.updateGrantQuestion(questionId, { responseStatus: "generating" });
+    await supabaseAdminClient
+      .from('grant_questions')
+      .update({ response_status: 'generating' })
+      .eq('id', questionId);
 
-    const userId = getUserId(req);
-    const { tone = "professional", emphasisAreas = [] } = req.body;
+    // Get user documents from Supabase
+    const { data: documents } = await supabaseAdminClient
+      .from('documents')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('processed', true);
 
-    // Get user context from documents
-    const documents = await storage.getDocuments(userId);
-    
-    const processedDocs = documents.filter((doc) => doc.processed && doc.summary);
+    const processedDocs = (documents || []).filter((doc: any) => doc.summary);
     const organizationContext = processedDocs
-      .map((doc) => `${doc.originalName}: ${doc.summary}`)
+      .map((doc: any) => `${doc.original_name || doc.filename}: ${doc.summary}`)
       .join('\n');
 
-    const retrievalResult = await retrieveRelevantChunks({
-      userId,
-      query: question.question,
-      limit: 8,
-      semanticLimit: 8,
-      keywordLimit: 4,
+    // Get user info
+    const { data: user } = await supabaseAdminClient
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    // Simple retrieval - get document chunks (simplified, no embedding search for now)
+    const { data: chunks } = await supabaseAdminClient
+      .from('doc_chunks')
+      .select(`
+        *,
+        documents!inner(id, original_name, filename, category)
+      `)
+      .eq('documents.user_id', userId)
+      .limit(8);
+
+    const retrievedChunks = (chunks || []).slice(0, 8).map((chunk: any, idx: number) => ({
+      documentName: chunk.documents?.original_name || chunk.documents?.filename || 'Document',
+      documentId: chunk.documents?.id || '',
+      content: chunk.content || '',
+      chunkIndex: chunk.chunk_index || idx,
+      similarity: 0.8 - (idx * 0.1), // Mock similarity
+    }));
+
+    // Generate AI response
+    const contextLines = retrievedChunks
+      .map((chunk: any, index: number) => {
+        return `[#${index + 1}] ${chunk.documentName}\n${chunk.content}`;
+      })
+      .join('\n\n');
+
+    const instructions = `You are an expert grant writer. Use the provided snippets to answer the question with explicit citations. Return JSON with fields: text (string), citations (array of {documentName, documentId, chunkIndex, quote}), and assumptions (array of strings). Do not fabricate details.`;
+
+    const userPrompt = `Grant Question: ${question.question}\n\nTone: ${tone}\n${
+      question.word_limit ? `Target word count: ${question.word_limit}` : ''
+    }\n${
+      emphasisAreas.length ? `Emphasis areas: ${emphasisAreas.join(', ')}` : ''
+    }\nOrganization info: ${user ? JSON.stringify(user) : 'N/A'}\n${organizationContext ? `\nContext: ${organizationContext}` : ''}\n\nContext Snippets:\n${contextLines}`;
+
+    const startTime = Date.now();
+    const aiResponse = await openai.chat.completions.create({
+      model: process.env.GRANTED_DEFAULT_MODEL || 'gpt-4o-mini',
+      response_format: { type: 'json_object' },
+      temperature: 0.4,
+      max_tokens: question.word_limit ? Math.min(question.word_limit * 3, 1500) : 1500,
+      messages: [
+        { role: 'system', content: instructions },
+        { role: 'user', content: userPrompt },
+      ],
     });
 
-    const user = await storage.getUser(userId);
+    const content = aiResponse.choices[0]?.message?.content?.trim();
+    if (!content) {
+      throw new Error('Empty response from AI model');
+    }
 
-    try {
-      const startTime = Date.now();
-      
-      const grounded = await aiService.generateGroundedResponse({
-        question: question.question,
-        tone,
-        wordLimit: question.wordLimit || undefined,
-        emphasisAreas,
-        organizationInfo: {
-          ...user,
-          contextSummary: organizationContext,
-        },
-        retrievedChunks: retrievalResult.chunks.map((chunk) => ({
-          documentName: chunk.documentName,
-          documentId: chunk.documentId,
-          content: chunk.content,
-          chunkIndex: chunk.chunkIndex,
-          similarity: chunk.similarity,
-        })),
-      });
-
-      const projectId = (question as any).project_id || (question as any).projectId;
-
-      await storage.deleteDraftCitations(question.id);
-      for (const citation of grounded.citations || []) {
-        if (!citation.documentId) continue;
-        await storage.createDraftCitation({
-          draftId: question.id,
-          section: "response",
-          sourceDocumentId: citation.documentId,
-          chunkRefs: [
-            {
-              chunkIndex: citation.chunkIndex ?? 0,
-              quote: citation.quote ?? "",
-            },
-          ],
-        });
-      }
-
-      if (projectId) {
-        await storage.deleteAssumptionLabels(projectId, question.id);
-        for (const assumption of grounded.assumptions || []) {
-          await storage.createAssumptionLabel({
-            projectId,
-            draftId: question.id,
-            text: assumption,
-            category: "general",
-            confidence: 50,
-            suggestedQuestion: assumption,
-            position: { start: 0, end: 0 },
-          });
-        }
-      }
-
-      let responseText = grounded.text?.trim() || '';
-      if (grounded.citations?.length) {
-        responseText = responseText.replace(/\s+$/, '');
-        const citationsBlock = grounded.citations
-          .map((citation, index) => {
-            return `[#${index + 1}] ${citation.documentName} (chunk ${citation.chunkIndex + 1})${
-              citation.quote ? ` – "${citation.quote}"` : ''
-            }`;
-          })
-          .join('\n');
-        responseText += `\n\nCitations:\n${citationsBlock}`;
-      }
-
-      if (grounded.assumptions?.length) {
-        const assumptionsBlock = grounded.assumptions
-          .map((assumption, index) => `${index + 1}. ${assumption}`)
-          .join('\n');
-        responseText += `\n\nAssumptions & Follow-ups:\n${assumptionsBlock}`;
-      }
-      
-      const duration = Date.now() - startTime;
-      console.log(`AI generation completed in ${duration}ms for question ${questionId}`);
-
-      // Determine the status based on the response type
-      let responseStatus: string;
-      let errorMessage: string | null = null;
-      if (!retrievalResult.chunks.length) {
-        responseStatus = "needs_context";
-        errorMessage = "No relevant document context found. Upload more documents or refine the question.";
-      } else if (grounded.text?.includes("Unable to complete a grounded draft")) {
-        responseStatus = "failed";
-        errorMessage = "AI service unavailable; provided excerpts instead.";
-      } else if (grounded.text?.includes("Using available snippets")) {
-        responseStatus = "needs_context";
-        errorMessage = "Limited context available; refine uploads for a stronger draft.";
-      } else {
-        responseStatus = "complete";
-      }
-
-      console.log(`Setting response status to: ${responseStatus} for question ${questionId}`);
-
-      // Create response version
-      const versions = await storage.getResponseVersions(question.id);
-      const nextVersion = versions.length + 1;
-      
-      await storage.createResponseVersion(question.id, responseText, tone, nextVersion);
-
-      // Update question with response and status
-      const updatedQuestion = await storage.updateGrantQuestion(questionId, {
-        response: responseText,
-        responseStatus,
-        ...(errorMessage && { errorMessage })
-      });
-
-      // Return appropriate status code based on result
-      const payload = {
-        ...updatedQuestion,
-        citations: grounded.citations,
-        assumptions: grounded.assumptions,
-        retrievedChunks: retrievalResult.chunks,
+    const parsed = JSON.parse(content);
+    const citations = Array.isArray(parsed.citations) ? parsed.citations : [];
+    const normalizedCitations = citations.map((entry: any, idx: number) => {
+      const matchingChunk = retrievedChunks[idx] || retrievedChunks[0];
+      return {
+        documentName: entry.documentName || matchingChunk.documentName,
+        documentId: entry.documentId || matchingChunk.documentId,
+        chunkIndex: typeof entry.chunkIndex === 'number' ? entry.chunkIndex : matchingChunk.chunkIndex,
+        quote: entry.quote || matchingChunk.content.slice(0, 160),
       };
+    });
 
-      if (responseStatus === "complete") {
-        res.json(payload);
-      } else {
-        res.status(206).json({ // 206 Partial Content - request completed but with limitations
-          ...payload,
-          warning: errorMessage,
-          canRetry: responseStatus === "timeout" || responseStatus === "failed"
-        });
-      }
-    } catch (aiError: any) {
-      console.error(`AI generation failed for question ${questionId}:`, aiError);
-      let failureStatus: string;
-      let errorMessage: string;
-      if (aiError.message?.includes('timeout') || aiError.name === 'AbortError') {
-        failureStatus = "timeout";
-        errorMessage = "Request timed out - the AI service took too long to respond";
-      } else if (aiError.code === 'insufficient_quota' || aiError.code === 'rate_limit_exceeded') {
-        failureStatus = "failed";
-        errorMessage = "AI service rate limit reached - please try again later";
-      } else if (aiError.code === 'invalid_api_key' || aiError.status === 401) {
-        failureStatus = "failed";
-        errorMessage = "AI service authentication error";
-      } else {
-        failureStatus = "failed";
-        errorMessage = "AI generation failed due to service error";
-      }
-      console.log(`Setting failure status to: ${failureStatus} for question ${questionId}`);
-      await storage.updateGrantQuestion(questionId, {
-        responseStatus: failureStatus,
-        errorMessage
+    const responseText = (parsed.text || parsed.answer || '').trim();
+    const assumptions = Array.isArray(parsed.assumptions) ? parsed.assumptions : [];
+
+    // Format response with citations
+    let finalResponse = responseText;
+    if (normalizedCitations.length) {
+      finalResponse = finalResponse.replace(/\s+$/, '');
+      const citationsBlock = normalizedCitations
+        .map((citation: any, index: number) => {
+          return `[#${index + 1}] ${citation.documentName} (chunk ${citation.chunkIndex + 1})${
+            citation.quote ? ` – "${citation.quote}"` : ''
+          }`;
+        })
+        .join('\n');
+      finalResponse += `\n\nCitations:\n${citationsBlock}`;
+    }
+
+    if (assumptions.length) {
+      const assumptionsBlock = assumptions
+        .map((assumption: string, index: number) => `${index + 1}. ${assumption}`)
+        .join('\n');
+      finalResponse += `\n\nAssumptions & Follow-ups:\n${assumptionsBlock}`;
+    }
+
+    const duration = Date.now() - startTime;
+    console.log(`[api/simple] AI generation completed in ${duration}ms`);
+
+    // Determine status
+    let responseStatus = 'complete';
+    let errorMessage: string | null = null;
+    if (!retrievedChunks.length) {
+      responseStatus = 'needs_context';
+      errorMessage = 'No relevant document context found. Upload more documents or refine the question.';
+    } else if (responseText.includes('Unable to complete')) {
+      responseStatus = 'failed';
+      errorMessage = 'AI service unavailable; provided excerpts instead.';
+    }
+
+    // Update question in Supabase
+    const { data: updatedQuestion } = await supabaseAdminClient
+      .from('grant_questions')
+      .update({
+        response: finalResponse,
+        response_status: responseStatus,
+        error_message: errorMessage,
+      })
+      .eq('id', questionId)
+      .select()
+      .single();
+
+    const payload = {
+      ...updatedQuestion,
+      citations: normalizedCitations,
+      assumptions: assumptions,
+      retrievedChunks: retrievedChunks,
+    };
+
+    if (responseStatus === 'complete') {
+      res.json(payload);
+    } else {
+      res.status(206).json({
+        ...payload,
+        warning: errorMessage,
+        canRetry: responseStatus === 'failed'
       });
-      throw new Error(`AI generation failed: ${errorMessage}`);
     }
   } catch (error: any) {
-    console.error(`Generation endpoint error for question ${questionId}:`, error);
+    console.error(`[api/simple] Generation error for question ${questionId}:`, error);
+    
+    // Update question status to failed
     try {
-      await storage.updateGrantQuestion(questionId, {
-        responseStatus: "failed",
-        errorMessage: "Unexpected server error during generation"
-      });
+      await supabaseAdminClient
+        .from('grant_questions')
+        .update({
+          response_status: 'failed',
+          error_message: error.message || 'Unexpected server error during generation'
+        })
+        .eq('id', questionId);
     } catch (updateError) {
-      console.error("Failed to update question status after error:", updateError);
+      console.error('[api/simple] Failed to update question status:', updateError);
     }
+
     res.status(500).json({
-      error: "Failed to generate response",
+      error: 'Failed to generate response',
       details: error.message,
       canRetry: true
     });
