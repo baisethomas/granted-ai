@@ -204,13 +204,11 @@ export default function Drafts() {
         }
       );
       
-      // Don't refetch immediately - the optimistic update should be enough
-      // The refetch was overwriting our optimistic update with stale server data
-      // Instead, invalidate the query so it will refetch on next mount or when needed
-      queryClient.invalidateQueries({ 
-        queryKey: ["/api/projects", selectedProject, "questions"],
-        exact: false 
-      });
+      // Don't refetch or invalidate - the optimistic update is sufficient
+      // The server API (mock) doesn't persist responses, so refetching would overwrite
+      // our optimistic update with stale data. The cache update is enough for the UI.
+      // If the server actually persisted the data, we could refetch, but for now we rely
+      // on the optimistic update until the user navigates away and back.
       
       // Check if there are warnings or issues
       const status = normalizedData.responseStatus || (data as any).response_status;
