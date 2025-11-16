@@ -37,6 +37,15 @@ import {
 import CitationTooltip from "@/components/CitationTooltip";
 import EvidenceMap, { EvidenceMapData } from "@/components/EvidenceMap";
 
+// Helper function to normalize question data (handles both camelCase and snake_case)
+function normalizeQuestion(question: any) {
+  return {
+    ...question,
+    response: question.response || question.response_text || '',
+    responseStatus: question.responseStatus || question.response_status || 'pending',
+  };
+}
+
 export default function Drafts() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -90,13 +99,24 @@ export default function Drafts() {
     onSuccess: async (data, variables) => {
       setGeneratingQuestionId(null);
       
+      // Normalize the response data - handle both snake_case and camelCase
+      const normalizedData = {
+        response: data.response || (data as any).response_text || data.response,
+        responseStatus: data.responseStatus || (data as any).response_status || data.responseStatus,
+        errorMessage: data.errorMessage || (data as any).error_message || data.errorMessage,
+        citations: data.citations || [],
+        assumptions: data.assumptions || [],
+      };
+      
       // Debug: Log the response data
       console.log("Response generation success:", {
         questionId: variables.questionId,
-        responseStatus: data.responseStatus,
-        hasResponse: !!data.response,
-        responseLength: data.response?.length,
-        fullData: data
+        responseStatus: normalizedData.responseStatus,
+        hasResponse: !!normalizedData.response,
+        responseLength: normalizedData.response?.length,
+        dataKeys: Object.keys(data),
+        normalizedData,
+        rawData: data
       });
       
       // Optimistically update the cache with the returned response data
@@ -109,18 +129,21 @@ export default function Drafts() {
             q.id === variables.questionId 
               ? {
                   ...q,
-                  response: data.response || q.response,
-                  responseStatus: data.responseStatus || q.responseStatus,
-                  errorMessage: data.errorMessage || q.errorMessage,
-                  citations: data.citations || q.citations,
-                  assumptions: data.assumptions || q.assumptions,
+                  response: normalizedData.response || q.response,
+                  responseStatus: normalizedData.responseStatus || q.responseStatus || q.response_status,
+                  errorMessage: normalizedData.errorMessage || q.errorMessage || q.error_message,
+                  citations: normalizedData.citations || q.citations || [],
+                  assumptions: normalizedData.assumptions || q.assumptions || [],
                 }
               : q
           );
           
+          const updatedQuestion = updated.find((q: any) => q.id === variables.questionId);
           console.log("Updated cache:", {
             questionId: variables.questionId,
-            updatedQuestion: updated.find((q: any) => q.id === variables.questionId)
+            updatedQuestion,
+            hasResponse: !!updatedQuestion?.response,
+            responseStatus: updatedQuestion?.responseStatus || updatedQuestion?.response_status
           });
           
           return updated;
@@ -134,7 +157,8 @@ export default function Drafts() {
       });
       
       // Check if there are warnings or issues
-      if (data.responseStatus === "needs_context" || data.responseStatus === "failed" || data.responseStatus === "timeout") {
+      const status = normalizedData.responseStatus || (data as any).response_status;
+      if (status === "needs_context" || status === "failed" || status === "timeout") {
         toast({
           title: "Response generated with limitations",
           description: data.errorMessage || "The response was generated but may need additional context or refinement.",
@@ -539,7 +563,10 @@ export default function Drafts() {
   };
 
   const selectedProjectData = projects.find((p: any) => p.id === selectedProject);
-  const completedQuestions = questions.filter((q: any) => q.responseStatus === "complete" || q.responseStatus === "edited");
+  const completedQuestions = questions.filter((q: any) => {
+    const normalized = normalizeQuestion(q);
+    return normalized.responseStatus === "complete" || normalized.responseStatus === "edited";
+  });
   const totalQuestions = questions.length;
   const progressPercentage = totalQuestions > 0 ? (completedQuestions.length / totalQuestions) * 100 : 0;
 
@@ -749,7 +776,9 @@ export default function Drafts() {
             <>
               {/* Questions and Responses */}
               <div className="space-y-8">
-                {questions.map((question: any, index: number) => (
+                {questions.map((question: any, index: number) => {
+                  const normalizedQuestion = normalizeQuestion(question);
+                  return (
                   <Card key={question.id} className="border border-slate-200">
                     <CardHeader className="p-6 border-b border-slate-200 bg-slate-50">
                       <div className="flex items-start justify-between">
@@ -758,18 +787,18 @@ export default function Drafts() {
                             Question {index + 1}
                           </CardTitle>
                           <p className="text-slate-700 text-sm leading-relaxed">
-                            {question.question}
-                            {question.wordLimit && (
-                              <span className="text-slate-500"> (Maximum {question.wordLimit} words)</span>
+                            {normalizedQuestion.question}
+                            {normalizedQuestion.wordLimit && (
+                              <span className="text-slate-500"> (Maximum {normalizedQuestion.wordLimit} words)</span>
                             )}
                           </p>
                         </div>
                         <div className="ml-4 flex items-center space-x-2">
-                          <Badge className={getStatusColor(question.responseStatus)}>
-                            {getStatusIcon(question.responseStatus)}
-                            {getStatusLabel(question.responseStatus)}
+                          <Badge className={getStatusColor(normalizedQuestion.responseStatus)}>
+                            {getStatusIcon(normalizedQuestion.responseStatus)}
+                            {getStatusLabel(normalizedQuestion.responseStatus)}
                           </Badge>
-                          {editingQuestionId === question.id && (
+                          {editingQuestionId === normalizedQuestion.id && (
                             <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
                               <Edit className="mr-1 h-3 w-3" />
                               Editing
@@ -779,28 +808,31 @@ export default function Drafts() {
                       </div>
                     </CardHeader>
                     <CardContent className="p-6">
-                      {question.response && (question.responseStatus === "complete" || question.responseStatus === "edited" || question.responseStatus === "needs_context") ? (
+                      {normalizedQuestion.response && 
+                       (normalizedQuestion.responseStatus === "complete" || 
+                        normalizedQuestion.responseStatus === "edited" || 
+                        normalizedQuestion.responseStatus === "needs_context") ? (
                         <>
                           <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center space-x-4">
                               <span className="text-sm text-slate-600">
-                                {question.responseStatus === "edited" ? "Edited Response" : "Generated Response"}
+                                {normalizedQuestion.responseStatus === "edited" ? "Edited Response" : "Generated Response"}
                               </span>
                               <span className="text-xs text-slate-500">
-                                {editingQuestionId === question.id ? wordCount : question.response.split(' ').length} words
+                                {editingQuestionId === normalizedQuestion.id ? wordCount : normalizedQuestion.response.split(' ').length} words
                               </span>
-                              {question.wordLimit && (
+                              {normalizedQuestion.wordLimit && (
                                 <span className={`text-xs ${
-                                  (editingQuestionId === question.id ? wordCount : question.response.split(' ').length) <= question.wordLimit
+                                  (editingQuestionId === normalizedQuestion.id ? wordCount : normalizedQuestion.response.split(' ').length) <= normalizedQuestion.wordLimit
                                     ? "text-green-600"
                                     : "text-red-600"
                                 }`}>
-                                  {(editingQuestionId === question.id ? wordCount : question.response.split(' ').length) <= question.wordLimit 
+                                  {(editingQuestionId === normalizedQuestion.id ? wordCount : normalizedQuestion.response.split(' ').length) <= normalizedQuestion.wordLimit 
                                     ? "✓ Within limit" 
                                     : "⚠ Over limit"}
                                 </span>
                               )}
-                              {editingQuestionId === question.id && hasUnsavedChanges && (
+                              {editingQuestionId === normalizedQuestion.id && hasUnsavedChanges && (
                                 <span className="text-xs text-amber-600 flex items-center">
                                   <AlertCircle className="mr-1 h-3 w-3" />
                                   Unsaved changes
@@ -808,7 +840,7 @@ export default function Drafts() {
                               )}
                             </div>
                             <div className="flex items-center space-x-2">
-                              {editingQuestionId === question.id ? (
+                              {editingQuestionId === normalizedQuestion.id ? (
                                 <>
                                   <Button 
                                     variant="ghost" 
@@ -838,7 +870,7 @@ export default function Drafts() {
                                   <Button 
                                     variant="ghost" 
                                     size="sm"
-                                    onClick={() => startEditing(question.id, question.response)}
+                                    onClick={() => startEditing(normalizedQuestion.id, normalizedQuestion.response)}
                                   >
                                     <Edit className="mr-1 h-4 w-4" />
                                     Edit
@@ -846,10 +878,10 @@ export default function Drafts() {
                                   <Button 
                                     variant="ghost" 
                                     size="sm"
-                                    onClick={() => handleRegenerateResponse(question.id)}
-                                    disabled={generateResponseMutation.isPending || generatingQuestionId === question.id}
+                                    onClick={() => handleRegenerateResponse(normalizedQuestion.id)}
+                                    disabled={generateResponseMutation.isPending || generatingQuestionId === normalizedQuestion.id}
                                   >
-                                    {generatingQuestionId === question.id ? (
+                                    {generatingQuestionId === normalizedQuestion.id ? (
                                       <>
                                         <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                                         Generating...
@@ -866,7 +898,7 @@ export default function Drafts() {
                             </div>
                           </div>
                           <div className="prose prose-sm max-w-none">
-                            {editingQuestionId === question.id ? (
+                            {editingQuestionId === normalizedQuestion.id ? (
                               <div className="space-y-4">
                                 <Textarea
                                   value={editedContent}
@@ -890,9 +922,9 @@ export default function Drafts() {
                                     )}
                                   </div>
                                   <div className="flex items-center space-x-2">
-                                    {question.wordLimit && (
-                                      <span className={wordCount > question.wordLimit ? "text-red-600" : "text-green-600"}>
-                                        {wordCount}/{question.wordLimit} words
+                                    {normalizedQuestion.wordLimit && (
+                                      <span className={wordCount > normalizedQuestion.wordLimit ? "text-red-600" : "text-green-600"}>
+                                        {wordCount}/{normalizedQuestion.wordLimit} words
                                       </span>
                                     )}
                                   </div>
@@ -901,7 +933,7 @@ export default function Drafts() {
                             ) : (
                               <>
                                 <div className="text-slate-800 leading-relaxed whitespace-pre-wrap">
-                                  {question.response}
+                                  {normalizedQuestion.response}
                                 </div>
                                 <div className="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-sm text-blue-800">
                                   <p>
@@ -962,7 +994,7 @@ export default function Drafts() {
                             </div>
                           )}
                         </>
-                      ) : question.responseStatus === "generating" ? (
+                      ) : normalizedQuestion.responseStatus === "generating" ? (
                         <div className="flex items-center justify-center py-12">
                           <div className="text-center">
                             <div className="animate-spin w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full mx-auto mb-4"></div>
@@ -973,7 +1005,7 @@ export default function Drafts() {
                       ) : (
                         <div className="flex items-center justify-center py-12">
                           <div className="text-center">
-                            {generatingQuestionId === question.id ? (
+                            {generatingQuestionId === normalizedQuestion.id ? (
                               <>
                                 <div className="animate-spin w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full mx-auto mb-4"></div>
                                 <p className="text-slate-600">AI is generating your response...</p>
@@ -985,7 +1017,7 @@ export default function Drafts() {
                                 <p className="text-slate-600">Response not generated yet</p>
                                 <Button 
                                   className="mt-4"
-                                  onClick={() => handleRegenerateResponse(question.id)}
+                                  onClick={() => handleRegenerateResponse(normalizedQuestion.id)}
                                   disabled={generateResponseMutation.isPending}
                                 >
                                   {generateResponseMutation.isPending ? (
@@ -1007,7 +1039,8 @@ export default function Drafts() {
                       )}
                     </CardContent>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Export Options */}
