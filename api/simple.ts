@@ -6,50 +6,75 @@ import multer from "multer";
 
 const app = express();
 
-// Lazy-load server modules to avoid initialization errors in serverless environment
+// Try to import server modules at module level - wrap in try-catch
 let storage: any;
 let aiService: any;
 let retrieveRelevantChunks: any;
 let requireSupabaseUser: any;
 let AuthenticatedRequest: any;
+let modulesAvailable = false;
 
-async function loadServerModules() {
-  if (!storage) {
+// Attempt to load modules at initialization time
+try {
+  // Use dynamic import() but at module level - Vercel should handle this
+  const initModules = async () => {
     try {
+      console.log("[api/simple] Attempting to load server modules...");
+      
       const storageModule = await import("../server/storage.js");
       storage = storageModule.storage;
-    } catch (error) {
-      console.error("Failed to load storage module:", error);
-      throw error;
-    }
-  }
-  if (!aiService) {
-    try {
+      console.log("[api/simple] Storage module loaded");
+
       const aiModule = await import("../server/services/ai.js");
       aiService = aiModule.aiService;
-    } catch (error) {
-      console.error("Failed to load AI service module:", error);
-      throw error;
-    }
-  }
-  if (!retrieveRelevantChunks) {
-    try {
+      console.log("[api/simple] AI service module loaded");
+
       const retrievalModule = await import("../server/services/retrieval.js");
       retrieveRelevantChunks = retrievalModule.retrieveRelevantChunks;
-    } catch (error) {
-      console.error("Failed to load retrieval module:", error);
-      throw error;
-    }
-  }
-  if (!requireSupabaseUser) {
-    try {
+      console.log("[api/simple] Retrieval module loaded");
+
       const authModule = await import("../server/middleware/supabaseAuth.js");
       requireSupabaseUser = authModule.requireSupabaseUser;
       AuthenticatedRequest = authModule.AuthenticatedRequest;
-    } catch (error) {
-      console.error("Failed to load auth module:", error);
-      throw error;
+      console.log("[api/simple] Auth module loaded");
+
+      modulesAvailable = true;
+      console.log("[api/simple] All modules loaded successfully");
+    } catch (error: any) {
+      console.error("[api/simple] Failed to load modules:", error?.message || error);
+      console.error("[api/simple] Error stack:", error?.stack);
+      console.error("[api/simple] Error details:", {
+        name: error?.name,
+        code: error?.code,
+        message: error?.message
+      });
+      modulesAvailable = false;
     }
+  };
+  
+  // Start loading but don't block - modules will be available when needed
+  initModules().catch((err) => {
+    console.error("[api/simple] Module initialization failed:", err);
+  });
+} catch (error: any) {
+  console.error("[api/simple] Failed to initialize module loader:", error?.message || error);
+  modulesAvailable = false;
+}
+
+async function ensureModulesLoaded() {
+  if (modulesAvailable && storage && aiService && retrieveRelevantChunks && requireSupabaseUser) {
+    return;
+  }
+  
+  // Wait a bit for async initialization
+  let attempts = 0;
+  while (attempts < 10 && !modulesAvailable) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    attempts++;
+  }
+  
+  if (!modulesAvailable || !storage || !aiService || !retrieveRelevantChunks || !requireSupabaseUser) {
+    throw new Error("Server modules not available. Check Vercel logs for initialization errors.");
   }
 }
 
@@ -215,7 +240,12 @@ app.post("/api/projects/:projectId/questions", (req, res) => {
 // Generate response endpoint - REAL AI IMPLEMENTATION
 app.post("/api/questions/:id/generate", async (req, res, next) => {
   try {
-    await loadServerModules();
+    await ensureModulesLoaded();
+    
+    if (!requireSupabaseUser) {
+      throw new Error("Authentication middleware not available");
+    }
+    
     // Wrap the middleware call properly
     return requireSupabaseUser(req as any, res, (err?: any) => {
       if (err) {
@@ -225,10 +255,24 @@ app.post("/api/questions/:id/generate", async (req, res, next) => {
       handleGenerateRequest(req as any, res).catch(next);
     });
   } catch (error: any) {
-    console.error("Failed to load server modules:", error);
+    console.error("[api/simple] Failed to load server modules:", error);
+    const errorMessage = error?.message || String(error);
+    const errorStack = error?.stack;
+    console.error("[api/simple] Error details:", {
+      message: errorMessage,
+      stack: errorStack,
+      name: error?.name,
+      code: error?.code,
+      modulesAvailable,
+      hasStorage: !!storage,
+      hasAiService: !!aiService,
+      hasRetrieval: !!retrieveRelevantChunks,
+      hasAuth: !!requireSupabaseUser
+    });
     res.status(500).json({
       error: "Failed to initialize server modules",
-      details: error.message
+      details: errorMessage,
+      ...(process.env.NODE_ENV === "development" && { stack: errorStack })
     });
   }
 });
