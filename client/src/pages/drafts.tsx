@@ -127,18 +127,35 @@ export default function Drafts() {
         (oldData: any) => {
           if (!oldData || !Array.isArray(oldData)) return oldData;
           
-          const updated = oldData.map((q: any) => 
-            q.id === variables.questionId 
-              ? {
-                  ...q,
-                  response: normalizedData.response || q.response,
-                  responseStatus: normalizedData.responseStatus || q.responseStatus || q.response_status,
-                  errorMessage: normalizedData.errorMessage || q.errorMessage || q.error_message,
-                  citations: normalizedData.citations || q.citations || [],
-                  assumptions: normalizedData.assumptions || q.assumptions || [],
-                }
-              : q
-          );
+          const updated = oldData.map((q: any) => {
+            if (q.id === variables.questionId) {
+              // Use normalized data, ensuring we have response and responseStatus
+              const updatedQuestion = {
+                ...q,
+                response: normalizedData.response || q.response || (q as any).response_text || '',
+                responseStatus: normalizedData.responseStatus || q.responseStatus || (q as any).response_status || 'complete',
+                errorMessage: normalizedData.errorMessage || q.errorMessage || (q as any).error_message,
+                citations: normalizedData.citations || q.citations || [],
+                assumptions: normalizedData.assumptions || q.assumptions || [],
+              };
+              
+              console.log("Cache update - Before:", {
+                id: q.id,
+                hasResponse: !!q.response,
+                responseStatus: q.responseStatus || (q as any).response_status
+              });
+              
+              console.log("Cache update - After:", {
+                id: updatedQuestion.id,
+                hasResponse: !!updatedQuestion.response,
+                responseStatus: updatedQuestion.responseStatus,
+                responsePreview: updatedQuestion.response?.substring(0, 100)
+              });
+              
+              return updatedQuestion;
+            }
+            return q;
+          });
           
           const updatedQuestion = updated.find((q: any) => q.id === variables.questionId);
           console.log("=== CACHE UPDATE ===");
