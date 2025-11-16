@@ -204,8 +204,10 @@ export default function Drafts() {
         }
       );
       
-      // Also refetch to ensure we have the latest data
-      await queryClient.refetchQueries({ 
+      // Don't refetch immediately - the optimistic update should be enough
+      // The refetch was overwriting our optimistic update with stale server data
+      // Instead, invalidate the query so it will refetch on next mount or when needed
+      queryClient.invalidateQueries({ 
         queryKey: ["/api/projects", selectedProject, "questions"],
         exact: false 
       });
