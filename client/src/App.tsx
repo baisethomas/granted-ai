@@ -12,6 +12,8 @@ import { Separator } from "@/components/ui/separator";
 import { Route, useLocation } from "wouter";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { Login } from "@/components/Login";
+import { Sidebar } from "@/components/layout/sidebar";
+import { MainHeader } from "@/components/layout/main-header";
 
 // Import landing page components
 import { HeroSection } from "@/components/landing/hero-section";
@@ -115,8 +117,7 @@ function AppContent() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <ErrorBoundary>
-          <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-            <MarketingHeader onLogout={async () => { await signOut(); setLocation("/"); }} />
+          <div className="h-screen overflow-hidden">
             <AppLayoutWithTabs activeTab={activeTab} onTabChange={setActiveTab}>
               {renderActiveView()}
             </AppLayoutWithTabs>
@@ -137,72 +138,62 @@ function AppLayoutWithTabs({
   activeTab: string;
   onTabChange: (tab: string) => void;
 }) {
-  return (
-    <div className="min-h-screen bg-slate-50">
-      <AppNavigation activeTab={activeTab} onTabChange={onTabChange} />
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        {children}
-      </main>
-    </div>
-  );
-}
+  const getHeaderTitle = () => {
+    switch (activeTab) {
+      case "dashboard":
+        return "Dashboard";
+      case "upload":
+        return "Upload Documents";
+      case "forms":
+        return "Grant Forms";
+      case "drafts":
+        return "Drafts";
+      case "settings":
+        return "Settings";
+      default:
+        return "Dashboard";
+    }
+  };
 
-function AppNavigation({ 
-  activeTab, 
-  onTabChange 
-}: { 
-  activeTab: string; 
-  onTabChange: (tab: string) => void; 
-}) {
-  const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: "fas fa-th-large" },
-    { id: "upload", label: "Upload", icon: "fas fa-cloud-upload-alt" },
-    { id: "forms", label: "Grant Forms", icon: "fas fa-file-alt" },
-    { id: "drafts", label: "Drafts", icon: "fas fa-eye" },
-    { id: "settings", label: "Settings", icon: "fas fa-cog" },
-  ];
+  const getHeaderSubtitle = () => {
+    switch (activeTab) {
+      case "dashboard":
+        return "Welcome to your grant writing workspace";
+      case "upload":
+        return "Upload and manage your documents";
+      case "forms":
+        return "Manage your grant application forms";
+      case "drafts":
+        return "Review and edit your draft responses";
+      case "settings":
+        return "Manage your account and preferences";
+      default:
+        return "Welcome to your new project";
+    }
+  };
 
   return (
-    <nav className="bg-white border-b border-slate-200 px-6 py-4">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        <div className="flex items-center space-x-8">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-              <i className="fas fa-edit text-white text-sm"></i>
-            </div>
-            <h1 className="text-xl font-bold text-slate-900">Granted</h1>
-          </div>
-          <div className="hidden md:flex items-center space-x-1">
-            {navItems.map((item) => {
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => onTabChange(item.id)}
-                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    isActive
-                      ? "text-primary-600 bg-primary-50"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                  }`}
-                >
-                  <i className={`${item.icon} mr-2`}></i>
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div className="flex items-center space-x-4">
-          <div className="relative">
-            <button className="p-2 text-slate-400 hover:text-slate-600 transition-colors">
-              <i className="fas fa-bell text-lg"></i>
-            </button>
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
-          </div>
-          <div className="w-8 h-8 bg-slate-300 rounded-full"></div>
-        </div>
+    <div className="flex h-screen bg-gray-50">
+      {/* Sidebar */}
+      <Sidebar activeTab={activeTab} onTabChange={onTabChange} />
+      
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Navigation */}
+        <MainHeader 
+          title={getHeaderTitle()} 
+          subtitle={getHeaderSubtitle()}
+          onNewProject={activeTab === "dashboard" ? () => {
+            // Handle new project creation
+          } : undefined}
+        />
+        
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-y-auto p-6">
+          {children}
+        </main>
       </div>
-    </nav>
+    </div>
   );
 }
 
