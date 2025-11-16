@@ -151,6 +151,7 @@ export default function Drafts() {
       };
       
       console.log("🔍 Normalized Data:", normalizedData);
+      console.log("✅ Normalization successful - response length:", normalizedData.response?.length || 0);
       
       // Immediate validation log
       if (!normalizedData.response && (data.content || data.response)) {
@@ -174,10 +175,17 @@ export default function Drafts() {
       console.log("Full Normalized Data:", normalizedData);
       
       // Optimistically update the cache with the returned response data
+      // CRITICAL: Update cache BEFORE any potential refetch can happen
       queryClient.setQueryData(
         ["/api/projects", selectedProject, "questions"],
         (oldData: any) => {
-          if (!oldData || !Array.isArray(oldData)) return oldData;
+          if (!oldData || !Array.isArray(oldData)) {
+            console.warn("⚠️ No oldData to update, creating new array");
+            // If no old data, create a minimal structure (shouldn't happen but be safe)
+            return [];
+          }
+          
+          console.log("📦 Updating cache - oldData has", oldData.length, "questions");
           
           const updated = oldData.map((q: any) => {
             if (q.id === variables.questionId) {
@@ -191,17 +199,16 @@ export default function Drafts() {
                 assumptions: normalizedData.assumptions || q.assumptions || [],
               };
               
-              console.log("Cache update - Before:", {
-                id: q.id,
+              console.log("🔄 Cache update - Question", variables.questionId);
+              console.log("   Before:", {
                 hasResponse: !!q.response,
                 responseStatus: q.responseStatus || (q as any).response_status
               });
-              
-              console.log("Cache update - After:", {
-                id: updatedQuestion.id,
+              console.log("   After:", {
                 hasResponse: !!updatedQuestion.response,
                 responseStatus: updatedQuestion.responseStatus,
-                responsePreview: updatedQuestion.response?.substring(0, 100)
+                responseLength: updatedQuestion.response?.length || 0,
+                responsePreview: updatedQuestion.response?.substring(0, 80) || "NO RESPONSE"
               });
               
               return updatedQuestion;
@@ -210,21 +217,29 @@ export default function Drafts() {
           });
           
           const updatedQuestion = updated.find((q: any) => q.id === variables.questionId);
-          console.log("=== CACHE UPDATE ===");
-          console.log("Question ID:", variables.questionId);
-          console.log("Updated Question:", JSON.stringify(updatedQuestion, null, 2));
-          console.log("Has Response:", !!updatedQuestion?.response);
-          console.log("Response Status:", updatedQuestion?.responseStatus || updatedQuestion?.response_status);
-          console.log("Response Preview:", updatedQuestion?.response?.substring(0, 200) || "NO RESPONSE");
-          console.log("All Question Fields:", Object.keys(updatedQuestion || {}));
+          console.log("✅ CACHE UPDATE COMPLETE");
+          console.log("   Updated Question ID:", variables.questionId);
+          console.log("   Has Response:", !!updatedQuestion?.response);
+          console.log("   Response Status:", updatedQuestion?.responseStatus);
+          console.log("   Response Preview:", updatedQuestion?.response?.substring(0, 150) || "NO RESPONSE");
           
           // Force React Query to recognize this as new data by creating a new array reference
           const newArray = [...updated];
           console.log("✅ Returning new array with", newArray.length, "questions");
           
           return newArray;
+        },
+        {
+          // Mark this update as the source of truth to prevent refetch from overwriting
+          updatedAt: Date.now(),
         }
       );
+      
+      // CRITICAL: Cancel any pending refetches for this query to prevent overwriting
+      queryClient.cancelQueries({ 
+        queryKey: ["/api/projects", selectedProject, "questions"],
+        exact: false 
+      });
       
       // Don't refetch or invalidate - the optimistic update is sufficient
       // The server API (mock) doesn't persist responses, so refetching would overwrite
