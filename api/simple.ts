@@ -230,7 +230,29 @@ app.post("/api/projects/:projectId/questions", (req, res) => {
 app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, res) => {
   const questionId = req.params.id;
   const userId = getUserId(req);
+  
+  // SECURITY: Input validation
   const { tone = "professional", emphasisAreas = [] } = req.body;
+  
+  // Validate tone
+  const validTones = ['professional', 'conversational', 'formal', 'friendly'];
+  if (tone && !validTones.includes(tone)) {
+    return res.status(400).json({ error: "Invalid tone. Must be one of: " + validTones.join(', ') });
+  }
+  
+  // Validate emphasisAreas (prevent DoS via large arrays)
+  if (!Array.isArray(emphasisAreas)) {
+    return res.status(400).json({ error: "emphasisAreas must be an array" });
+  }
+  if (emphasisAreas.length > 10) {
+    return res.status(400).json({ error: "Too many emphasis areas (max 10)" });
+  }
+  // Validate each emphasis area is a string and not too long
+  for (const area of emphasisAreas) {
+    if (typeof area !== 'string' || area.length > 100) {
+      return res.status(400).json({ error: "Invalid emphasis area format" });
+    }
+  }
 
   if (!supabaseAdminClient) {
     return res.status(500).json({ error: "Supabase not configured" });
@@ -241,24 +263,40 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
   }
 
   try {
-    // Get question from Supabase
+    // SECURITY: Validate questionId format (prevent injection attempts)
+    if (!/^[0-9a-f-]{36}$/i.test(questionId)) {
+      return res.status(400).json({ error: "Invalid question ID format" });
+    }
+
+    // SECURITY: Get question AND verify it belongs to user's project
     const { data: question, error: questionError } = await supabaseAdminClient
       .from('grant_questions')
-      .select('*')
+      .select(`
+        *,
+        projects!inner(id, user_id)
+      `)
       .eq('id', questionId)
+      .eq('projects.user_id', userId)
       .single();
 
     if (questionError || !question) {
+      // Don't reveal if question exists but user doesn't own it
       return res.status(404).json({ error: "Question not found" });
+    }
+
+    // SECURITY: Double-check ownership (defense in depth)
+    if (question.projects?.user_id !== userId) {
+      return res.status(403).json({ error: "Access denied" });
     }
 
     console.log(`[api/simple] Starting AI generation for question ${questionId}`);
 
-    // Update status to generating
+    // Update status to generating (with ownership check)
     await supabaseAdminClient
       .from('grant_questions')
       .update({ response_status: 'generating' })
-      .eq('id', questionId);
+      .eq('id', questionId)
+      .eq('project_id', question.project_id); // Additional security: verify project_id matches
 
     // Get user documents from Supabase
     const { data: documents } = await supabaseAdminClient
@@ -379,7 +417,7 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
       errorMessage = 'AI service unavailable; provided excerpts instead.';
     }
 
-    // Update question in Supabase
+    // Update question in Supabase (with ownership check)
     const { data: updatedQuestion } = await supabaseAdminClient
       .from('grant_questions')
       .update({
@@ -388,6 +426,7 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
         error_message: errorMessage,
       })
       .eq('id', questionId)
+      .eq('project_id', question.project_id) // SECURITY: Verify project_id matches
       .select()
       .single();
 
@@ -423,9 +462,10 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
       console.error('[api/simple] Failed to update question status:', updateError);
     }
 
+    // SECURITY: Don't leak error details in production
     res.status(500).json({
       error: 'Failed to generate response',
-      details: error.message,
+      ...(process.env.NODE_ENV === 'development' && { details: error.message }),
       canRetry: true
     });
   }
