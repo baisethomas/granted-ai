@@ -43,8 +43,23 @@ function requireSupabaseUser(req: express.Request, res: express.Response, next: 
   }
 
   if (!supabaseAdminClient) {
-    console.error("Supabase service role key or URL missing. Access denied.");
-    return res.status(500).json({ error: "Server authentication is not configured" });
+    console.error("[api/simple] Supabase configuration missing:", {
+      hasUrl: !!supabaseUrl,
+      hasServiceKey: !!supabaseServiceRoleKey,
+      envVars: {
+        SUPABASE_URL: !!process.env.SUPABASE_URL,
+        SUPABASE_PROJECT_URL: !!process.env.SUPABASE_PROJECT_URL,
+        VITE_SUPABASE_URL: !!process.env.VITE_SUPABASE_URL,
+        NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        SUPABASE_SERVICE_KEY: !!process.env.SUPABASE_SERVICE_KEY,
+        SUPABASE_SECRET_KEY: !!process.env.SUPABASE_SECRET_KEY,
+      }
+    });
+    return res.status(500).json({ 
+      error: "Server authentication is not configured",
+      message: "Please configure Supabase environment variables in Vercel: SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY"
+    });
   }
 
   const header = req.headers.authorization;
