@@ -99,6 +99,15 @@ export default function Drafts() {
     onSuccess: async (data, variables) => {
       setGeneratingQuestionId(null);
       
+      // CRITICAL DEBUG: Log the raw data structure first
+      console.log("🔍 RAW API DATA:", data);
+      console.log("🔍 Data type:", typeof data);
+      console.log("🔍 Data keys:", Object.keys(data || {}));
+      console.log("🔍 data.content:", data.content);
+      console.log("🔍 data.response:", data.response);
+      console.log("🔍 data.status:", data.status);
+      console.log("🔍 data.responseStatus:", data.responseStatus);
+      
       // Normalize the response data - handle both snake_case and camelCase, and different response structures
       // The API might return 'content' instead of 'response', and 'status' instead of 'responseStatus'
       // IMPORTANT: Check data.content FIRST since that's what the mock API returns
@@ -108,6 +117,9 @@ export default function Drafts() {
                           data.status === 'complete' ? 'complete' : 
                           data.status) || 'complete';
       
+      console.log("🔍 Extracted responseText:", responseText?.substring(0, 100) || "EMPTY");
+      console.log("🔍 Extracted statusValue:", statusValue);
+      
       const normalizedData = {
         response: responseText,
         responseStatus: statusValue,
@@ -116,12 +128,15 @@ export default function Drafts() {
         assumptions: data.assumptions || [],
       };
       
+      console.log("🔍 Normalized Data:", normalizedData);
+      
       // Immediate validation log
-      if (!normalizedData.response && data.content) {
-        console.warn("WARNING: Normalization failed - data.content exists but normalizedData.response is empty!", {
+      if (!normalizedData.response && (data.content || data.response)) {
+        console.error("❌ NORMALIZATION FAILED!", {
           dataContent: data.content,
           dataResponse: data.response,
-          normalizedResponse: normalizedData.response
+          normalizedResponse: normalizedData.response,
+          allDataKeys: Object.keys(data)
         });
       }
       
