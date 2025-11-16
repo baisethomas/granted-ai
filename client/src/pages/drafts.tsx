@@ -87,9 +87,51 @@ export default function Drafts() {
       // Set the question ID being generated
       setGeneratingQuestionId(questionId);
     },
-    onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects", selectedProject, "questions"] });
+    onSuccess: async (data, variables) => {
       setGeneratingQuestionId(null);
+      
+      // Debug: Log the response data
+      console.log("Response generation success:", {
+        questionId: variables.questionId,
+        responseStatus: data.responseStatus,
+        hasResponse: !!data.response,
+        responseLength: data.response?.length,
+        fullData: data
+      });
+      
+      // Optimistically update the cache with the returned response data
+      queryClient.setQueryData(
+        ["/api/projects", selectedProject, "questions"],
+        (oldData: any) => {
+          if (!oldData || !Array.isArray(oldData)) return oldData;
+          
+          const updated = oldData.map((q: any) => 
+            q.id === variables.questionId 
+              ? {
+                  ...q,
+                  response: data.response || q.response,
+                  responseStatus: data.responseStatus || q.responseStatus,
+                  errorMessage: data.errorMessage || q.errorMessage,
+                  citations: data.citations || q.citations,
+                  assumptions: data.assumptions || q.assumptions,
+                }
+              : q
+          );
+          
+          console.log("Updated cache:", {
+            questionId: variables.questionId,
+            updatedQuestion: updated.find((q: any) => q.id === variables.questionId)
+          });
+          
+          return updated;
+        }
+      );
+      
+      // Also refetch to ensure we have the latest data
+      await queryClient.refetchQueries({ 
+        queryKey: ["/api/projects", selectedProject, "questions"],
+        exact: false 
+      });
       
       // Check if there are warnings or issues
       if (data.responseStatus === "needs_context" || data.responseStatus === "failed" || data.responseStatus === "timeout") {
@@ -737,7 +779,7 @@ export default function Drafts() {
                       </div>
                     </CardHeader>
                     <CardContent className="p-6">
-                      {(question.responseStatus === "complete" || question.responseStatus === "edited") && question.response ? (
+                      {question.response && (question.responseStatus === "complete" || question.responseStatus === "edited" || question.responseStatus === "needs_context") ? (
                         <>
                           <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center space-x-4">
