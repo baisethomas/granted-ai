@@ -196,7 +196,11 @@ export default function Drafts() {
           console.log("Response Preview:", updatedQuestion?.response?.substring(0, 200) || "NO RESPONSE");
           console.log("All Question Fields:", Object.keys(updatedQuestion || {}));
           
-          return updated;
+          // Force React Query to recognize this as new data by creating a new array reference
+          const newArray = [...updated];
+          console.log("✅ Returning new array with", newArray.length, "questions");
+          
+          return newArray;
         }
       );
       
@@ -828,6 +832,21 @@ export default function Drafts() {
               <div className="space-y-8">
                 {questions.map((question: any, index: number) => {
                   const normalizedQuestion = normalizeQuestion(question);
+                  
+                  // Debug: Log what the render sees
+                  if (index === 0) {
+                    console.log("🎨 RENDER DEBUG - First question:", {
+                      id: normalizedQuestion.id,
+                      hasResponse: !!normalizedQuestion.response,
+                      responseStatus: normalizedQuestion.responseStatus,
+                      responsePreview: normalizedQuestion.response?.substring(0, 50) || "NO RESPONSE",
+                      willDisplay: normalizedQuestion.response && 
+                        (normalizedQuestion.responseStatus === "complete" || 
+                         normalizedQuestion.responseStatus === "edited" || 
+                         normalizedQuestion.responseStatus === "needs_context")
+                    });
+                  }
+                  
                   return (
                   <Card key={question.id} className="border border-slate-200">
                     <CardHeader className="p-6 border-b border-slate-200 bg-slate-50">
