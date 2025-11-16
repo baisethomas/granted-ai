@@ -74,6 +74,10 @@ export default function Drafts() {
     queryKey: ["/api/projects", selectedProject, "questions"],
     queryFn: () => selectedProject ? api.getQuestions(selectedProject) : Promise.resolve([]),
     enabled: !!selectedProject,
+    // Prevent auto-refetch that would overwrite optimistic updates
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
   });
 
   const { data: userSettings } = useQuery({
