@@ -101,14 +101,29 @@ export default function Drafts() {
       
       // Normalize the response data - handle both snake_case and camelCase, and different response structures
       // The API might return 'content' instead of 'response', and 'status' instead of 'responseStatus'
+      // IMPORTANT: Check data.content FIRST since that's what the mock API returns
+      const responseText = data.response || data.content || (data as any).response_text || (data as any).response || '';
+      const statusValue = data.responseStatus || (data as any).response_status || 
+                         (data.status === 'completed' ? 'complete' : 
+                          data.status === 'complete' ? 'complete' : 
+                          data.status) || 'complete';
+      
       const normalizedData = {
-        response: data.response || data.content || (data as any).response_text || '',
-        responseStatus: data.responseStatus || (data as any).response_status || 
-                       (data.status === 'completed' ? 'complete' : data.status) || 'complete',
+        response: responseText,
+        responseStatus: statusValue,
         errorMessage: data.errorMessage || (data as any).error_message || data.errorMessage,
         citations: data.citations || [],
         assumptions: data.assumptions || [],
       };
+      
+      // Immediate validation log
+      if (!normalizedData.response && data.content) {
+        console.warn("WARNING: Normalization failed - data.content exists but normalizedData.response is empty!", {
+          dataContent: data.content,
+          dataResponse: data.response,
+          normalizedResponse: normalizedData.response
+        });
+      }
       
       // Debug: Log the response data with full details
       console.log("=== RESPONSE GENERATION SUCCESS ===");
