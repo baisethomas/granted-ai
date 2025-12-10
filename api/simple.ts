@@ -516,6 +516,41 @@ app.post("/api/extract-questions", upload.single('file'), (req, res) => {
   });
 });
 
+// Auth endpoints
+app.get("/api/auth/me", async (req, res) => {
+  if (!supabaseAdminClient) {
+    // If Supabase is not configured, return null (not an error)
+    return res.json(null);
+  }
+
+  const header = req.headers.authorization;
+  const token = header && header.startsWith("Bearer ") ? header.slice(7).trim() : null;
+
+  if (!token) {
+    // No token = not authenticated, but return null (not 401)
+    return res.json(null);
+  }
+
+  try {
+    const { data, error } = await supabaseAdminClient.auth.getUser(token);
+    if (error || !data.user) {
+      return res.json(null);
+    }
+
+    const { user } = data;
+    res.json({
+      id: user.id,
+      email: user.email,
+      username: (user.user_metadata as any)?.username || user.email || user.id,
+      organizationName: (user.user_metadata as any)?.organizationName,
+      avatar: (user.user_metadata as any)?.avatar_url,
+    });
+  } catch (error) {
+    console.error("[api/simple] Failed to resolve Supabase user for /api/auth/me:", error);
+    return res.json(null);
+  }
+});
+
 // Health check
 app.get("/api/status", (req, res) => {
   res.json({
