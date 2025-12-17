@@ -287,7 +287,8 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
 
   try {
     // SECURITY: Validate questionId format (prevent injection attempts)
-    if (!/^[0-9a-f-]{36}$/i.test(questionId)) {
+    // Accept both UUID format (from database) and simple format (from in-memory storage)
+    if (!/^([0-9a-f-]{36}|question-\d+)$/i.test(questionId)) {
       return res.status(400).json({ error: "Invalid question ID format" });
     }
 
