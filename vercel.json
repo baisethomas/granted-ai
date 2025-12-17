@@ -6,8 +6,7 @@
   "installCommand": "npm ci",
   "framework": null,
   "functions": {
-    "api/simple.ts": {
-      "runtime": "vercel/node@20.x",
+    "api/**/*.ts": {
       "maxDuration": 90
     }
   },
