@@ -1,6 +1,3 @@
-import { config } from "dotenv";
-config();
-
 import express from "express";
 import multer from "multer";
 import { createClient } from "@supabase/supabase-js";
@@ -32,7 +29,15 @@ const supabaseAdminClient =
 
 // Initialize OpenAI client
 const openaiApiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
-const openai = openaiApiKey && openaiApiKey.startsWith("sk-") 
+console.log('[api/simple] Environment check:', {
+  hasOpenAIKey: !!openaiApiKey,
+  keyPrefix: openaiApiKey?.substring(0, 7),
+  hasSupabaseUrl: !!supabaseUrl,
+  hasSupabaseKey: !!supabaseServiceRoleKey,
+  grantedProvider: process.env.GRANTED_DEFAULT_PROVIDER
+});
+
+const openai = openaiApiKey && openaiApiKey.startsWith("sk-")
   ? new OpenAI({ apiKey: openaiApiKey })
   : null;
 
