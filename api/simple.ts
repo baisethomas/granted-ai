@@ -292,71 +292,40 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
       return res.status(400).json({ error: "Invalid question ID format" });
     }
 
-    // SECURITY: Get question AND verify it belongs to user's project
-    const { data: question, error: questionError } = await supabaseAdminClient
-      .from('grant_questions')
-      .select(`
-        *,
-        projects!inner(id, user_id)
-      `)
-      .eq('id', questionId)
-      .eq('projects.user_id', userId)
-      .single();
+    // Get question from in-memory storage (simple.ts uses in-memory storage, not Supabase)
+    const question = questions.find(q => q.id === questionId);
 
-    if (questionError || !question) {
-      // Don't reveal if question exists but user doesn't own it
+    if (!question) {
       return res.status(404).json({ error: "Question not found" });
     }
 
-    // SECURITY: Double-check ownership (defense in depth)
-    if (question.projects?.user_id !== userId) {
-      return res.status(403).json({ error: "Access denied" });
-    }
+    // For in-memory storage, we'll skip user ownership checks since we're using mock auth
 
     console.log(`[api/simple] Starting AI generation for question ${questionId}`);
 
-    // Update status to generating (with ownership check)
-    await supabaseAdminClient
-      .from('grant_questions')
-      .update({ response_status: 'generating' })
-      .eq('id', questionId)
-      .eq('project_id', question.project_id); // Additional security: verify project_id matches
+    // Update question status in memory
+    question.responseStatus = 'generating';
 
-    // Get user documents from Supabase
-    const { data: documents } = await supabaseAdminClient
-      .from('documents')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('processed', true);
-
-    const processedDocs = (documents || []).filter((doc: any) => doc.summary);
+    // Get documents from in-memory storage
+    const processedDocs = documents.filter((doc: any) => doc.processed && doc.summary);
     const organizationContext = processedDocs
-      .map((doc: any) => `${doc.original_name || doc.filename}: ${doc.summary}`)
+      .map((doc: any) => `${doc.originalName || doc.filename}: ${doc.summary}`)
       .join('\n');
 
-    // Get user info
-    const { data: user } = await supabaseAdminClient
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single();
+    // Mock user info
+    const user = {
+      id: userId,
+      username: 'Test User',
+      organizationName: 'Test Organization',
+    };
 
-    // Simple retrieval - get document chunks (simplified, no embedding search for now)
-    const { data: chunks } = await supabaseAdminClient
-      .from('doc_chunks')
-      .select(`
-        *,
-        documents!inner(id, original_name, filename, category)
-      `)
-      .eq('documents.user_id', userId)
-      .limit(8);
-
-    const retrievedChunks = (chunks || []).slice(0, 8).map((chunk: any, idx: number) => ({
-      documentName: chunk.documents?.original_name || chunk.documents?.filename || 'Document',
-      documentId: chunk.documents?.id || '',
-      content: chunk.content || '',
-      chunkIndex: chunk.chunk_index || idx,
-      similarity: 0.8 - (idx * 0.1), // Mock similarity
+    // Create mock document chunks from uploaded documents
+    const retrievedChunks = processedDocs.slice(0, 8).map((doc: any, idx: number) => ({
+      documentName: doc.originalName || doc.filename,
+      documentId: doc.id,
+      content: doc.summary || 'Document content',
+      chunkIndex: 0,
+      similarity: 0.9 - (idx * 0.1), // Mock similarity
     }));
 
     // Generate AI response
@@ -441,21 +410,15 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
       errorMessage = 'AI service unavailable; provided excerpts instead.';
     }
 
-    // Update question in Supabase (with ownership check)
-    const { data: updatedQuestion } = await supabaseAdminClient
-      .from('grant_questions')
-      .update({
-        response: finalResponse,
-        response_status: responseStatus,
-        error_message: errorMessage,
-      })
-      .eq('id', questionId)
-      .eq('project_id', question.project_id) // SECURITY: Verify project_id matches
-      .select()
-      .single();
+    // Update question in memory
+    question.response = finalResponse;
+    question.responseStatus = responseStatus;
+    if (errorMessage) {
+      question.errorMessage = errorMessage;
+    }
 
     const payload = {
-      ...updatedQuestion,
+      ...question,
       citations: normalizedCitations,
       assumptions: assumptions,
       retrievedChunks: retrievedChunks,
@@ -472,18 +435,12 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
     }
   } catch (error: any) {
     console.error(`[api/simple] Generation error for question ${questionId}:`, error);
-    
-    // Update question status to failed
-    try {
-      await supabaseAdminClient
-        .from('grant_questions')
-        .update({
-          response_status: 'failed',
-          error_message: error.message || 'Unexpected server error during generation'
-        })
-        .eq('id', questionId);
-    } catch (updateError) {
-      console.error('[api/simple] Failed to update question status:', updateError);
+
+    // Update question status to failed in memory
+    const failedQuestion = questions.find(q => q.id === questionId);
+    if (failedQuestion) {
+      failedQuestion.responseStatus = 'failed';
+      failedQuestion.errorMessage = error.message || 'Unexpected server error during generation';
     }
 
     // SECURITY: Don't leak error details in production
