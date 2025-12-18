@@ -112,10 +112,18 @@ async function ensureUserExists(userId: string, email: string) {
     .single();
 
   if (!existing) {
+    // Create user
     await supabaseDB.from('users').insert({
       id: userId,
       email,
       username: email.split('@')[0] || 'user'
+    });
+
+    // Create default organization for user
+    await supabaseDB.from('organizations').insert({
+      id: userId, // Use same ID as user for simplicity
+      name: `${email.split('@')[0]}'s Organization`,
+      plan: 'starter'
     });
   }
 }
@@ -309,6 +317,7 @@ app.post("/api/projects", requireSupabaseUser, async (req: any, res) => {
       .from('projects')
       .insert({
         user_id: userId,
+        organization_id: userId, // Use userId as org_id for single-user setup
         title: req.body.title || "Untitled Project",
         funder: req.body.funder || "",
         amount: req.body.amount || null,
