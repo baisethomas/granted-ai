@@ -429,7 +429,21 @@ app.get("/api/projects/:id/questions", requireSupabaseUser, async (req: any, res
     }
 
     console.log('Questions for project', projectId, ':', questions?.length || 0);
-    res.json(questions || []);
+    
+    // Transform snake_case to camelCase for client compatibility
+    const formatted = (questions || []).map((q: any) => ({
+      id: q.id,
+      projectId: q.project_id,
+      question: q.question,
+      response: q.response,
+      responseStatus: q.response_status || 'pending',
+      errorMessage: q.error_message,
+      wordLimit: q.word_limit,
+      priority: q.priority,
+      createdAt: q.created_at
+    }));
+    
+    res.json(formatted);
   } catch (error) {
     console.error('List questions error:', error);
     res.status(500).json({ error: "Failed to fetch questions" });
@@ -463,7 +477,19 @@ app.post("/api/projects/:projectId/questions", requireSupabaseUser, async (req: 
     }
 
     console.log('Question created:', question.id);
-    res.json(question);
+    
+    // Transform to camelCase for client compatibility
+    res.json({
+      id: question.id,
+      projectId: question.project_id,
+      question: question.question,
+      response: question.response,
+      responseStatus: question.response_status || 'pending',
+      errorMessage: question.error_message,
+      wordLimit: question.word_limit,
+      priority: question.priority,
+      createdAt: question.created_at
+    });
   } catch (error) {
     console.error('Create question error:', error);
     res.status(500).json({ error: "Failed to create question" });
