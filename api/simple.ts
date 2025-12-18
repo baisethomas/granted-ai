@@ -450,7 +450,6 @@ app.post("/api/projects/:projectId/questions", requireSupabaseUser, async (req: 
       .from('questions')
       .insert({
         project_id: projectId,
-        user_id: userId,
         question: req.body.question || "",
         word_limit: req.body.wordLimit || null,
         priority: req.body.priority || "medium"
