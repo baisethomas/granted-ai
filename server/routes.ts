@@ -334,8 +334,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertGrantQuestionSchema.parse(req.body);
       const question = await storage.createGrantQuestion(req.params.projectId, validatedData);
       res.json(question);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid question data" });
+    } catch (error: any) {
+      console.error("Failed to create question:", error);
+      
+      // Check for specific error types
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid question data", details: error.errors });
+      }
+      
+      // Database constraint errors (e.g., foreign key violation)
+      if (error.code === '23503') {
+        return res.status(400).json({ error: "Invalid project ID - project does not exist" });
+      }
+      
+      // Return 500 for unexpected server errors
+      res.status(500).json({ error: "Failed to create question", details: error.message });
     }
   });
 

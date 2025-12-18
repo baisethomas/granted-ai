@@ -667,7 +667,12 @@ export class DbStorage implements IStorage {
   }
 
   async createProject(userId: string, insertProject: InsertProject): Promise<Project> {
-    const rows = await db?.insert(schema.projects).values({ ...(insertProject as any), userId }).returning();
+    // Use userId as organizationId for now (until proper multi-tenancy is implemented)
+    const rows = await db?.insert(schema.projects).values({ 
+      ...(insertProject as any), 
+      userId,
+      organizationId: userId 
+    }).returning();
     return rows![0];
   }
 

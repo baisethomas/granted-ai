@@ -150,16 +150,47 @@ export const embeddingCache = pgTable("embedding_cache", {
   usageCount: integer("usage_count").default(1),
 });
 
-export const questions = pgTable("questions", {
+export const grantQuestions = pgTable("grant_questions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").references(() => projects.id).notNull(),
   question: text("question").notNull(),
   response: text("response"),
-  responseStatus: text("response_status").default("pending"), // pending, generating, complete, failed
+  responseStatus: text("response_status").default("pending"), // pending, generating, complete, failed, timeout, needs_context
   errorMessage: text("error_message"),
   wordLimit: integer("word_limit"),
   priority: text("priority").default("medium"), // high, medium, low
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Alias for backwards compatibility
+export const questions = grantQuestions;
+
+export const responseVersions = pgTable("response_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  questionId: varchar("question_id").references(() => grantQuestions.id).notNull(),
+  content: text("content").notNull(),
+  tone: text("tone").notNull(),
+  wordCount: integer("word_count").notNull(),
+  version: integer("version").notNull(),
+  isCurrent: boolean("is_current").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const userSettings = pgTable("user_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull().unique(),
+  defaultTone: text("default_tone").default("professional"),
+  lengthPreference: text("length_preference").default("balanced"),
+  emphasisAreas: text("emphasis_areas").array(),
+  aiModel: text("ai_model").default("gpt-4o"),
+  fallbackModel: text("fallback_model").default("gpt-3.5-turbo"),
+  creativity: integer("creativity").default(30),
+  contextUsage: integer("context_usage").default(80),
+  emailNotifications: boolean("email_notifications").default(true),
+  autoSave: boolean("auto_save").default(true),
+  analytics: boolean("analytics").default(true),
+  autoDetection: boolean("auto_detection").default(true),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Zod schemas for validation
@@ -169,9 +200,38 @@ export const ProjectInsertSchema = createInsertSchema(projects);
 export const DocumentInsertSchema = createInsertSchema(documents);
 export const DocumentExtractionInsertSchema = createInsertSchema(documentExtractions);
 export const DocumentProcessingJobInsertSchema = createInsertSchema(documentProcessingJobs);
-export const QuestionInsertSchema = createInsertSchema(questions);
+export const insertGrantQuestionSchema = createInsertSchema(grantQuestions).pick({
+  question: true,
+  wordLimit: true,
+  priority: true,
+  errorMessage: true,
+});
+// Alias for backwards compatibility
+export const QuestionInsertSchema = createInsertSchema(grantQuestions);
 export const DraftCitationInsertSchema = createInsertSchema(draftCitations);
 export const AssumptionLabelInsertSchema = createInsertSchema(assumptionLabels);
+
+export const insertUserSettingsSchema = createInsertSchema(userSettings).pick({
+  defaultTone: true,
+  lengthPreference: true,
+  emphasisAreas: true,
+  aiModel: true,
+  fallbackModel: true,
+  creativity: true,
+  contextUsage: true,
+  emailNotifications: true,
+  autoSave: true,
+  analytics: true,
+  autoDetection: true,
+});
+
+export const insertProjectSchema = createInsertSchema(projects).pick({
+  title: true,
+  funder: true,
+  amount: true,
+  deadline: true,
+  description: true,
+});
 
 export type User = typeof users.$inferSelect;
 export type Organization = typeof organizations.$inferSelect;
@@ -181,8 +241,15 @@ export type DocumentExtraction = typeof documentExtractions.$inferSelect;
 export type DocumentProcessingJob = typeof documentProcessingJobs.$inferSelect;
 export type DocChunk = typeof docChunks.$inferSelect;
 export type InsertDocChunk = typeof docChunks.$inferInsert;
-export type Question = typeof questions.$inferSelect;
+export type GrantQuestion = typeof grantQuestions.$inferSelect;
+export type InsertGrantQuestion = z.infer<typeof insertGrantQuestionSchema>;
+// Alias for backwards compatibility
+export type Question = GrantQuestion;
 export type DraftCitation = typeof draftCitations.$inferSelect;
 export type InsertDraftCitation = typeof draftCitations.$inferInsert;
 export type AssumptionLabel = typeof assumptionLabels.$inferSelect;
 export type InsertAssumptionLabel = typeof assumptionLabels.$inferInsert;
+export type ResponseVersion = typeof responseVersions.$inferSelect;
+export type UserSettings = typeof userSettings.$inferSelect;
+export type InsertUserSettings = z.infer<typeof insertUserSettingsSchema>;
+export type InsertProject = z.infer<typeof insertProjectSchema>;
