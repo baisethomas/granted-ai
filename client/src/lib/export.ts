@@ -87,41 +87,67 @@ export async function exportToPDF(data: ExportData): Promise<void> {
     q => q.responseStatus === "complete" || q.responseStatus === "edited"
   );
 
+  console.log('[PDF Export] Completed questions count:', completedQuestions.length);
+  console.log('[PDF Export] Questions:', completedQuestions.map(q => ({ 
+    id: q.id, 
+    question: q.question?.substring(0, 50), 
+    hasResponse: !!q.response,
+    responseLength: q.response?.length 
+  })));
+
   // Create HTML content for better formatting
   const htmlContent = createHTMLContent(data, completedQuestions);
   
-  // Create a temporary div for html2pdf
-  const element = document.createElement('div');
-  element.innerHTML = htmlContent;
-  element.style.position = 'fixed';
-  element.style.top = '-9999px';
-  element.style.left = '-9999px';
-  element.style.width = '210mm'; // A4 width
-  document.body.appendChild(element);
+  console.log('[PDF Export] HTML content length:', htmlContent.length);
+  
+  // Create a temporary container that's properly rendered
+  const container = document.createElement('div');
+  container.style.position = 'absolute';
+  container.style.left = '0';
+  container.style.top = '0';
+  container.style.width = '210mm';
+  container.style.minHeight = '297mm';
+  container.style.backgroundColor = 'white';
+  container.style.zIndex = '-1';
+  container.style.overflow = 'visible';
+  container.innerHTML = htmlContent;
+  document.body.appendChild(container);
+
+  // Force a reflow to ensure styles are applied
+  container.offsetHeight;
 
   const options = {
-    margin: [20, 20, 20, 20],
+    margin: [15, 15, 15, 15],
     filename: `${sanitizeFilename(project.title)}-Grant-Application.pdf`,
-    image: { type: 'jpeg', quality: 0.98 },
+    image: { type: 'jpeg', quality: 0.95 },
     html2canvas: { 
       scale: 2,
       useCORS: true,
+      logging: true,
       letterRendering: true,
-      allowTaint: false
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      windowWidth: 794, // A4 width in pixels at 96 DPI
+      windowHeight: 1123 // A4 height in pixels at 96 DPI
     },
     jsPDF: { 
       unit: 'mm', 
       format: 'a4', 
-      orientation: 'portrait',
+      orientation: 'portrait' as const,
       compress: true
     },
     pagebreak: { mode: ['css', 'legacy'] }
   };
 
   try {
-    await html2pdf().set(options).from(element).save();
+    console.log('[PDF Export] Starting html2pdf generation...');
+    await html2pdf().set(options).from(container).save();
+    console.log('[PDF Export] PDF generated successfully');
+  } catch (error) {
+    console.error('[PDF Export] Error generating PDF:', error);
+    throw error;
   } finally {
-    document.body.removeChild(element);
+    document.body.removeChild(container);
   }
 }
 
