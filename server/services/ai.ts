@@ -103,6 +103,37 @@ export class AIService {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  // Strip markdown formatting from text to ensure plain text output
+  private stripMarkdown(text: string): string {
+    if (!text) return text;
+    
+    return text
+      // Remove bold/italic markers
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/\*(.+?)\*/g, '$1')
+      .replace(/__(.+?)__/g, '$1')
+      .replace(/_(.+?)_/g, '$1')
+      // Remove headers
+      .replace(/^#{1,6}\s+/gm, '')
+      // Remove bullet points and convert to sentences
+      .replace(/^\s*[-*+]\s+/gm, '')
+      // Remove numbered lists formatting but keep the content
+      .replace(/^\s*\d+\.\s+/gm, '')
+      // Remove inline code
+      .replace(/`([^`]+)`/g, '$1')
+      // Remove code blocks
+      .replace(/```[\s\S]*?```/g, '')
+      // Remove links but keep text
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      // Remove blockquotes
+      .replace(/^>\s+/gm, '')
+      // Remove horizontal rules
+      .replace(/^[-*_]{3,}\s*$/gm, '')
+      // Clean up multiple newlines
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
   // Generate fallback responses based on the scenario
   private generateFallbackResponse(question: string, errorType: 'timeout' | 'api_error' | 'insufficient_context'): string {
     const questionLower = question.toLowerCase();
@@ -111,13 +142,9 @@ export class AIService {
       return `I'm having trouble generating a detailed response right now. Here's a structured approach to help you get started:
 
 Key Areas to Address:
-${this.getQuestionStructure(questionLower)}
+${this.getQuestionStructurePlainText(questionLower)}
 
-Recommended Approach:
-1. Review your organizational documents and context
-2. Identify specific examples and metrics
-3. Align your response with the funder's priorities
-4. Consider having this section reviewed by a colleague
+Recommended Approach: First, review your organizational documents and context. Then, identify specific examples and metrics. Next, align your response with the funder's priorities. Finally, consider having this section reviewed by a colleague.
 
 Please try generating again, or use this structure to manually draft your response.`;
     }
@@ -125,13 +152,9 @@ Please try generating again, or use this structure to manually draft your respon
     if (errorType === 'insufficient_context') {
       return `Based on the available information, I need additional details to provide a comprehensive response. Consider including:
 
-${this.getMissingContextSuggestions(questionLower)}
+${this.getMissingContextSuggestionsPlainText(questionLower)}
 
-What you can do:
-1. Upload relevant organizational documents
-2. Add more specific context about your programs
-3. Include performance metrics and outcomes data
-4. Provide examples of similar past work
+What you can do: Upload relevant organizational documents. Add more specific context about your programs. Include performance metrics and outcomes data. Provide examples of similar past work.
 
 Once you've added more context, try generating this response again.`;
     }
@@ -140,13 +163,9 @@ Once you've added more context, try generating this response again.`;
     return `Unable to generate AI response at this time due to a service issue. 
 
 Manual Response Framework:
-${this.getQuestionStructure(questionLower)}
+${this.getQuestionStructurePlainText(questionLower)}
 
-Tips for Writing:
-- Be specific and use concrete examples
-- Include quantitative data where possible
-- Align with your organization's mission
-- Address the funder's priorities directly
+Tips for Writing: Be specific and use concrete examples. Include quantitative data where possible. Align with your organization's mission. Address the funder's priorities directly.
 
 Please try again in a moment, or use this framework to draft your response manually.`;
   }
@@ -208,6 +227,35 @@ Please try again in a moment, or use this framework to draft your response manua
 - Connection to project impact and outcomes`;
   }
 
+  private getQuestionStructurePlainText(questionLower: string): string {
+    if (questionLower.includes('mission') || questionLower.includes('organization')) {
+      return `Organization overview and history. Mission statement and core values. Key programs and services. Target populations served. Organizational capacity and leadership.`;
+    }
+    
+    if (questionLower.includes('need') || questionLower.includes('problem')) {
+      return `Specific need or problem definition. Supporting data and evidence. Who is affected and how. Current gaps in services. Consequences of not addressing the need.`;
+    }
+    
+    if (questionLower.includes('goal') || questionLower.includes('objective')) {
+      return `Primary project goals. Specific, measurable objectives. Expected outcomes and impact. Timeline for achievement. Success metrics and indicators.`;
+    }
+    
+    if (questionLower.includes('evaluation') || questionLower.includes('measure')) {
+      return `Evaluation methodology. Key performance indicators. Data collection methods. Reporting schedule and format. How results will be used for improvement.`;
+    }
+    
+    if (questionLower.includes('budget') || questionLower.includes('cost')) {
+      return `Total project cost breakdown. Personnel expenses. Program costs and materials. Administrative overhead. Cost-effectiveness analysis.`;
+    }
+    
+    if (questionLower.includes('sustain') || questionLower.includes('continuation')) {
+      return `Sustainability planning. Future funding sources. Community support and buy-in. Long-term organizational capacity. Legacy and ongoing impact.`;
+    }
+    
+    // Generic structure for other questions
+    return `Direct response to the question asked. Supporting evidence and examples. Specific details about your organization. Quantitative data where available. Connection to project impact and outcomes.`;
+  }
+
   private getMissingContextSuggestions(questionLower: string): string {
     const suggestions = [];
     
@@ -248,6 +296,48 @@ Please try again in a moment, or use this framework to draft your response manua
     }
     
     return suggestions.join('\n');
+  }
+
+  private getMissingContextSuggestionsPlainText(questionLower: string): string {
+    const suggestions = [];
+    
+    if (questionLower.includes('organization') || questionLower.includes('mission')) {
+      suggestions.push('Organizational profile document with mission, history, and structure');
+      suggestions.push('Leadership bios and organizational chart');
+      suggestions.push('Recent annual reports or impact statements');
+    }
+    
+    if (questionLower.includes('program') || questionLower.includes('service')) {
+      suggestions.push('Detailed program descriptions and logic models');
+      suggestions.push('Service delivery methods and approaches');
+      suggestions.push('Client testimonials or case studies');
+    }
+    
+    if (questionLower.includes('need') || questionLower.includes('data')) {
+      suggestions.push('Community needs assessment data');
+      suggestions.push('Demographic and statistical information');
+      suggestions.push('Stakeholder input and feedback');
+    }
+    
+    if (questionLower.includes('experience') || questionLower.includes('capacity')) {
+      suggestions.push('Examples of similar past projects');
+      suggestions.push('Staff qualifications and experience');
+      suggestions.push('Organizational capacity assessments');
+    }
+    
+    if (questionLower.includes('budget') || questionLower.includes('financial')) {
+      suggestions.push('Detailed budget worksheets');
+      suggestions.push('Financial policies and procedures');
+      suggestions.push('Audit reports or financial statements');
+    }
+    
+    if (suggestions.length === 0) {
+      suggestions.push('More specific context about your programs and services');
+      suggestions.push('Organizational background and experience');
+      suggestions.push('Relevant data and performance metrics');
+    }
+    
+    return suggestions.join('. ') + '.';
   }
 
   async generateGroundedResponse(
@@ -293,7 +383,9 @@ Please try again in a moment, or use this framework to draft your response manua
       })
       .join('\n\n');
 
-    const instructions = `You are an expert grant writer. Use the provided snippets to answer the question with explicit citations. Return JSON with fields: text (string), citations (array of {marker, documentName, documentId, chunkIndex, quote}), and assumptions (array of strings). Do not fabricate details.`;
+    const instructions = `You are an expert grant writer. Use the provided snippets to answer the question with explicit citations. Return JSON with fields: text (string), citations (array of {marker, documentName, documentId, chunkIndex, quote}), and assumptions (array of strings). Do not fabricate details.
+
+IMPORTANT: The "text" field must contain plain text without any markdown formatting. Do not use **bold**, *italics*, bullet points (-), numbered lists, headers (#), or any other markdown syntax. Write in clear, professional prose suitable for a formal grant application. Use paragraph breaks for organization.`;
 
     const userPrompt = `Grant Question: ${question}\n\nTone: ${tone}\n${
       wordLimit ? `Target word count: ${wordLimit}` : ''
@@ -346,7 +438,7 @@ Please try again in a moment, or use this framework to draft your response manua
       });
 
       return {
-        text: parsed.text || parsed.answer || '',
+        text: this.stripMarkdown(parsed.text || parsed.answer || ''),
         citations: normalizedCitations,
         assumptions: Array.isArray(parsed.assumptions) ? parsed.assumptions : [],
       };
@@ -444,7 +536,7 @@ IMPORTANT: Provide your response as plain text without markdown formatting. Do n
         }
 
         console.log(`AI generation successful on attempt ${attempt + 1}`);
-        return content;
+        return this.stripMarkdown(content);
 
       } catch (error: any) {
         if (timeoutId) clearTimeout(timeoutId);
