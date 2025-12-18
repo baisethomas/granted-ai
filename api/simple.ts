@@ -98,13 +98,27 @@ function getUserId(req: any): string {
   return req.supabaseUser.id;
 }
 
-// Simple in-memory storage
-let documents: any[] = [];
-let projects: any[] = [];
-let questions: any[] = [];
-let nextId = 1;
-let nextProjectId = 1;
-let nextQuestionId = 1;
+// Database client for Supabase operations
+const supabaseDB = supabaseAdminClient; // Use admin client for database operations
+
+// Helper: Create user record if it doesn't exist
+async function ensureUserExists(userId: string, email: string) {
+  if (!supabaseDB) return;
+
+  const { data: existing } = await supabaseDB
+    .from('users')
+    .select('id')
+    .eq('id', userId)
+    .single();
+
+  if (!existing) {
+    await supabaseDB.from('users').insert({
+      id: userId,
+      email,
+      username: email.split('@')[0] || 'user'
+    });
+  }
+}
 
 // Basic middleware
 app.use(express.json());
@@ -128,125 +142,324 @@ const upload = multer({
 });
 
 // Upload endpoint
-app.post("/api/documents/upload", upload.single('file'), (req, res) => {
+app.post("/api/documents/upload", requireSupabaseUser, upload.single('file'), async (req: any, res) => {
   console.log('Simple upload received');
 
   if (!req.file) {
     return res.status(400).json({ error: "No file uploaded" });
   }
 
-  const document = {
-    id: `doc-${nextId++}`,
-    filename: req.file.originalname,
-    originalName: req.file.originalname,
-    fileType: req.file.mimetype,
-    fileSize: req.file.size,
-    category: req.body.category || "organization-info",
-    summary: `Uploaded ${req.file.originalname}`,
-    processed: true,
-    uploadedAt: new Date().toISOString(),
-    userId: "user-123"
-  };
+  if (!supabaseDB) {
+    return res.status(500).json({ error: "Database not configured" });
+  }
 
-  documents.push(document);
-  console.log('Document stored. Total documents:', documents.length);
+  try {
+    const userId = getUserId(req);
 
-  res.json(document);
+    const { data: document, error } = await supabaseDB
+      .from('documents')
+      .insert({
+        user_id: userId,
+        organization_id: userId,
+        filename: req.file.originalname,
+        original_name: req.file.originalname,
+        file_type: req.file.mimetype,
+        file_size: req.file.size,
+        category: req.body.category || "organization-info",
+        summary: `Uploaded ${req.file.originalname}`,
+        processed: true,
+        processing_status: 'complete'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Database insert error:', error);
+      return res.status(500).json({ error: "Failed to save document" });
+    }
+
+    console.log('Document stored in database:', document.id);
+    res.json({
+      id: document.id,
+      filename: document.filename,
+      originalName: document.original_name,
+      fileType: document.file_type,
+      fileSize: document.file_size,
+      category: document.category,
+      summary: document.summary,
+      processed: document.processed,
+      uploadedAt: document.uploaded_at,
+      userId: document.user_id
+    });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: "Failed to process upload" });
+  }
 });
 
 // List documents
-app.get("/api/documents", (req, res) => {
-  console.log('Documents list requested. Count:', documents.length);
-  res.json(documents);
+app.get("/api/documents", requireSupabaseUser, async (req: any, res) => {
+  try {
+    if (!supabaseDB) {
+      return res.status(500).json({ error: "Database not configured" });
+    }
+
+    const userId = getUserId(req);
+
+    const { data: documents, error } = await supabaseDB
+      .from('documents')
+      .select('*')
+      .eq('user_id', userId)
+      .order('uploaded_at', { ascending: false });
+
+    if (error) {
+      console.error('Database query error:', error);
+      return res.status(500).json({ error: "Failed to fetch documents" });
+    }
+
+    console.log('Documents list requested. Count:', documents?.length || 0);
+
+    const formatted = (documents || []).map((doc: any) => ({
+      id: doc.id,
+      filename: doc.filename,
+      originalName: doc.original_name,
+      fileType: doc.file_type,
+      fileSize: doc.file_size,
+      category: doc.category,
+      summary: doc.summary,
+      processed: doc.processed,
+      uploadedAt: doc.uploaded_at,
+      userId: doc.user_id
+    }));
+
+    res.json(formatted);
+  } catch (error) {
+    console.error('List documents error:', error);
+    res.status(500).json({ error: "Failed to fetch documents" });
+  }
 });
 
 // Delete document
-app.delete("/api/documents/:id", (req, res) => {
-  const id = req.params.id;
-  const index = documents.findIndex(doc => doc.id === id);
+app.delete("/api/documents/:id", requireSupabaseUser, async (req: any, res) => {
+  try {
+    if (!supabaseDB) {
+      return res.status(500).json({ error: "Database not configured" });
+    }
 
-  if (index === -1) {
-    return res.status(404).json({ error: "Document not found" });
+    const userId = getUserId(req);
+    const id = req.params.id;
+
+    const { error } = await supabaseDB
+      .from('documents')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Database delete error:', error);
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    console.log('Document deleted:', id);
+    res.json({ message: "Document deleted" });
+  } catch (error) {
+    console.error('Delete document error:', error);
+    res.status(500).json({ error: "Failed to delete document" });
   }
-
-  documents.splice(index, 1);
-  console.log('Document deleted. Remaining:', documents.length);
-
-  res.json({ message: "Document deleted" });
 });
 
 // Projects endpoints
-app.get("/api/projects", (req, res) => {
-  console.log('Projects list requested. Count:', projects.length);
-  res.json(projects);
-});
+app.get("/api/projects", requireSupabaseUser, async (req: any, res) => {
+  try {
+    if (!supabaseDB) {
+      return res.status(500).json({ error: "Database not configured" });
+    }
 
-app.post("/api/projects", (req, res) => {
-  console.log('Create project request:', req.body);
+    const userId = getUserId(req);
 
-  const project = {
-    id: `project-${nextProjectId++}`,
-    title: req.body.title || "Untitled Project",
-    funder: req.body.funder || "",
-    amount: req.body.amount || null,
-    deadline: req.body.deadline || null,
-    description: req.body.description || "",
-    status: "draft",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    userId: "user-123"
-  };
+    const { data: projects, error } = await supabaseDB
+      .from('projects')
+      .select('*')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false });
 
-  projects.push(project);
-  console.log('Project created:', project.id);
+    if (error) {
+      console.error('Database query error:', error);
+      return res.status(500).json({ error: "Failed to fetch projects" });
+    }
 
-  res.json(project);
-});
-
-app.put("/api/projects/:id", (req, res) => {
-  const id = req.params.id;
-  const index = projects.findIndex(p => p.id === id);
-
-  if (index === -1) {
-    return res.status(404).json({ error: "Project not found" });
+    console.log('Projects list requested. Count:', projects?.length || 0);
+    res.json(projects || []);
+  } catch (error) {
+    console.error('List projects error:', error);
+    res.status(500).json({ error: "Failed to fetch projects" });
   }
+});
 
-  projects[index] = {
-    ...projects[index],
-    ...req.body,
-    updatedAt: new Date().toISOString()
-  };
+app.post("/api/projects", requireSupabaseUser, async (req: any, res) => {
+  try {
+    if (!supabaseDB) {
+      return res.status(500).json({ error: "Database not configured" });
+    }
 
-  console.log('Project updated:', id);
-  res.json(projects[index]);
+    const userId = getUserId(req);
+    console.log('Create project request:', req.body);
+
+    const { data: project, error } = await supabaseDB
+      .from('projects')
+      .insert({
+        user_id: userId,
+        title: req.body.title || "Untitled Project",
+        funder: req.body.funder || "",
+        amount: req.body.amount || null,
+        deadline: req.body.deadline || null,
+        description: req.body.description || "",
+        status: "draft"
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Database insert error:', error);
+      return res.status(500).json({ error: "Failed to create project" });
+    }
+
+    console.log('Project created:', project.id);
+    res.json(project);
+  } catch (error) {
+    console.error('Create project error:', error);
+    res.status(500).json({ error: "Failed to create project" });
+  }
+});
+
+app.put("/api/projects/:id", requireSupabaseUser, async (req: any, res) => {
+  try {
+    if (!supabaseDB) {
+      return res.status(500).json({ error: "Database not configured" });
+    }
+
+    const userId = getUserId(req);
+    const id = req.params.id;
+
+    const { data: project, error } = await supabaseDB
+      .from('projects')
+      .update({
+        ...req.body,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Database update error:', error);
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    console.log('Project updated:', id);
+    res.json(project);
+  } catch (error) {
+    console.error('Update project error:', error);
+    res.status(500).json({ error: "Failed to update project" });
+  }
+});
+
+app.put("/api/projects/:id/finalize", requireSupabaseUser, async (req: any, res) => {
+  try {
+    if (!supabaseDB) {
+      return res.status(500).json({ error: "Database not configured" });
+    }
+
+    const userId = getUserId(req);
+    const projectId = req.params.id;
+
+    const { data: project, error } = await supabaseDB
+      .from('projects')
+      .update({
+        status: 'final',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', projectId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Database update error:', error);
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    console.log('Project finalized:', projectId);
+    res.json(project);
+  } catch (error) {
+    console.error('Finalize project error:', error);
+    res.status(500).json({ error: "Failed to finalize project" });
+  }
 });
 
 // Questions endpoints
-app.get("/api/projects/:id/questions", (req, res) => {
-  const projectId = req.params.id;
-  const projectQuestions = questions.filter(q => q.projectId === projectId);
-  console.log('Questions for project', projectId, ':', projectQuestions.length);
-  res.json(projectQuestions);
+app.get("/api/projects/:id/questions", requireSupabaseUser, async (req: any, res) => {
+  try {
+    if (!supabaseDB) {
+      return res.status(500).json({ error: "Database not configured" });
+    }
+
+    const userId = getUserId(req);
+    const projectId = req.params.id;
+
+    const { data: questions, error } = await supabaseDB
+      .from('grant_questions')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Database query error:', error);
+      return res.status(500).json({ error: "Failed to fetch questions" });
+    }
+
+    console.log('Questions for project', projectId, ':', questions?.length || 0);
+    res.json(questions || []);
+  } catch (error) {
+    console.error('List questions error:', error);
+    res.status(500).json({ error: "Failed to fetch questions" });
+  }
 });
 
-app.post("/api/projects/:projectId/questions", (req, res) => {
-  const projectId = req.params.projectId;
-  console.log('Create question for project:', projectId, req.body);
+app.post("/api/projects/:projectId/questions", requireSupabaseUser, async (req: any, res) => {
+  try {
+    if (!supabaseDB) {
+      return res.status(500).json({ error: "Database not configured" });
+    }
 
-  const question = {
-    id: `question-${nextQuestionId++}`,
-    projectId: projectId,
-    question: req.body.question || "",
-    wordLimit: req.body.wordLimit || null,
-    priority: req.body.priority || "medium",
-    createdAt: new Date().toISOString(),
-    userId: "user-123"
-  };
+    const userId = getUserId(req);
+    const projectId = req.params.projectId;
+    console.log('Create question for project:', projectId, req.body);
 
-  questions.push(question);
-  console.log('Question created:', question.id);
+    const { data: question, error } = await supabaseDB
+      .from('grant_questions')
+      .insert({
+        project_id: projectId,
+        user_id: userId,
+        question: req.body.question || "",
+        word_limit: req.body.wordLimit || null,
+        priority: req.body.priority || "medium"
+      })
+      .select()
+      .single();
 
-  res.json(question);
+    if (error) {
+      console.error('Database insert error:', error);
+      return res.status(500).json({ error: "Failed to create question" });
+    }
+
+    console.log('Question created:', question.id);
+    res.json(question);
+  } catch (error) {
+    console.error('Create question error:', error);
+    res.status(500).json({ error: "Failed to create question" });
+  }
 });
 
 // Generate response endpoint - INLINE IMPLEMENTATION (no server module imports)
@@ -286,28 +499,32 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
   }
 
   try {
-    // SECURITY: Validate questionId format (prevent injection attempts)
-    // Accept both UUID format (from database) and simple format (from in-memory storage)
-    if (!/^([0-9a-f-]{36}|question-\d+)$/i.test(questionId)) {
-      return res.status(400).json({ error: "Invalid question ID format" });
-    }
+    // Get question from database
+    const { data: question, error: questionError } = await supabaseDB
+      .from('grant_questions')
+      .select('*')
+      .eq('id', questionId)
+      .single();
 
-    // Get question from in-memory storage (simple.ts uses in-memory storage, not Supabase)
-    const question = questions.find(q => q.id === questionId);
-
-    if (!question) {
+    if (questionError || !question) {
       return res.status(404).json({ error: "Question not found" });
     }
 
-    // For in-memory storage, we'll skip user ownership checks since we're using mock auth
-
     console.log(`[api/simple] Starting AI generation for question ${questionId}`);
 
-    // Update question status in memory
-    question.responseStatus = 'generating';
+    // Update question status in database
+    await supabaseDB
+      .from('grant_questions')
+      .update({ response_status: 'generating' })
+      .eq('id', questionId);
 
-    // Get documents from in-memory storage
-    const processedDocs = documents.filter((doc: any) => doc.processed && doc.summary);
+    // Get documents from database
+    const { data: userDocs } = await supabaseDB
+      .from('documents')
+      .select('*')
+      .eq('user_id', userId);
+
+    const processedDocs = (userDocs || []).filter((doc: any) => doc.processed && doc.summary);
     const organizationContext = processedDocs
       .map((doc: any) => `${doc.originalName || doc.filename}: ${doc.summary}`)
       .join('\n');
@@ -410,15 +627,20 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
       errorMessage = 'AI service unavailable; provided excerpts instead.';
     }
 
-    // Update question in memory
-    question.response = finalResponse;
-    question.responseStatus = responseStatus;
-    if (errorMessage) {
-      question.errorMessage = errorMessage;
-    }
+    // Update question in database
+    const { data: updatedQuestion } = await supabaseDB
+      .from('grant_questions')
+      .update({
+        response: finalResponse,
+        response_status: responseStatus,
+        ...(errorMessage && { error_message: errorMessage })
+      })
+      .eq('id', questionId)
+      .select()
+      .single();
 
     const payload = {
-      ...question,
+      ...(updatedQuestion || question),
       citations: normalizedCitations,
       assumptions: assumptions,
       retrievedChunks: retrievedChunks,
@@ -436,12 +658,14 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
   } catch (error: any) {
     console.error(`[api/simple] Generation error for question ${questionId}:`, error);
 
-    // Update question status to failed in memory
-    const failedQuestion = questions.find(q => q.id === questionId);
-    if (failedQuestion) {
-      failedQuestion.responseStatus = 'failed';
-      failedQuestion.errorMessage = error.message || 'Unexpected server error during generation';
-    }
+    // Update question status to failed in database
+    await supabaseDB
+      .from('grant_questions')
+      .update({
+        response_status: 'failed',
+        error_message: error.message || 'Unexpected server error during generation'
+      })
+      .eq('id', questionId);
 
     // SECURITY: Don't leak error details in production
     res.status(500).json({
@@ -453,8 +677,51 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
 });
 
 // Other endpoints
-app.get("/api/stats", (req, res) => res.json({ activeProjects: projects.length }));
-app.get("/api/settings", (req, res) => res.json({ defaultTone: "professional" }));
+app.get("/api/stats", requireSupabaseUser, async (req: any, res) => {
+  try {
+    if (!supabaseDB) {
+      return res.status(500).json({ error: "Database not configured" });
+    }
+
+    const userId = getUserId(req);
+
+    const { data: projects } = await supabaseDB
+      .from('projects')
+      .select('*')
+      .eq('user_id', userId);
+
+    res.json({ activeProjects: projects?.length || 0 });
+  } catch (error) {
+    console.error('Stats error:', error);
+    res.json({ activeProjects: 0 });
+  }
+});
+
+app.get("/api/settings", requireSupabaseUser, async (req: any, res) => {
+  try {
+    if (!supabaseDB) {
+      return res.status(500).json({ error: "Database not configured" });
+    }
+
+    const userId = getUserId(req);
+
+    const { data: settings } = await supabaseDB
+      .from('user_settings')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (settings) {
+      res.json(settings);
+    } else {
+      // Return default settings if none exist
+      res.json({ defaultTone: "professional" });
+    }
+  } catch (error) {
+    console.error('Settings error:', error);
+    res.json({ defaultTone: "professional" });
+  }
+});
 
 // Extract questions from uploaded document (simplified)
 app.post("/api/extract-questions", upload.single('file'), (req, res) => {
@@ -504,6 +771,12 @@ app.get("/api/auth/me", async (req, res) => {
     }
 
     const { user } = data;
+
+    // Ensure user exists in database
+    if (supabaseDB) {
+      await ensureUserExists(user.id, user.email || '');
+    }
+
     res.json({
       id: user.id,
       email: user.email,
@@ -520,8 +793,8 @@ app.get("/api/auth/me", async (req, res) => {
 // Health check
 app.get("/api/status", (req, res) => {
   res.json({
-    api: "simple-version",
-    documents: documents.length,
+    api: "simple-version-database-backed",
+    database: process.env.DATABASE_URL ? "connected" : "not configured",
     timestamp: new Date().toISOString()
   });
 });
