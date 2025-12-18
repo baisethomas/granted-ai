@@ -87,68 +87,130 @@ export async function exportToPDF(data: ExportData): Promise<void> {
     q => q.responseStatus === "complete" || q.responseStatus === "edited"
   );
 
+  console.log('[PDF Export] Using jsPDF direct generation');
   console.log('[PDF Export] Completed questions count:', completedQuestions.length);
-  console.log('[PDF Export] Questions:', completedQuestions.map(q => ({ 
-    id: q.id, 
-    question: q.question?.substring(0, 50), 
-    hasResponse: !!q.response,
-    responseLength: q.response?.length 
-  })));
 
-  // Create HTML content for better formatting
-  const htmlContent = createHTMLContent(data, completedQuestions);
-  
-  console.log('[PDF Export] HTML content length:', htmlContent.length);
-  
-  // Create a temporary container that's properly rendered
-  const container = document.createElement('div');
-  container.style.position = 'absolute';
-  container.style.left = '0';
-  container.style.top = '0';
-  container.style.width = '210mm';
-  container.style.minHeight = '297mm';
-  container.style.backgroundColor = 'white';
-  container.style.zIndex = '-1';
-  container.style.overflow = 'visible';
-  container.innerHTML = htmlContent;
-  document.body.appendChild(container);
+  // Use jsPDF directly for reliable PDF generation
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
 
-  // Force a reflow to ensure styles are applied
-  container.offsetHeight;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 20;
+  const contentWidth = pageWidth - (margin * 2);
+  let yPosition = margin;
 
-  const options = {
-    margin: [15, 15, 15, 15],
-    filename: `${sanitizeFilename(project.title)}-Grant-Application.pdf`,
-    image: { type: 'jpeg', quality: 0.95 },
-    html2canvas: { 
-      scale: 2,
-      useCORS: true,
-      logging: true,
-      letterRendering: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      windowWidth: 794, // A4 width in pixels at 96 DPI
-      windowHeight: 1123 // A4 height in pixels at 96 DPI
-    },
-    jsPDF: { 
-      unit: 'mm', 
-      format: 'a4', 
-      orientation: 'portrait' as const,
-      compress: true
-    },
-    pagebreak: { mode: ['css', 'legacy'] }
+  // Helper function to add text with word wrap
+  const addWrappedText = (text: string, fontSize: number, isBold: boolean = false, color: [number, number, number] = [0, 0, 0]) => {
+    doc.setFontSize(fontSize);
+    doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+    doc.setTextColor(color[0], color[1], color[2]);
+    
+    const lines = doc.splitTextToSize(text, contentWidth);
+    const lineHeight = fontSize * 0.4;
+    
+    for (const line of lines) {
+      if (yPosition + lineHeight > pageHeight - margin) {
+        doc.addPage();
+        yPosition = margin;
+      }
+      doc.text(line, margin, yPosition);
+      yPosition += lineHeight;
+    }
   };
 
-  try {
-    console.log('[PDF Export] Starting html2pdf generation...');
-    await html2pdf().set(options).from(container).save();
-    console.log('[PDF Export] PDF generated successfully');
-  } catch (error) {
-    console.error('[PDF Export] Error generating PDF:', error);
-    throw error;
-  } finally {
-    document.body.removeChild(container);
+  // Helper to add spacing
+  const addSpace = (mm: number) => {
+    yPosition += mm;
+    if (yPosition > pageHeight - margin) {
+      doc.addPage();
+      yPosition = margin;
+    }
+  };
+
+  // Title
+  const title = metadata.organizationName 
+    ? `${metadata.organizationName} - Grant Application`
+    : 'Grant Application';
+  addWrappedText(title, 18, true, [30, 64, 175]);
+  addSpace(5);
+
+  // Horizontal line
+  doc.setDrawColor(37, 99, 235);
+  doc.setLineWidth(0.5);
+  doc.line(margin, yPosition, pageWidth - margin, yPosition);
+  addSpace(10);
+
+  // Project Information Section
+  addWrappedText('Project Information', 14, true, [30, 64, 175]);
+  addSpace(5);
+
+  addWrappedText(`Project Title: ${project.title}`, 11, false);
+  addSpace(2);
+  addWrappedText(`Funder: ${project.funder}`, 11, false);
+  addSpace(2);
+  
+  if (project.amount) {
+    addWrappedText(`Amount Requested: ${project.amount}`, 11, false);
+    addSpace(2);
   }
+  
+  if (project.deadline) {
+    addWrappedText(`Application Deadline: ${new Date(project.deadline).toLocaleDateString()}`, 11, false);
+    addSpace(2);
+  }
+
+  if (project.description) {
+    addSpace(3);
+    addWrappedText('Project Description:', 11, true);
+    addSpace(2);
+    addWrappedText(project.description, 10, false);
+  }
+
+  addSpace(10);
+
+  // Responses Section
+  addWrappedText('Grant Application Responses', 14, true, [30, 64, 175]);
+  addSpace(3);
+  doc.line(margin, yPosition, pageWidth - margin, yPosition);
+  addSpace(8);
+
+  // Each question and response
+  completedQuestions.forEach((question, index) => {
+    const wordCount = question.response ? question.response.trim().split(/\s+/).length : 0;
+    const wordLimitText = question.wordLimit 
+      ? ` (${wordCount}/${question.wordLimit} words)` 
+      : ` (${wordCount} words)`;
+
+    // Question header
+    addWrappedText(`${index + 1}. ${question.question}${wordLimitText}`, 11, true, [55, 65, 81]);
+    addSpace(4);
+
+    // Response content
+    const responseText = question.response || 'No response provided';
+    addWrappedText(responseText, 10, false);
+    addSpace(8);
+  });
+
+  // Footer
+  addSpace(10);
+  doc.setDrawColor(226, 232, 240);
+  doc.line(margin, yPosition, pageWidth - margin, yPosition);
+  addSpace(5);
+  
+  const footerText = `Generated on: ${metadata.exportDate.toLocaleDateString()} at ${metadata.exportDate.toLocaleTimeString()}`;
+  doc.setFontSize(9);
+  doc.setTextColor(107, 114, 128);
+  doc.text(footerText, pageWidth / 2, yPosition, { align: 'center' });
+
+  // Save the PDF
+  const filename = `${sanitizeFilename(project.title)}-Grant-Application.pdf`;
+  doc.save(filename);
+  
+  console.log('[PDF Export] PDF saved:', filename);
 }
 
 /**
