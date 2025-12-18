@@ -409,7 +409,7 @@ app.get("/api/projects/:id/questions", requireSupabaseUser, async (req: any, res
     const projectId = req.params.id;
 
     const { data: questions, error } = await supabaseDB
-      .from('grant_questions')
+      .from('questions')
       .select('*')
       .eq('project_id', projectId)
       .order('created_at', { ascending: true });
@@ -438,7 +438,7 @@ app.post("/api/projects/:projectId/questions", requireSupabaseUser, async (req: 
     console.log('Create question for project:', projectId, req.body);
 
     const { data: question, error } = await supabaseDB
-      .from('grant_questions')
+      .from('questions')
       .insert({
         project_id: projectId,
         user_id: userId,
@@ -501,7 +501,7 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
   try {
     // Get question from database
     const { data: question, error: questionError } = await supabaseDB
-      .from('grant_questions')
+      .from('questions')
       .select('*')
       .eq('id', questionId)
       .single();
@@ -514,7 +514,7 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
 
     // Update question status in database
     await supabaseDB
-      .from('grant_questions')
+      .from('questions')
       .update({ response_status: 'generating' })
       .eq('id', questionId);
 
@@ -629,7 +629,7 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
 
     // Update question in database
     const { data: updatedQuestion } = await supabaseDB
-      .from('grant_questions')
+      .from('questions')
       .update({
         response: finalResponse,
         response_status: responseStatus,
@@ -660,7 +660,7 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
 
     // Update question status to failed in database
     await supabaseDB
-      .from('grant_questions')
+      .from('questions')
       .update({
         response_status: 'failed',
         error_message: error.message || 'Unexpected server error during generation'
