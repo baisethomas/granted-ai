@@ -150,7 +150,7 @@ export const embeddingCache = pgTable("embedding_cache", {
   usageCount: integer("usage_count").default(1),
 });
 
-export const grantQuestions = pgTable("grant_questions", {
+export const grantQuestions = pgTable("questions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").references(() => projects.id).notNull(),
   question: text("question").notNull(),
