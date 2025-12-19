@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatsCard } from "@/components/ui/stats-card";
 import { ProjectCard } from "@/components/ui/project-card";
-import { api } from "@/lib/api";
-import { useLocation } from "wouter";
+import { EditProjectDialog } from "@/components/edit-project-dialog";
+import { api, type Project } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { 
   FolderOpen, 
@@ -18,9 +19,10 @@ import {
 } from "lucide-react";
 
 export default function Dashboard() {
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const { data: projects = [], isLoading: projectsLoading } = useQuery({
     queryKey: ["/api/projects"],
@@ -58,7 +60,11 @@ export default function Dashboard() {
   };
 
   const handleEditProject = (projectId: string) => {
-    setLocation(`/projects/${projectId}`);
+    const project = projects.find((p: any) => p.id === projectId);
+    if (project) {
+      setEditingProject(project);
+      setIsEditDialogOpen(true);
+    }
   };
 
   if (projectsLoading || statsLoading) {
@@ -230,6 +236,15 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Edit Project Dialog */}
+      {editingProject && (
+        <EditProjectDialog
+          project={editingProject}
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+        />
+      )}
     </div>
   );
 }
