@@ -1,11 +1,20 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal } from "lucide-react";
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MoreHorizontal, Edit, Trash2 } from "lucide-react";
 import { type Project } from "@/lib/api";
 
 interface ProjectCardProps {
   project: Project;
+  onDelete?: (projectId: string) => void;
+  onEdit?: (projectId: string) => void;
 }
 
 const statusColors = {
@@ -22,7 +31,7 @@ const statusLabels = {
   declined: "Declined",
 };
 
-export function ProjectCard({ project }: ProjectCardProps) {
+export function ProjectCard({ project, onDelete, onEdit }: ProjectCardProps) {
   const formatDate = (date: string | undefined) => {
     if (!date) return "No deadline";
     return new Date(date).toLocaleDateString("en-US", {
@@ -58,9 +67,30 @@ export function ProjectCard({ project }: ProjectCardProps) {
             <span className="text-sm text-slate-500">
               Due: {formatDate(project.deadline)}
             </span>
-            <Button variant="ghost" size="sm" className="p-2">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="p-2">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem 
+                  onClick={() => onEdit?.(project.id)}
+                  className="cursor-pointer"
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={() => onDelete?.(project.id)}
+                  className="cursor-pointer text-red-600 focus:text-red-600"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </CardContent>

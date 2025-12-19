@@ -115,6 +115,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/projects/:id", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const project = await storage.getProject(req.params.id);
+      
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Verify the project belongs to the user
+      if (project.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized to delete this project" });
+      }
+
+      const deleted = await storage.deleteProject(req.params.id);
+      
+      if (!deleted) {
+        return res.status(500).json({ error: "Failed to delete project" });
+      }
+
+      console.log(`Project ${req.params.id} deleted by user ${userId}`);
+      res.json({ message: "Project deleted successfully" });
+    } catch (error) {
+      console.error("Failed to delete project:", error);
+      res.status(500).json({ error: "Failed to delete project" });
+    }
+  });
+
   // Documents routes
   app.get("/api/documents", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {

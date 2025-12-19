@@ -134,6 +134,10 @@ export const api = {
     return res.json();
   },
 
+  async deleteProject(id: string): Promise<void> {
+    await apiRequest("DELETE", `/api/projects/${id}`);
+  },
+
   // Documents
   async getDocuments(): Promise<Document[]> {
     const res = await apiRequest("GET", "/api/documents");
