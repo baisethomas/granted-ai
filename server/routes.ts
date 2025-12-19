@@ -33,11 +33,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     fs.mkdirSync('uploads');
   }
 
+  // Diagnostic endpoint
+  app.get("/api/debug/status", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const hasDatabaseUrl = !!process.env.DATABASE_URL;
+      const projects = await storage.getProjects(userId);
+      
+      res.json({
+        status: "ok",
+        userId,
+        database: {
+          configured: hasDatabaseUrl,
+          url: hasDatabaseUrl ? `${process.env.DATABASE_URL.substring(0, 20)}...` : null,
+          type: hasDatabaseUrl ? "postgres" : "in-memory"
+        },
+        projects: {
+          count: projects.length,
+          ids: projects.map(p => ({ id: p.id, title: p.title, userId: p.userId }))
+        }
+      });
+    } catch (error) {
+      console.error("Debug status error:", error);
+      res.status(500).json({ error: "Failed to get status", message: error instanceof Error ? error.message : "Unknown error" });
+    }
+  });
+
   // Projects routes
   app.get("/api/projects", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = getUserId(req);
+      console.log(`[GET /api/projects] Fetching projects for user: ${userId}`);
       const projects = await storage.getProjects(userId);
+      console.log(`[GET /api/projects] Found ${projects.length} projects for user ${userId}`);
       res.json(projects);
     } catch (error) {
       console.error("Failed to fetch projects:", error);
@@ -70,12 +98,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/projects/:id", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
-      const project = await storage.getProject(req.params.id);
+      const userId = getUserId(req);
+      const projectId = req.params.id;
+      console.log(`[GET /api/projects/${projectId}] Fetching project for user: ${userId}`);
+      const project = await storage.getProject(projectId);
       if (!project) {
+        console.log(`[GET /api/projects/${projectId}] Project not found in database`);
         return res.status(404).json({ error: "Project not found" });
       }
+      console.log(`[GET /api/projects/${projectId}] Found project owned by: ${project.userId}`);
       res.json(project);
     } catch (error) {
+      console.error(`[GET /api/projects/${req.params.id}] Error:`, error);
       res.status(500).json({ error: "Failed to fetch project" });
     }
   });
@@ -120,32 +154,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = getUserId(req);
       const projectId = req.params.id;
       
-      console.log(`DELETE request for project ${projectId} by user ${userId}`);
+      console.log(`[DELETE /api/projects/${projectId}] Request by user: ${userId}`);
+      
+      // First, let's check all projects for this user to debug
+      const userProjects = await storage.getProjects(userId);
+      console.log(`[DELETE /api/projects/${projectId}] User has ${userProjects.length} total projects`);
+      console.log(`[DELETE /api/projects/${projectId}] User project IDs:`, userProjects.map(p => p.id));
       
       const project = await storage.getProject(projectId);
       
       if (!project) {
-        console.log(`Project ${projectId} not found in database`);
+        console.log(`[DELETE /api/projects/${projectId}] Project not found in database`);
+        console.log(`[DELETE /api/projects/${projectId}] Checking if ID exists in user's projects:`, userProjects.some(p => p.id === projectId));
         return res.status(404).json({ error: "Project not found", message: "This project does not exist or has already been deleted." });
       }
 
+      console.log(`[DELETE /api/projects/${projectId}] Found project owned by: ${project.userId}`);
+      
       // Verify the project belongs to the user
       if (project.userId !== userId) {
-        console.log(`User ${userId} attempted to delete project ${projectId} owned by ${project.userId}`);
+        console.log(`[DELETE /api/projects/${projectId}] AUTHORIZATION FAILED: Current user ${userId} tried to delete project owned by ${project.userId}`);
         return res.status(403).json({ error: "Unauthorized to delete this project", message: "You don't have permission to delete this project." });
       }
 
+      console.log(`[DELETE /api/projects/${projectId}] Authorization passed, attempting delete...`);
       const deleted = await storage.deleteProject(projectId);
       
       if (!deleted) {
-        console.error(`Failed to delete project ${projectId} from storage`);
+        console.error(`[DELETE /api/projects/${projectId}] Delete operation returned false`);
         return res.status(500).json({ error: "Failed to delete project", message: "An error occurred while deleting the project." });
       }
 
-      console.log(`Project ${projectId} successfully deleted by user ${userId}`);
+      console.log(`[DELETE /api/projects/${projectId}] Successfully deleted by user ${userId}`);
       res.json({ message: "Project deleted successfully" });
     } catch (error) {
-      console.error("Failed to delete project:", error);
+      console.error(`[DELETE /api/projects/${req.params.id}] Exception:`, error);
       res.status(500).json({ error: "Failed to delete project", message: error instanceof Error ? error.message : "An unexpected error occurred" });
     }
   });
