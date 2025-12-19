@@ -407,6 +407,43 @@ app.put("/api/projects/:id/finalize", requireSupabaseUser, async (req: any, res)
   }
 });
 
+app.delete("/api/projects/:id", requireSupabaseUser, async (req: any, res) => {
+  try {
+    if (!supabaseDB) {
+      return res.status(500).json({ error: "Database not configured" });
+    }
+
+    const userId = getUserId(req);
+    const projectId = req.params.id;
+
+    console.log(`[DELETE /api/projects/${projectId}] Request by user: ${userId}`);
+
+    // Delete the project (Supabase will cascade delete related questions)
+    const { error } = await supabaseDB
+      .from('projects')
+      .delete()
+      .eq('id', projectId)
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Database delete error:', error);
+      return res.status(404).json({ 
+        error: "Project not found",
+        message: "This project does not exist or has already been deleted."
+      });
+    }
+
+    console.log(`[DELETE /api/projects/${projectId}] Successfully deleted by user ${userId}`);
+    res.json({ message: "Project deleted successfully" });
+  } catch (error) {
+    console.error(`[DELETE /api/projects/${req.params.id}] Exception:`, error);
+    res.status(500).json({ 
+      error: "Failed to delete project",
+      message: error instanceof Error ? error.message : "An unexpected error occurred"
+    });
+  }
+});
+
 // Questions endpoints
 app.get("/api/projects/:id/questions", requireSupabaseUser, async (req: any, res) => {
   try {
