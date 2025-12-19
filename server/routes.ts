@@ -118,28 +118,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/projects/:id", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = getUserId(req);
-      const project = await storage.getProject(req.params.id);
+      const projectId = req.params.id;
+      
+      console.log(`DELETE request for project ${projectId} by user ${userId}`);
+      
+      const project = await storage.getProject(projectId);
       
       if (!project) {
-        return res.status(404).json({ error: "Project not found" });
+        console.log(`Project ${projectId} not found in database`);
+        return res.status(404).json({ error: "Project not found", message: "This project does not exist or has already been deleted." });
       }
 
       // Verify the project belongs to the user
       if (project.userId !== userId) {
-        return res.status(403).json({ error: "Unauthorized to delete this project" });
+        console.log(`User ${userId} attempted to delete project ${projectId} owned by ${project.userId}`);
+        return res.status(403).json({ error: "Unauthorized to delete this project", message: "You don't have permission to delete this project." });
       }
 
-      const deleted = await storage.deleteProject(req.params.id);
+      const deleted = await storage.deleteProject(projectId);
       
       if (!deleted) {
-        return res.status(500).json({ error: "Failed to delete project" });
+        console.error(`Failed to delete project ${projectId} from storage`);
+        return res.status(500).json({ error: "Failed to delete project", message: "An error occurred while deleting the project." });
       }
 
-      console.log(`Project ${req.params.id} deleted by user ${userId}`);
+      console.log(`Project ${projectId} successfully deleted by user ${userId}`);
       res.json({ message: "Project deleted successfully" });
     } catch (error) {
       console.error("Failed to delete project:", error);
-      res.status(500).json({ error: "Failed to delete project" });
+      res.status(500).json({ error: "Failed to delete project", message: error instanceof Error ? error.message : "An unexpected error occurred" });
     }
   });
 

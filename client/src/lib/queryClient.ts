@@ -37,10 +37,19 @@ async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     let errorMessage: string;
     try {
-      const errorData = await res.json();
-      errorMessage = errorData.message || errorData.error || res.statusText;
+      // Read response body as text first (can only read once)
+      const text = await res.text();
+      // Try to parse as JSON
+      try {
+        const errorData = JSON.parse(text);
+        errorMessage = errorData.message || errorData.error || res.statusText;
+      } catch {
+        // If not valid JSON, use the text directly
+        errorMessage = text || res.statusText;
+      }
     } catch {
-      errorMessage = (await res.text()) || res.statusText;
+      // If reading fails entirely, use statusText
+      errorMessage = res.statusText;
     }
 
     const error = new Error(`${res.status}: ${errorMessage}`) as ApiError;

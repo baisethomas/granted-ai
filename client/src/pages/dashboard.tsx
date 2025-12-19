@@ -50,7 +50,9 @@ export default function Dashboard() {
   });
 
   const handleDeleteProject = (projectId: string) => {
+    console.log("Delete requested for project:", projectId);
     if (window.confirm("Are you sure you want to delete this project? This action cannot be undone.")) {
+      console.log("User confirmed deletion, calling API...");
       deleteProjectMutation.mutate(projectId);
     }
   };
