@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { StatsCard } from "@/components/ui/stats-card";
 import { ProjectCard } from "@/components/ui/project-card";
 import { api } from "@/lib/api";
-import { useNavigate } from "react-router-dom";
+import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { 
   FolderOpen, 
@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 
 export default function Dashboard() {
-  const navigate = useNavigate();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -56,7 +56,7 @@ export default function Dashboard() {
   };
 
   const handleEditProject = (projectId: string) => {
-    navigate(`/projects/${projectId}`);
+    setLocation(`/projects/${projectId}`);
   };
 
   if (projectsLoading || statsLoading) {
