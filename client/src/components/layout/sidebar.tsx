@@ -78,8 +78,8 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
           </ul>
         </div>
         
-        {/* Resources Navigation */}
-        <div className="mb-6">
+        {/* Resources Navigation - Hidden until resources are available */}
+        {/* <div className="mb-6">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-3">Resources</p>
           <ul className="space-y-1">
             {resourceNavItems.map((item) => {
@@ -97,7 +97,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
               );
             })}
           </ul>
-        </div>
+        </div> */}
       </nav>
       
       {/* User Profile Section */}
