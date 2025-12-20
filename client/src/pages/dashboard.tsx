@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { StatsCard } from "@/components/ui/stats-card";
 import { ProjectCard } from "@/components/ui/project-card";
 import { EditProjectDialog } from "@/components/edit-project-dialog";
+import { NewProjectDialog } from "@/components/new-project-dialog";
 import { api, type Project } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -23,6 +24,7 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
 
   const { data: projects = [], isLoading: projectsLoading } = useQuery({
     queryKey: ["/api/projects"],
@@ -96,7 +98,7 @@ export default function Dashboard() {
                 Welcome back! Here's your grant writing progress.
               </p>
             </div>
-            <Button className="bg-primary-600 hover:bg-primary-700">
+            <Button className="bg-primary-600 hover:bg-primary-700" onClick={() => setIsNewProjectDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               New Grant Application
             </Button>
@@ -150,7 +152,7 @@ export default function Dashboard() {
               </div>
               <h3 className="text-lg font-medium text-slate-900 mb-2">No projects yet</h3>
               <p className="text-slate-600 mb-4">Create your first grant application to get started.</p>
-              <Button className="bg-primary-600 hover:bg-primary-700">
+              <Button className="bg-primary-600 hover:bg-primary-700" onClick={() => setIsNewProjectDialogOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Create Project
               </Button>
@@ -236,6 +238,12 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* New Project Dialog */}
+      <NewProjectDialog
+        open={isNewProjectDialogOpen}
+        onOpenChange={setIsNewProjectDialogOpen}
+      />
 
       {/* Edit Project Dialog */}
       {editingProject && (
