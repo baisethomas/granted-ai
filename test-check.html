@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head><title>Check Deployment</title></head>
+<body>
+<h1>Testing if files exist in deployment</h1>
+<script>
+// Check if the new files are being served
+fetch('/src/components/new-project-dialog.tsx')
+  .then(r => console.log('new-project-dialog.tsx status:', r.status))
+  .catch(e => console.log('Error:', e));
+</script>
+</body>
+</html>

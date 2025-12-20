@@ -98,7 +98,14 @@ export default function Dashboard() {
                 Welcome back! Here's your grant writing progress.
               </p>
             </div>
-            <Button className="bg-primary-600 hover:bg-primary-700" onClick={() => setIsNewProjectDialogOpen(true)}>
+            <Button 
+              className="bg-primary-600 hover:bg-primary-700" 
+              onClick={() => {
+                console.log("New Project button clicked!");
+                setIsNewProjectDialogOpen(true);
+                console.log("Dialog state should be:", true);
+              }}
+            >
               <Plus className="mr-2 h-4 w-4" />
               New Grant Application
             </Button>
@@ -240,6 +247,7 @@ export default function Dashboard() {
       </div>
 
       {/* New Project Dialog */}
+      {console.log("Rendering NewProjectDialog, open state:", isNewProjectDialogOpen)}
       <NewProjectDialog
         open={isNewProjectDialogOpen}
         onOpenChange={setIsNewProjectDialogOpen}
