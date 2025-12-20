@@ -33,11 +33,13 @@ import Forms from "@/pages/forms";
 import Drafts from "@/pages/drafts";
 import Settings from "@/pages/settings";
 import Pricing from "@/pages/pricing";
+import { NewProjectDialog } from "@/components/new-project-dialog";
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [location, setLocation] = useLocation();
   const { user, loading, signOut } = useAuth();
+  const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
 
   // Handle redirect to /app when user logs in
   useEffect(() => {
@@ -184,7 +186,7 @@ function AppLayoutWithTabs({
           title={getHeaderTitle()} 
           subtitle={getHeaderSubtitle()}
           onNewProject={activeTab === "dashboard" ? () => {
-            // Handle new project creation
+            setIsNewProjectDialogOpen(true);
           } : undefined}
         />
         
@@ -193,6 +195,12 @@ function AppLayoutWithTabs({
           {children}
         </main>
       </div>
+
+      {/* New Project Dialog - Available from header button */}
+      <NewProjectDialog
+        open={isNewProjectDialogOpen}
+        onOpenChange={setIsNewProjectDialogOpen}
+      />
     </div>
   );
 }
