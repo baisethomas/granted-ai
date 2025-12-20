@@ -120,7 +120,12 @@ function AppContent() {
       <TooltipProvider>
         <ErrorBoundary>
           <div className="h-screen overflow-hidden">
-            <AppLayoutWithTabs activeTab={activeTab} onTabChange={setActiveTab}>
+            <AppLayoutWithTabs 
+              activeTab={activeTab} 
+              onTabChange={setActiveTab}
+              isNewProjectDialogOpen={isNewProjectDialogOpen}
+              setIsNewProjectDialogOpen={setIsNewProjectDialogOpen}
+            >
               {renderActiveView()}
             </AppLayoutWithTabs>
             <Toaster />
@@ -134,11 +139,15 @@ function AppContent() {
 function AppLayoutWithTabs({ 
   children, 
   activeTab, 
-  onTabChange 
+  onTabChange,
+  isNewProjectDialogOpen,
+  setIsNewProjectDialogOpen
 }: { 
   children: React.ReactNode;
   activeTab: string;
   onTabChange: (tab: string) => void;
+  isNewProjectDialogOpen: boolean;
+  setIsNewProjectDialogOpen: (open: boolean) => void;
 }) {
   const getHeaderTitle = () => {
     switch (activeTab) {
