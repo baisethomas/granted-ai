@@ -64,6 +64,52 @@ export default function Forms() {
     queryFn: api.getSettings,
   });
 
+  // Load project data when a project is selected
+  const handleProjectSelect = (projectId: string) => {
+    if (projectId === "new") {
+      // Clear form for new project
+      setCurrentProject(null);
+      setProjectForm({
+        title: "",
+        funder: "",
+        amount: "",
+        deadline: "",
+        description: "",
+      });
+      setQuestions([]);
+    } else {
+      // Load selected project data
+      const project = projects.find((p: any) => p.id === projectId);
+      if (project) {
+        setCurrentProject(projectId);
+        setProjectForm({
+          title: project.title || "",
+          funder: project.funder || "",
+          amount: project.amount || "",
+          deadline: project.deadline ? new Date(project.deadline).toISOString().split('T')[0] : "",
+          description: project.description || "",
+        });
+        // Load questions for this project
+        loadProjectQuestions(projectId);
+      }
+    }
+  };
+
+  const loadProjectQuestions = async (projectId: string) => {
+    try {
+      const projectQuestions = await api.getQuestions(projectId);
+      const formattedQuestions = projectQuestions.map((q: any) => ({
+        id: q.id,
+        question: q.question,
+        wordLimit: q.wordLimit,
+        priority: q.priority || "medium",
+      }));
+      setQuestions(formattedQuestions);
+    } catch (error) {
+      console.error("Failed to load project questions:", error);
+    }
+  };
+
   const createProjectMutation = useMutation({
     mutationFn: api.createProject,
     onSuccess: (project) => {
@@ -98,8 +144,10 @@ export default function Forms() {
         await api.updateProject(pid, projectData);
       }
 
-      // Create or update questions
-      for (const q of questions) {
+      // Create new questions only (filter out existing ones by checking if id is a UUID)
+      const newQuestions = questions.filter(q => !q.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i));
+      
+      for (const q of newQuestions) {
         await api.createQuestion(pid, {
           question: q.question,
           wordLimit: q.wordLimit || undefined,
@@ -115,8 +163,10 @@ export default function Forms() {
         title: "Draft saved",
         description: "Your grant application draft has been saved successfully.",
       });
-      // Note: Navigation to drafts tab would need to be handled by parent component
-      console.log("Draft saved with project ID:", projectId);
+      // Reload questions to get proper IDs
+      if (projectId) {
+        loadProjectQuestions(projectId);
+      }
     },
     onError: (error) => {
       toast({
@@ -132,6 +182,10 @@ export default function Forms() {
       api.createQuestion(projectId, question),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      if (currentProject) {
+        // Reload questions for the current project
+        loadProjectQuestions(currentProject);
+      }
     },
   });
 
@@ -194,15 +248,25 @@ export default function Forms() {
         console.warn('Clarification analysis failed, proceeding with generation:', error);
       }
 
-      // Create questions and get their IDs
+      // Create questions and get their IDs (only create new questions)
       const questionIds = [];
+      
       for (const q of questions) {
-        const createdQuestion = await api.createQuestion(pid, {
-          question: q.question,
-          wordLimit: q.wordLimit || undefined,
-          priority: q.priority,
-        });
-        questionIds.push(createdQuestion.id);
+        // Check if this is an existing question (has a UUID format id)
+        const isExistingQuestion = q.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+        
+        if (isExistingQuestion) {
+          // Use existing question ID
+          questionIds.push(q.id);
+        } else {
+          // Create new question
+          const createdQuestion = await api.createQuestion(pid, {
+            question: q.question,
+            wordLimit: q.wordLimit || undefined,
+            priority: q.priority,
+          });
+          questionIds.push(createdQuestion.id);
+        }
       }
 
       // Start generating responses for all questions
@@ -224,8 +288,10 @@ export default function Forms() {
         title: "Responses generating",
         description: "AI is generating responses for your questions. View progress in the drafts section.",
       });
-      // Note: Navigation to drafts tab would need to be handled by parent component
-      console.log("Generation started for project ID:", projectId);
+      // Reload questions to get proper IDs and statuses
+      if (projectId) {
+        loadProjectQuestions(projectId);
+      }
     },
     onError: (error) => {
       toast({
@@ -442,6 +508,54 @@ export default function Forms() {
             Enter or paste grant application questions and requirements. Our AI will generate 
             tailored responses based on your uploaded documents.
           </p>
+
+          {/* Project Selection */}
+          <div className="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <Label htmlFor="project-select" className="text-sm font-semibold text-blue-900 mb-2 block">
+              Select Project
+            </Label>
+            <Select 
+              value={currentProject || "new"} 
+              onValueChange={handleProjectSelect}
+            >
+              <SelectTrigger id="project-select" className="bg-white">
+                <SelectValue placeholder="Select an existing project or create new" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="new">
+                  <div className="flex items-center">
+                    <Plus className="mr-2 h-4 w-4 text-blue-600" />
+                    <span className="font-medium">Create New Project</span>
+                  </div>
+                </SelectItem>
+                {projects.length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 uppercase">
+                      Existing Projects
+                    </div>
+                    {projects.map((project: any) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{project.title}</span>
+                          <span className="text-xs text-slate-500">{project.funder}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
+              </SelectContent>
+            </Select>
+            {currentProject && (
+              <p className="text-sm text-blue-700 mt-2">
+                ✓ Editing existing project. Questions will be added to this project.
+              </p>
+            )}
+            {!currentProject && (
+              <p className="text-sm text-slate-600 mt-2">
+                Creating a new project. Fill in the details below.
+              </p>
+            )}
+          </div>
 
           {/* Form Input Methods */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
