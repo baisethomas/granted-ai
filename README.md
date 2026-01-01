@@ -6,15 +6,15 @@ Granted helps nonprofits streamline their grant application process by intellige
 
 ## Features
 
-- **📄 Smart Document Management** - Upload and automatically summarize organizational documents (PDFs, Word docs)
-- **🤖 AI-Powered Response Generation** - Generate grant answers using GPT-4 with context from your documents
-- **🔍 Hybrid Search** - Semantic (vector) + keyword search to find the most relevant context
-- **📝 Citation Tracking** - Automatic citation mapping shows which documents informed each response
-- **⚠️ Assumption Detection** - AI identifies gaps and assumptions in generated content
-- **✏️ Draft Management** - Edit, version, and refine AI-generated responses
-- **📤 Multi-Format Export** - Export to PDF, Word, or clipboard with professional formatting
-- **🎨 Customizable Tone** - Configure writing style, emphasis areas, and creativity levels
-- **👥 Team Collaboration** - Organization-based access with role management
+- **Smart Document Management** - Upload and automatically summarize organizational documents (PDFs, Word docs)
+- **AI-Powered Response Generation** - Generate grant answers using GPT-4 with context from your documents
+- **Hybrid Search** - Semantic (vector) + keyword search to find the most relevant context
+- **Citation Tracking** - Automatic citation mapping shows which documents informed each response
+- **Assumption Detection** - AI identifies gaps and assumptions in generated content
+- **Draft Management** - Edit, version, and refine AI-generated responses
+- **Multi-Format Export** - Export to PDF, Word, or clipboard with professional formatting
+- **Customizable Tone** - Configure writing style, emphasis areas, and creativity levels
+- **Team Collaboration** - Organization-based access with role management
 
 ## Tech Stack
 
@@ -1162,4 +1162,4 @@ For issues, questions, or feature requests, please open an issue on GitHub or co
 
 ---
 
-**Built with ❤️ for nonprofits making a difference**
+**Built for nonprofits making a difference**
