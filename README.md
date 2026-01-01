@@ -1162,4 +1162,4 @@ For issues, questions, or feature requests, please open an issue on GitHub or co
 
 ---
 
-**Built for nonprofits making a difference**
+**Built with ❤️ for nonprofits making a difference**
