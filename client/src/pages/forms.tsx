@@ -245,7 +245,6 @@ export default function Forms() {
           }
         }
       } catch (error) {
-        console.warn('Clarification analysis failed, proceeding with generation:', error);
       }
 
       // Create questions and get their IDs (only create new questions)
@@ -413,7 +412,6 @@ export default function Forms() {
       return;
     }
 
-    console.log("Saving draft with data:", { projectForm, questions });
     saveProjectMutation.mutate();
   };
 

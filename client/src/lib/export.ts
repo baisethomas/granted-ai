@@ -87,8 +87,6 @@ export async function exportToPDF(data: ExportData): Promise<void> {
     q => q.responseStatus === "complete" || q.responseStatus === "edited"
   );
 
-  console.log('[PDF Export] Using jsPDF direct generation');
-  console.log('[PDF Export] Completed questions count:', completedQuestions.length);
 
   // Use jsPDF directly for reliable PDF generation
   const doc = new jsPDF({
@@ -210,7 +208,6 @@ export async function exportToPDF(data: ExportData): Promise<void> {
   const filename = `${sanitizeFilename(project.title)}-Grant-Application.pdf`;
   doc.save(filename);
   
-  console.log('[PDF Export] PDF saved:', filename);
 }
 
 /**

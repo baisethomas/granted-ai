@@ -54,9 +54,7 @@ export default function Dashboard() {
   });
 
   const handleDeleteProject = (projectId: string) => {
-    console.log("Delete requested for project:", projectId);
     if (window.confirm("Are you sure you want to delete this project? This action cannot be undone.")) {
-      console.log("User confirmed deletion, calling API...");
       deleteProjectMutation.mutate(projectId);
     }
   };
@@ -101,9 +99,7 @@ export default function Dashboard() {
             <Button 
               className="bg-primary-600 hover:bg-primary-700" 
               onClick={() => {
-                console.log("New Project button clicked!");
                 setIsNewProjectDialogOpen(true);
-                console.log("Dialog state should be:", true);
               }}
             >
               <Plus className="mr-2 h-4 w-4" />
@@ -247,7 +243,6 @@ export default function Dashboard() {
       </div>
 
       {/* New Project Dialog */}
-      {console.log("Rendering NewProjectDialog, open state:", isNewProjectDialogOpen)}
       <NewProjectDialog
         open={isNewProjectDialogOpen}
         onOpenChange={setIsNewProjectDialogOpen}

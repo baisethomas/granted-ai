@@ -144,7 +144,6 @@ export default function Upload() {
     const checkAuth = async () => {
       const { supabase } = await import("@/lib/supabase");
       const { data: { session } } = await supabase.auth.getSession();
-      console.log('Upload page auth check:', {
         hasSession: !!session,
         hasUser: !!session?.user,
         hasAccessToken: !!session?.access_token,
@@ -158,7 +157,6 @@ export default function Upload() {
     queryKey: ["/api/documents"],
     meta: {
       onSuccess: (data: any) => {
-        console.log('Documents query result:', data);
       },
       onError: (error: any) => {
         console.error('Documents query error:', error);
@@ -166,13 +164,11 @@ export default function Upload() {
     }
   });
 
-  console.log('Current documents state:', { documents, isLoading, error });
 
   const uploadMutation = useMutation({
     mutationFn: ({ file, category }: { file: File; category?: string }) =>
       api.uploadDocument(file, category),
     onSuccess: (data) => {
-      console.log('Upload successful:', data);
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
       toast({
         title: "Document uploaded",
@@ -296,7 +292,6 @@ export default function Upload() {
               variant="outline"
               size="sm"
               onClick={() => {
-                console.log('Manual refresh triggered');
                 queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
               }}
             >

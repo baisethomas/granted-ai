@@ -4,60 +4,95 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
-- `npm run dev` - Start development server with Turbopack
-- `npm run build` - Build production application
+- `npm run dev` - Start development server (Express backend with Vite frontend)
+- `npm run build` - Build production application (Vite + esbuild)
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint
+- `npm run db:push` - Push database schema changes with Drizzle
+- `npm run test:auth` - Run authentication smoke tests
 
 ## Architecture Overview
 
-This is a Next.js 15 application for AI-powered grant writing assistance. The application integrates with Supabase for data storage and supports multiple LLM providers (OpenAI, Anthropic) for AI generation.
+This is a **Vite + React + Express** application for AI-powered grant writing assistance. The frontend uses React with Vite for build tooling, while the backend is an Express server. The application integrates with Supabase for authentication and supports multiple LLM providers (OpenAI, Anthropic) for AI generation.
+
+### Tech Stack
+
+- **Frontend**: React 18, Vite 5, Wouter (routing), TanStack Query (data fetching)
+- **Backend**: Express, Node.js with TypeScript
+- **Database**: PostgreSQL with Drizzle ORM
+- **Authentication**: Supabase Auth + Passport.js (Google OAuth, local)
+- **UI Framework**: Tailwind CSS 4, Radix UI components, Lucide icons
+- **State Management**: TanStack Query for server state, React hooks for local state
+- **AI Integration**: OpenAI SDK, Anthropic SDK
 
 ### Core Application Flow
 
-1. **Document Upload & Processing** (`src/app/upload/`) - Users upload documents which get summarized using LLM providers
-2. **Grant Form Creation** (`src/app/grant-form/`) - Users input grant questions and context
-3. **AI Generation** (`src/app/api/generate/route.ts`) - Generates grant responses using document context and user preferences
-4. **Draft Management** (`src/app/draft/`) - Display and manage generated drafts
-5. **Export Functions** (`src/lib/export/`) - Export drafts to PDF, DOCX, or copy to clipboard
+1. **Document Upload & Processing** (`client/src/pages/upload.tsx`) - Users upload documents which get processed by background workers
+2. **Grant Form Creation** (`client/src/pages/forms.tsx`) - Users input grant questions and context
+3. **AI Generation** (`server/routes.ts`, `api/simple.ts`) - Generates grant responses using document context via LLM providers
+4. **Draft Management** (`client/src/pages/drafts.tsx`) - Display and manage generated drafts
+5. **Export Functions** (`client/src/lib/export.ts`) - Export drafts to PDF, DOCX, or copy to clipboard
 
 ### Key Architectural Components
 
-**State Management**: Zustand store (`src/stores/app.ts`) manages:
-- Organization settings and writing tone preferences
-- Uploaded documents with summaries
-- Generated drafts and project data
+**Frontend Architecture** (`client/`):
+- React SPA with client-side routing (Wouter)
+- TanStack Query for API calls and cache management
+- Component library based on Radix UI primitives
+- Vite for fast development and optimized production builds
 
-**LLM Integration** (`src/lib/llm/`):
-- Provider-agnostic interface with OpenAI and Anthropic implementations
-- Configurable via `GRANTED_DEFAULT_PROVIDER` environment variable
-- Falls back to mock provider for development/testing
+**Backend Architecture** (`server/`):
+- Express REST API with TypeScript
+- Drizzle ORM for type-safe database operations
+- Passport authentication strategies
+- Background workers for document processing (`server/workers/`)
 
-**Agent System** (`src/lib/agent/`):
-- `context.ts` - Manages document context and memory
-- `generator.ts` - Handles grant response generation with context awareness
+**API Layer** (`api/`):
+- `simple.ts` - Main AI generation logic and document processing
+- RESTful endpoints for projects, documents, questions, and settings
 
-**Database Integration** (`src/lib/supabase/`):
-- Client-side and server-side Supabase clients
-- Handles authentication and data persistence
+**Database** (`server/db.ts`, `shared/schema-simple.ts`):
+- PostgreSQL with Neon serverless driver
+- Drizzle ORM schema definitions
+- Type-safe queries with drizzle-zod
+
+**Authentication** (`server/auth.ts`, `server/hybrid-auth.ts`):
+- Hybrid authentication supporting both Supabase and Passport
+- Google OAuth 2.0 integration
+- Session management with connect-pg-simple
 
 ### Environment Variables
 
-- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key
-- `GRANTED_DEFAULT_PROVIDER` - LLM provider ("openai" or "anthropic")
-- Provider-specific API keys for OpenAI/Anthropic
+- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL (legacy naming, used via Vite define)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key (legacy naming, used via Vite define)
+- `DATABASE_URL` - PostgreSQL connection string
+- `OPENAI_API_KEY` - OpenAI API key
+- `ANTHROPIC_API_KEY` - Anthropic API key
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - Google OAuth credentials
+- `SESSION_SECRET` - Express session secret
 
 ### UI Components
 
-- Custom UI components in `src/components/ui/` (Button, Card, Input, Select, Textarea)
-- Uses Tailwind CSS with custom design system
+- Radix UI primitives in `client/src/components/ui/` (Button, Card, Dialog, Select, etc.)
+- Custom components: ClarificationPanel, EvidenceMap, UsageDashboard
+- Tailwind CSS 4 with custom design system
 - Lucide React for icons
-- Headless UI for accessible components
+- Framer Motion for animations
 
-### File Structure Notes
+### File Structure
 
-- `/src/app/` - Next.js App Router pages and API routes
-- `/src/components/` - React components including shared UI components
-- `/src/lib/` - Core business logic, integrations, and utilities
-- `/src/stores/` - Zustand state management
+- `/client/` - React frontend application
+  - `/src/pages/` - Page components (dashboard, forms, drafts, upload, settings)
+  - `/src/components/` - React components including UI library
+  - `/src/lib/` - Frontend utilities (API client, export functions, etc.)
+  - `/src/hooks/` - Custom React hooks
+- `/server/` - Express backend application
+  - `routes.ts` - API route definitions
+  - `auth.ts` - Authentication configuration
+  - `db.ts` - Database connection
+  - `/workers/` - Background job processors
+- `/api/` - Core business logic
+  - `simple.ts` - AI generation and document processing
+- `/shared/` - Shared code between frontend and backend
+  - `schema-simple.ts` - Database schema (Drizzle)
+- `/migrations/` - Database migrations

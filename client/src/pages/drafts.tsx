@@ -155,13 +155,6 @@ export default function Drafts() {
       setGeneratingQuestionId(null);
       
       // CRITICAL DEBUG: Log the raw data structure first
-      console.log("🔍 RAW API DATA:", data);
-      console.log("🔍 Data type:", typeof data);
-      console.log("🔍 Data keys:", Object.keys(data || {}));
-      console.log("🔍 data.content:", data.content);
-      console.log("🔍 data.response:", data.response);
-      console.log("🔍 data.status:", data.status);
-      console.log("🔍 data.responseStatus:", data.responseStatus);
       
       // Normalize the response data - handle both snake_case and camelCase, and different response structures
       // The API might return 'content' instead of 'response', and 'status' instead of 'responseStatus'
@@ -172,8 +165,6 @@ export default function Drafts() {
                           data.status === 'complete' ? 'complete' : 
                           data.status) || 'complete';
       
-      console.log("🔍 Extracted responseText:", responseText?.substring(0, 100) || "EMPTY");
-      console.log("🔍 Extracted statusValue:", statusValue);
       
       const normalizedData = {
         response: responseText,
@@ -183,12 +174,9 @@ export default function Drafts() {
         assumptions: data.assumptions || [],
       };
       
-      console.log("🔍 Normalized Data:", normalizedData);
-      console.log("✅ Normalization successful - response length:", normalizedData.response?.length || 0);
       
       // Immediate validation log
       if (!normalizedData.response && (data.content || data.response)) {
-        console.error("❌ NORMALIZATION FAILED!", {
           dataContent: data.content,
           dataResponse: data.response,
           normalizedResponse: normalizedData.response,
@@ -197,15 +185,6 @@ export default function Drafts() {
       }
       
       // Debug: Log the response data with full details
-      console.log("=== RESPONSE GENERATION SUCCESS ===");
-      console.log("Question ID:", variables.questionId);
-      console.log("Raw API Response:", JSON.stringify(data, null, 2));
-      console.log("Data Keys:", Object.keys(data));
-      console.log("Normalized Response:", normalizedData.response?.substring(0, 200) || "NO RESPONSE");
-      console.log("Normalized Status:", normalizedData.responseStatus);
-      console.log("Has Response:", !!normalizedData.response);
-      console.log("Response Length:", normalizedData.response?.length || 0);
-      console.log("Full Normalized Data:", normalizedData);
       
       // Optimistically update the cache with the returned response data
       // CRITICAL: Update cache BEFORE any potential refetch can happen
@@ -213,12 +192,10 @@ export default function Drafts() {
         ["/api/projects", selectedProject, "questions"],
         (oldData: any) => {
           if (!oldData || !Array.isArray(oldData)) {
-            console.warn("⚠️ No oldData to update, creating new array");
             // If no old data, create a minimal structure (shouldn't happen but be safe)
             return [];
           }
           
-          console.log("📦 Updating cache - oldData has", oldData.length, "questions");
           
           const updated = oldData.map((q: any) => {
             if (q.id === variables.questionId) {
@@ -232,12 +209,9 @@ export default function Drafts() {
                 assumptions: normalizedData.assumptions || q.assumptions || [],
               };
               
-              console.log("🔄 Cache update - Question", variables.questionId);
-              console.log("   Before:", {
                 hasResponse: !!q.response,
                 responseStatus: q.responseStatus || (q as any).response_status
               });
-              console.log("   After:", {
                 hasResponse: !!updatedQuestion.response,
                 responseStatus: updatedQuestion.responseStatus,
                 responseLength: updatedQuestion.response?.length || 0,
@@ -250,15 +224,9 @@ export default function Drafts() {
           });
           
           const updatedQuestion = updated.find((q: any) => q.id === variables.questionId);
-          console.log("✅ CACHE UPDATE COMPLETE");
-          console.log("   Updated Question ID:", variables.questionId);
-          console.log("   Has Response:", !!updatedQuestion?.response);
-          console.log("   Response Status:", updatedQuestion?.responseStatus);
-          console.log("   Response Preview:", updatedQuestion?.response?.substring(0, 150) || "NO RESPONSE");
           
           // Force React Query to recognize this as new data by creating a new array reference
           const newArray = [...updated];
-          console.log("✅ Returning new array with", newArray.length, "questions");
           
           return newArray;
         },
@@ -302,7 +270,6 @@ export default function Drafts() {
       }
     },
     onError: (error: any, variables) => {
-      console.error("Response generation error:", error);
       setGeneratingQuestionId(null);
       toast({
         title: "Generation failed",
@@ -397,7 +364,6 @@ export default function Drafts() {
         setHasUnsavedChanges(false); // Mark as saved
       } catch (error) {
         // Error handling is done in the mutation's onError
-        console.error("Auto-save failed:", error);
       }
     }
   }, [editingQuestionId, editedContent, originalContent, updateResponseMutation]);
@@ -905,7 +871,6 @@ export default function Drafts() {
                   
                   // Debug: Log what the render sees
                   if (index === 0) {
-                    console.log("🎨 RENDER DEBUG - First question:", {
                       id: normalizedQuestion.id,
                       hasResponse: !!normalizedQuestion.response,
                       responseStatus: normalizedQuestion.responseStatus,
@@ -1258,7 +1223,6 @@ export default function Drafts() {
                     data={evidenceMapData}
                     overallGroundingQuality={calculateOverallGroundingQuality()}
                     onSectionClick={(sectionName) => {
-                      console.log('Navigate to section:', sectionName);
                     }}
                   />
                 </div>
