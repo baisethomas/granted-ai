@@ -6,9 +6,11 @@ import {
   Settings,
   BookOpen,
   Video,
-  HelpCircle
+  HelpCircle,
+  LogOut
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useLogout } from "@/hooks/useLogout";
 
 interface SidebarProps {
   activeTab: string;
@@ -31,7 +33,8 @@ const resourceNavItems = [
 
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   const { user } = useAuth();
-  
+  const handleLogout = useLogout();
+
   const getUserDisplayName = () => {
     if (user?.email) {
       return user.email.split('@')[0];
@@ -118,6 +121,15 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
             title="Settings"
           >
             <Settings className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleLogout}
+            className="text-gray-400 hover:text-red-600 transition-colors ml-2"
+            title="Log out"
+            aria-label="Log out"
+            data-testid="button-logout"
+          >
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </div>

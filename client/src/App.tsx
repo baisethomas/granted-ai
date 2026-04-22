@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Route, useLocation } from "wouter";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { LogoutProvider } from "@/hooks/useLogout";
 import { Login } from "@/components/Login";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MainHeader } from "@/components/layout/main-header";
@@ -47,6 +48,13 @@ function AppContent() {
       setLocation("/app");
     }
   }, [user, location, setLocation]);
+
+  // Handle redirect to landing when user logs out from an authenticated route
+  useEffect(() => {
+    if (!loading && !user && location === "/app") {
+      setLocation("/");
+    }
+  }, [user, loading, location, setLocation]);
 
   const renderActiveView = () => {
     switch (activeTab) {
@@ -119,17 +127,19 @@ function AppContent() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <ErrorBoundary>
-          <div className="h-screen overflow-hidden">
-            <AppLayoutWithTabs 
-              activeTab={activeTab} 
-              onTabChange={setActiveTab}
-              isNewProjectDialogOpen={isNewProjectDialogOpen}
-              setIsNewProjectDialogOpen={setIsNewProjectDialogOpen}
-            >
-              {renderActiveView()}
-            </AppLayoutWithTabs>
-            <Toaster />
-          </div>
+          <LogoutProvider>
+            <div className="h-screen overflow-hidden">
+              <AppLayoutWithTabs
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                isNewProjectDialogOpen={isNewProjectDialogOpen}
+                setIsNewProjectDialogOpen={setIsNewProjectDialogOpen}
+              >
+                {renderActiveView()}
+              </AppLayoutWithTabs>
+              <Toaster />
+            </div>
+          </LogoutProvider>
         </ErrorBoundary>
       </TooltipProvider>
     </QueryClientProvider>
@@ -197,6 +207,7 @@ function AppLayoutWithTabs({
           onNewProject={activeTab === "dashboard" ? () => {
             setIsNewProjectDialogOpen(true);
           } : undefined}
+          onNavigateToSettings={() => onTabChange("settings")}
         />
         
         {/* Main Content Area */}

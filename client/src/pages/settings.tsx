@@ -17,13 +17,16 @@ import {
   Plus, 
   X,
   Info,
-  BarChart3
+  BarChart3,
+  LogOut
 } from "lucide-react";
 import UsageDashboard from "@/components/UsageDashboard";
+import { useLogout } from "@/hooks/useLogout";
 
 export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const handleLogout = useLogout();
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ["/api/settings"],
@@ -557,6 +560,27 @@ export default function Settings() {
               onCheckedChange={(checked) => setAccountSettings({ ...accountSettings, analytics: checked })}
             />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Sign Out */}
+      <Card className="shadow-sm border border-slate-200">
+        <CardHeader className="p-6 border-b border-slate-200">
+          <CardTitle className="text-lg font-semibold text-slate-900">Sign Out</CardTitle>
+          <p className="text-sm text-slate-600 mt-1">
+            End your session on this device. You'll need to log in again to access your account.
+          </p>
+        </CardHeader>
+        <CardContent className="p-6">
+          <Button
+            variant="outline"
+            onClick={handleLogout}
+            className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+            data-testid="button-logout-settings"
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Log out
+          </Button>
         </CardContent>
       </Card>
 
