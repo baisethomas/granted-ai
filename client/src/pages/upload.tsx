@@ -139,20 +139,6 @@ export default function Upload() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Check auth status
-  React.useEffect(() => {
-    const checkAuth = async () => {
-      const { supabase } = await import("@/lib/supabase");
-      const { data: { session } } = await supabase.auth.getSession();
-        hasSession: !!session,
-        hasUser: !!session?.user,
-        hasAccessToken: !!session?.access_token,
-        userId: session?.user?.id
-      });
-    };
-    checkAuth();
-  }, []);
-
   const { data: documents = [], isLoading, error } = useQuery({
     queryKey: ["/api/documents"],
     meta: {

@@ -175,16 +175,6 @@ export default function Drafts() {
       };
       
       
-      // Immediate validation log
-      if (!normalizedData.response && (data.content || data.response)) {
-          dataContent: data.content,
-          dataResponse: data.response,
-          normalizedResponse: normalizedData.response,
-          allDataKeys: Object.keys(data)
-        });
-      }
-      
-      // Debug: Log the response data with full details
       
       // Optimistically update the cache with the returned response data
       // CRITICAL: Update cache BEFORE any potential refetch can happen
@@ -208,16 +198,7 @@ export default function Drafts() {
                 citations: normalizedData.citations || q.citations || [],
                 assumptions: normalizedData.assumptions || q.assumptions || [],
               };
-              
-                hasResponse: !!q.response,
-                responseStatus: q.responseStatus || (q as any).response_status
-              });
-                hasResponse: !!updatedQuestion.response,
-                responseStatus: updatedQuestion.responseStatus,
-                responseLength: updatedQuestion.response?.length || 0,
-                responsePreview: updatedQuestion.response?.substring(0, 80) || "NO RESPONSE"
-              });
-              
+
               return updatedQuestion;
             }
             return q;
@@ -868,19 +849,6 @@ export default function Drafts() {
               <div className="space-y-8">
                 {questions.map((question: any, index: number) => {
                   const normalizedQuestion = normalizeQuestion(question);
-                  
-                  // Debug: Log what the render sees
-                  if (index === 0) {
-                      id: normalizedQuestion.id,
-                      hasResponse: !!normalizedQuestion.response,
-                      responseStatus: normalizedQuestion.responseStatus,
-                      responsePreview: normalizedQuestion.response?.substring(0, 50) || "NO RESPONSE",
-                      willDisplay: normalizedQuestion.response && 
-                        (normalizedQuestion.responseStatus === "complete" || 
-                         normalizedQuestion.responseStatus === "edited" || 
-                         normalizedQuestion.responseStatus === "needs_context")
-                    });
-                  }
                   
                   return (
                   <Card key={question.id} className="border border-slate-200">
