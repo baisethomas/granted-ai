@@ -11,10 +11,10 @@ import express, {
   type Response,
   type NextFunction,
 } from "express";
-import { registerRoutes } from "../server/routes";
-import { setupAuth } from "../server/auth";
-import { corsMiddleware } from "../server/middleware/cors";
-import { apiRateLimiter } from "../server/middleware/rateLimiter";
+import { registerRoutes } from "../server/routes.js";
+import { setupAuth } from "../server/auth.js";
+import { corsMiddleware } from "../server/middleware/cors.js";
+import { apiRateLimiter } from "../server/middleware/rateLimiter.js";
 
 let cachedApp: Express | null = null;
 let initPromise: Promise<Express> | null = null;
