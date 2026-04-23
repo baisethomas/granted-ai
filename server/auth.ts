@@ -12,7 +12,7 @@ async function getMemoryStoreFactory() {
   return MemoryStoreFactory;
 }
 import crypto from "crypto";
-import { storage } from "./storage";
+import { storage } from "./storage.js";
 import { supabaseAdminClient } from "./middleware/supabaseAuth.js";
 import { authRateLimiter } from "./middleware/rateLimiter.js";
 

@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/postgres-js";
-import * as schema from "../shared/schema-simple";
+import * as schema from "../shared/schema-simple.js";
 // Import postgres at top level - the import itself is fast (~40ms)
 // We'll only call postgres() lazily when first needed
 import postgres from "postgres";

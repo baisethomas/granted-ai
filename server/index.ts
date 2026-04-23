@@ -3,12 +3,12 @@ import { config } from "dotenv";
 config(); // This must run before any other code that reads process.env
 
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
-import { setupAuth } from "./auth";
-import { validateEnvironment } from "./config";
-import { corsMiddleware } from "./middleware/cors";
-import { apiRateLimiter, authRateLimiter, uploadRateLimiter } from "./middleware/rateLimiter";
+import { registerRoutes } from "./routes.js";
+import { setupVite, serveStatic, log } from "./vite.js";
+import { setupAuth } from "./auth.js";
+import { validateEnvironment } from "./config.js";
+import { corsMiddleware } from "./middleware/cors.js";
+import { apiRateLimiter, authRateLimiter, uploadRateLimiter } from "./middleware/rateLimiter.js";
 
 const app = express();
 
