@@ -38,10 +38,31 @@ export function corsMiddleware(req: Request, res: Response, next: NextFunction) 
 
   const origin = req.headers.origin;
 
+  // Same-origin requests are always safe regardless of ALLOWED_ORIGINS
+  // (frontend and API on the same deployment).
+  const host = req.headers.host;
+  const forwardedHost = (req.headers["x-forwarded-host"] as string | undefined) || host;
+  const forwardedProto =
+    (req.headers["x-forwarded-proto"] as string | undefined) ||
+    (req.secure ? "https" : "http");
+  const sameOriginCandidates = new Set<string>();
+  if (host) {
+    sameOriginCandidates.add(`http://${host}`);
+    sameOriginCandidates.add(`https://${host}`);
+  }
+  if (forwardedHost) {
+    sameOriginCandidates.add(`${forwardedProto}://${forwardedHost}`);
+    sameOriginCandidates.add(`http://${forwardedHost}`);
+    sameOriginCandidates.add(`https://${forwardedHost}`);
+  }
+  const isSameOrigin = !!origin && sameOriginCandidates.has(origin);
+
+  const isAllowed = !!origin && (isSameOrigin || allowedOrigins.includes(origin));
+
   // Handle preflight requests
   if (req.method === "OPTIONS") {
-    if (origin && allowedOrigins.includes(origin)) {
-      res.header("Access-Control-Allow-Origin", origin);
+    if (isAllowed) {
+      res.header("Access-Control-Allow-Origin", origin!);
       res.header("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,PATCH,OPTIONS");
       res.header(
         "Access-Control-Allow-Headers",
@@ -50,17 +71,15 @@ export function corsMiddleware(req: Request, res: Response, next: NextFunction) 
       res.header("Access-Control-Allow-Credentials", "true");
       res.header("Access-Control-Max-Age", "86400"); // 24 hours
       return res.sendStatus(200);
-    } else {
-      return res.sendStatus(403);
     }
+    return res.sendStatus(403);
   }
 
   // Handle actual requests
-  if (origin && allowedOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
+  if (isAllowed) {
+    res.header("Access-Control-Allow-Origin", origin!);
     res.header("Access-Control-Allow-Credentials", "true");
-  } else if (origin && !allowedOrigins.includes(origin)) {
-    // Log blocked origin attempts in production
+  } else if (origin) {
     if (!isDevelopment) {
       console.warn(`[CORS] Blocked request from origin: ${origin}`);
     }
