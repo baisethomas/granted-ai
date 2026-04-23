@@ -6,7 +6,6 @@ import { fileProcessor } from "./services/fileProcessor.js";
 import { retrieveRelevantChunks } from "./services/retrieval.js";
 import { processDocumentJobs } from "./workers/documentProcessor.js";
 import multer from "multer";
-import path from "path";
 import fs from "fs";
 // Test: Use relative import instead of path alias to see if that's the issue
 import { insertProjectSchema, insertGrantQuestionSchema, insertUserSettingsSchema, type Document } from "../shared/schema.js";
@@ -21,16 +20,23 @@ function getUserId(req: AuthenticatedRequest): string {
   return req.supabaseUser.id;
 }
 
-// Configure multer for file uploads
-const upload = multer({ 
-  dest: 'uploads/',
+// Configure multer for file uploads.
+// Use memory storage so uploads work in serverless environments (Vercel) where
+// only /tmp is writable. File buffers are read directly from req.file.buffer.
+const upload = multer({
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Ensure uploads directory exists
-  if (!fs.existsSync('uploads')) {
-    fs.mkdirSync('uploads');
+  // Ensure uploads directory exists (best-effort; not required when using
+  // multer memoryStorage, and read-only filesystems like Vercel will skip it).
+  try {
+    if (!fs.existsSync('uploads')) {
+      fs.mkdirSync('uploads');
+    }
+  } catch {
+    // noop - memory storage is used for uploads
   }
 
   // Diagnostic endpoint
@@ -223,7 +229,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/documents/upload", uploadRateLimiter, requireSupabaseUser, upload.single('file'), async (req: AuthenticatedRequest, res) => {
     let documentRecord: Document | undefined;
-    const tempFiles: string[] = [];
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -234,13 +239,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const userId = getUserId(req);
-      const { originalname, filename, mimetype, size } = req.file;
+      const { originalname, mimetype, size, buffer } = req.file;
       const category = req.body.category || "organization-info";
-
-      // Read file buffer
-      const filePath = path.join('uploads', filename);
-      const buffer = fs.readFileSync(filePath);
-      tempFiles.push(filePath);
 
       const bucket = process.env.DOCUMENTS_BUCKET || "documents";
       const sanitizedName = originalname.replace(/[^a-zA-Z0-9.\-_]/g, "_");
@@ -318,14 +318,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       res.status(500).json({ error: "Failed to process upload" });
-    } finally {
-      tempFiles.forEach((file) => {
-        try {
-          fs.existsSync(file) && fs.unlinkSync(file);
-        } catch (cleanupError) {
-          console.warn("Failed to clean temp upload:", cleanupError);
-        }
-      });
     }
   });
 
@@ -1075,16 +1067,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
       try {
-        const filePath = path.join("uploads", req.file.filename);
-        const buffer = fs.readFileSync(filePath);
         const suggestions = await fileProcessor.extractMetricsFromFile(
-          buffer,
+          req.file.buffer,
           req.file.originalname,
           req.file.mimetype,
         );
-        try {
-          fs.unlinkSync(filePath);
-        } catch {}
         res.json({ suggestions });
       } catch (error: any) {
         console.error("Metric extraction failed:", error);
@@ -1137,14 +1124,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const { filename, mimetype } = req.file;
-      const filePath = path.join('uploads', filename);
-      const buffer = fs.readFileSync(filePath);
-
-      const questions = await fileProcessor.extractQuestionsFromFile(buffer, req.file.originalname, mimetype);
-
-      // Clean up uploaded file
-      fs.unlinkSync(filePath);
+      const questions = await fileProcessor.extractQuestionsFromFile(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype,
+      );
 
       res.json({ questions });
     } catch (error) {
