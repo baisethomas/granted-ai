@@ -57,8 +57,8 @@ This is a **Vite + React + Express** application for AI-powered grant writing as
 - Type-safe queries with drizzle-zod
 
 **Authentication** (`server/auth.ts`, `server/hybrid-auth.ts`):
-- Hybrid authentication supporting both Supabase and Passport
-- Google OAuth 2.0 integration
+- Hybrid authentication supporting both Supabase (primary) and Passport local
+- Google OAuth 2.0 via Supabase Auth (client-side redirect flow)
 - Session management with connect-pg-simple
 
 ### Environment Variables
@@ -68,8 +68,12 @@ This is a **Vite + React + Express** application for AI-powered grant writing as
 - `DATABASE_URL` - PostgreSQL connection string
 - `OPENAI_API_KEY` - OpenAI API key
 - `ANTHROPIC_API_KEY` - Anthropic API key
-- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - Google OAuth credentials
 - `SESSION_SECRET` - Express session secret
+
+> Google OAuth is configured via the Supabase dashboard (Authentication →
+> Providers → Google). The client calls `supabase.auth.signInWithOAuth` and
+> Supabase handles the redirect back to `/app`. No server-side Passport
+> Google strategy exists.
 
 ### UI Components
 

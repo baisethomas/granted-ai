@@ -77,11 +77,12 @@ Granted helps nonprofits streamline their grant application process by intellige
 
    # Optional
    SESSION_SECRET=your-random-secret
-   GOOGLE_CLIENT_ID=your-google-oauth-id
-   GOOGLE_CLIENT_SECRET=your-google-oauth-secret
    DOCUMENTS_BUCKET=documents
    DOCUMENT_WORKER_API_KEY=your-worker-api-key
    ```
+
+   > Google sign-in is configured in the Supabase dashboard (Authentication →
+   > Providers → Google), not via server env vars.
 
 4. **Set up the database**
    ```bash
@@ -107,8 +108,6 @@ Granted helps nonprofits streamline their grant application process by intellige
 | `OPENAI_API_KEY` | OpenAI API key for GPT-4 and embeddings | ✅ Yes |
 | `DATABASE_URL` | PostgreSQL connection string | ⚠️ Recommended* |
 | `SESSION_SECRET` | Express session secret (auto-generated if omitted) | ❌ Optional |
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID | ❌ Optional |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | ❌ Optional |
 | `DOCUMENTS_BUCKET` | Supabase storage bucket name (defaults to `documents`) | ❌ Optional |
 | `DOCUMENT_WORKER_API_KEY` | API key for background processing endpoint | ❌ Optional |
 | `PORT` | Server port (defaults to `5000`) | ❌ Optional |
@@ -273,8 +272,10 @@ Or schedule automated processing:
 ### Authentication
 - `POST /auth/login` - Local login
 - `POST /auth/signup` - Register new user
-- `GET /auth/google` - Initiate Google OAuth
 - `POST /auth/logout` - Logout
+
+> Google OAuth is handled entirely through Supabase Auth on the client side
+> (`supabase.auth.signInWithOAuth({ provider: 'google' })`).
 
 ### Projects
 - `GET /api/projects` - List user's projects
