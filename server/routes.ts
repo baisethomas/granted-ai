@@ -501,28 +501,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Update status to generating
       console.log(`Starting AI generation for question ${questionId}: ${question.question.substring(0, 100)}...`);
-      await storage.updateGrantQuestion(questionId, { responseStatus: "generating" });
+      try {
+        await storage.updateGrantQuestion(questionId, { responseStatus: "generating" });
+      } catch (statusErr) {
+        console.warn(`[generate] Could not mark question ${questionId} as generating:`, statusErr);
+      }
 
       const userId = getUserId(req);
       const { tone = "professional", emphasisAreas = [] } = req.body;
 
       // Get user context from documents
-      const documents = await storage.getDocuments(userId);
-      
+      const documents = await storage.getDocuments(userId).catch((err) => {
+        console.warn(`[generate] getDocuments failed:`, err);
+        return [] as Awaited<ReturnType<typeof storage.getDocuments>>;
+      });
+
       const processedDocs = documents.filter((doc) => doc.processed && doc.summary);
       const organizationContext = processedDocs
         .map((doc) => `${doc.originalName}: ${doc.summary}`)
         .join('\n');
 
-      const retrievalResult = await retrieveRelevantChunks({
-        userId,
+      // Retrieval requires the document pipeline tables (doc_chunks, etc.).
+      // If that migration hasn't been applied to the connected DB, we don't
+      // want to fail the whole generation — fall back to no chunks.
+      let retrievalResult: Awaited<ReturnType<typeof retrieveRelevantChunks>> = {
         query: question.question,
-        limit: 8,
-        semanticLimit: 8,
-        keywordLimit: 4,
-      });
+        chunks: [],
+        embeddingGenerated: false,
+      };
+      try {
+        retrievalResult = await retrieveRelevantChunks({
+          userId,
+          query: question.question,
+          limit: 8,
+          semanticLimit: 8,
+          keywordLimit: 4,
+        });
+      } catch (retrievalErr) {
+        console.warn(`[generate] retrieveRelevantChunks failed, continuing without context:`, retrievalErr);
+      }
 
-      const user = await storage.getUser(userId);
+      const user = await storage.getUser(userId).catch(() => undefined);
 
       try {
         const startTime = Date.now();
@@ -547,34 +566,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const projectId = (question as any).project_id || (question as any).projectId;
 
-        await storage.deleteDraftCitations(question.id);
-        for (const citation of grounded.citations || []) {
-          if (!citation.documentId) continue;
-          await storage.createDraftCitation({
-            draftId: question.id,
-            section: "response",
-            sourceDocumentId: citation.documentId,
-            chunkRefs: [
-              {
-                chunkIndex: citation.chunkIndex ?? 0,
-                quote: citation.quote ?? "",
-              },
-            ],
-          });
+        // Persist citations/assumptions best-effort. These tables are not
+        // strictly required for the user to see a generated response; a
+        // missing-table / schema-drift error here should not 500 the request.
+        try {
+          await storage.deleteDraftCitations(question.id);
+          for (const citation of grounded.citations || []) {
+            if (!citation.documentId) continue;
+            await storage.createDraftCitation({
+              draftId: question.id,
+              section: "response",
+              sourceDocumentId: citation.documentId,
+              chunkRefs: [
+                {
+                  chunkIndex: citation.chunkIndex ?? 0,
+                  quote: citation.quote ?? "",
+                },
+              ],
+            });
+          }
+        } catch (citationErr) {
+          console.warn(`[generate] Failed to persist draft citations:`, citationErr);
         }
 
         if (projectId) {
-          await storage.deleteAssumptionLabels(projectId, question.id);
-          for (const assumption of grounded.assumptions || []) {
-            await storage.createAssumptionLabel({
-              projectId,
-              draftId: question.id,
-              text: assumption,
-              category: "general",
-              confidence: 50,
-              suggestedQuestion: assumption,
-              position: { start: 0, end: 0 },
-            });
+          try {
+            await storage.deleteAssumptionLabels(projectId, question.id);
+            for (const assumption of grounded.assumptions || []) {
+              await storage.createAssumptionLabel({
+                projectId,
+                draftId: question.id,
+                text: assumption,
+                category: "general",
+                confidence: 50,
+                suggestedQuestion: assumption,
+                position: { start: 0, end: 0 },
+              });
+            }
+          } catch (assumptionErr) {
+            console.warn(`[generate] Failed to persist assumption labels:`, assumptionErr);
           }
         }
 
@@ -601,11 +631,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log(`Setting response status to: ${responseStatus} for question ${questionId}`);
 
-        // Create response version
-        const versions = await storage.getResponseVersions(question.id);
-        const nextVersion = versions.length + 1;
-        
-        await storage.createResponseVersion(question.id, responseText, tone, nextVersion);
+        // Create response version (best-effort)
+        try {
+          const versions = await storage.getResponseVersions(question.id);
+          const nextVersion = versions.length + 1;
+          await storage.createResponseVersion(question.id, responseText, tone, nextVersion);
+        } catch (versionErr) {
+          console.warn(`[generate] Failed to persist response version:`, versionErr);
+        }
 
         // Update question with response and status
         const updatedQuestion = await storage.updateGrantQuestion(questionId, {
