@@ -31,10 +31,13 @@ import Settings from "@/pages/settings";
 import Pricing from "@/pages/pricing";
 import Privacy from "@/pages/privacy";
 import Terms from "@/pages/terms";
+import PortfolioMetrics from "@/pages/metrics";
+import { ProjectDetail } from "@/pages/projects/[id]";
 import { NewProjectDialog } from "@/components/new-project-dialog";
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [location, setLocation] = useLocation();
   const { user, loading, signOut } = useAuth();
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
@@ -56,20 +59,38 @@ function AppContent() {
     }
   }, [user, loading, location, setLocation]);
 
+  const handleOpenProject = (projectId: string) => {
+    setSelectedProjectId(projectId);
+  };
+
+  const handleCloseProject = () => {
+    setSelectedProjectId(null);
+  };
+
+  const handleTabChange = (tab: string) => {
+    setSelectedProjectId(null);
+    setActiveTab(tab);
+  };
+
   const renderActiveView = () => {
+    if (selectedProjectId) {
+      return <ProjectDetail projectId={selectedProjectId} onBack={handleCloseProject} />;
+    }
     switch (activeTab) {
       case "dashboard":
-        return <Dashboard />;
+        return <Dashboard onOpenProject={handleOpenProject} />;
       case "upload":
         return <Upload />;
       case "forms":
         return <Forms />;
       case "drafts":
         return <Drafts />;
+      case "metrics":
+        return <PortfolioMetrics onOpenProject={handleOpenProject} />;
       case "settings":
         return <Settings />;
       default:
-        return <Dashboard />;
+        return <Dashboard onOpenProject={handleOpenProject} />;
     }
   };
 
@@ -158,7 +179,7 @@ function AppContent() {
             <div className="h-screen overflow-hidden">
               <AppLayoutWithTabs
                 activeTab={activeTab}
-                onTabChange={setActiveTab}
+                onTabChange={handleTabChange}
                 isNewProjectDialogOpen={isNewProjectDialogOpen}
                 setIsNewProjectDialogOpen={setIsNewProjectDialogOpen}
               >

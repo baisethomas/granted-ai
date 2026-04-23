@@ -90,6 +90,17 @@ export interface GenerateGroundedResponseOptions {
   retrievedChunks: RetrievedContextChunk[];
 }
 
+export interface MetricSuggestion {
+  key: string;
+  label: string;
+  type: "number" | "currency" | "percent" | "text" | "date";
+  unit?: string;
+  target?: string;
+  category: "impact" | "financial" | "timeline" | "reporting" | "custom";
+  rationale?: string;
+  confidence: number;
+}
+
 export class AIService {
   // Helper function to create timeout promise
   private createTimeoutPromise(timeoutMs: number): Promise<never> {
@@ -730,6 +741,114 @@ IMPORTANT: Provide your response as plain text without markdown formatting. Do n
       // Fallback to mock questions when API fails
       return this.getMockQuestions();
     }
+  }
+
+  /**
+   * Extracts metric suggestions from a grant application / RFP document.
+   * Falls back to mock suggestions when no API key is configured, mirroring
+   * the extractQuestions pattern.
+   */
+  async extractMetrics(content: string): Promise<MetricSuggestion[]> {
+    if (!hasValidApiKey) {
+      console.log("No valid API key found, using mock metric suggestions for development...");
+      return this.getMockMetricSuggestions();
+    }
+
+    const systemPrompt = `You are a grants analyst. Read the provided grant application / RFP and identify the metrics the funder expects the applicant to report or commit to. Examples: people served, jobs created, funds requested, reporting due dates, milestones, match requirements.
+
+Return ONLY a JSON object with a "metrics" array. Each item must have:
+- key: snake_case identifier (e.g. "people_served")
+- label: human-readable name
+- type: one of "number", "currency", "percent", "text", "date"
+- unit: optional (e.g. "people", "hours", "$")
+- target: optional numeric target the funder specifies (omit if none stated)
+- category: one of "impact", "financial", "timeline", "reporting", "custom"
+- rationale: a short quote or paraphrase from the document explaining why this metric matters
+- confidence: integer 0-100
+
+Return at most 12 metrics. If the document doesn't contain metrics, return an empty array.`;
+
+    try {
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: content.substring(0, 12_000) },
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 1500,
+        temperature: 0.1,
+      });
+
+      const raw = response.choices[0].message.content ?? "{}";
+      const parsed = JSON.parse(raw);
+      const metrics = Array.isArray(parsed.metrics) ? parsed.metrics : [];
+      return metrics
+        .filter((m: any) => m && m.key && m.label && m.type && m.category)
+        .map((m: any) => ({
+          key: String(m.key),
+          label: String(m.label),
+          type: String(m.type),
+          unit: m.unit ? String(m.unit) : undefined,
+          target: m.target !== undefined && m.target !== null ? String(m.target) : undefined,
+          category: String(m.category),
+          rationale: m.rationale ? String(m.rationale) : undefined,
+          confidence:
+            typeof m.confidence === "number" ? Math.max(0, Math.min(100, Math.round(m.confidence))) : 60,
+        })) as MetricSuggestion[];
+    } catch (error) {
+      console.error("Metric extraction error:", error);
+      console.log("Falling back to mock metric suggestions for development...");
+      return this.getMockMetricSuggestions();
+    }
+  }
+
+  private getMockMetricSuggestions(): MetricSuggestion[] {
+    return [
+      {
+        key: "people_served",
+        label: "People served",
+        type: "number",
+        unit: "people",
+        target: "500",
+        category: "impact",
+        rationale: "Funder expects applicants to report total individuals served annually.",
+        confidence: 85,
+      },
+      {
+        key: "jobs_created",
+        label: "Jobs created",
+        type: "number",
+        unit: "jobs",
+        category: "impact",
+        rationale: "Workforce development outcomes are a stated priority in the RFP.",
+        confidence: 75,
+      },
+      {
+        key: "amount_requested",
+        label: "Amount requested",
+        type: "currency",
+        category: "financial",
+        rationale: "RFP requires a stated funding request in the application.",
+        confidence: 95,
+      },
+      {
+        key: "match_funds_secured",
+        label: "Match funds secured",
+        type: "currency",
+        category: "financial",
+        rationale: "1:1 match requirement noted in the funding guidelines.",
+        confidence: 80,
+      },
+      {
+        key: "reporting_due",
+        label: "Quarterly reporting due",
+        type: "date",
+        category: "reporting",
+        rationale: "Grantees must submit quarterly progress reports.",
+        confidence: 90,
+      },
+    ];
   }
 
   private getMockQuestions(): string[] {

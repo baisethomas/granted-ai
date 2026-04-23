@@ -8,13 +8,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Edit, Trash2 } from "lucide-react";
+import { MoreHorizontal, Edit, Trash2, ExternalLink } from "lucide-react";
 import { type Project } from "@/lib/api";
+import { formatCurrencyDisplay } from "@/lib/currency";
 
 interface ProjectCardProps {
   project: Project;
   onDelete?: (projectId: string) => void;
   onEdit?: (projectId: string) => void;
+  onOpen?: (projectId: string) => void;
 }
 
 const statusColors = {
@@ -31,7 +33,7 @@ const statusLabels = {
   declined: "Declined",
 };
 
-export function ProjectCard({ project, onDelete, onEdit }: ProjectCardProps) {
+export function ProjectCard({ project, onDelete, onEdit, onOpen }: ProjectCardProps) {
   const formatDate = (date: string | undefined) => {
     if (!date) return "No deadline";
     return new Date(date).toLocaleDateString("en-US", {
@@ -41,8 +43,13 @@ export function ProjectCard({ project, onDelete, onEdit }: ProjectCardProps) {
     });
   };
 
+  const clickable = Boolean(onOpen);
+
   return (
-    <Card className="hover:bg-slate-50 transition-colors">
+    <Card
+      className={`transition-colors ${clickable ? "hover:bg-slate-50 cursor-pointer" : "hover:bg-slate-50"}`}
+      onClick={clickable ? () => onOpen?.(project.id) : undefined}
+    >
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -52,11 +59,18 @@ export function ProjectCard({ project, onDelete, onEdit }: ProjectCardProps) {
             <div>
               <h4 className="font-medium text-slate-900">{project.title}</h4>
               <p className="text-sm text-slate-600">
-                {project.funder} {project.amount && `• ${project.amount}`}
+                {project.funder}
+                {(() => {
+                  const amount = formatCurrencyDisplay(project.amount);
+                  return amount ? ` • ${amount}` : "";
+                })()}
               </p>
             </div>
           </div>
-          <div className="flex items-center space-x-4">
+          <div
+            className="flex items-center space-x-4"
+            onClick={e => e.stopPropagation()}
+          >
             <Badge 
               className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                 statusColors[project.status as keyof typeof statusColors] || statusColors.draft
@@ -74,6 +88,18 @@ export function ProjectCard({ project, onDelete, onEdit }: ProjectCardProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {onOpen && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => onOpen?.(project.id)}
+                      className="cursor-pointer"
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Open
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem 
                   onClick={() => onEdit?.(project.id)}
                   className="cursor-pointer"

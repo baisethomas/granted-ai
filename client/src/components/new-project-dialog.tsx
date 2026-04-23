@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -111,11 +112,11 @@ export function NewProjectDialog({
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="amount">Amount</Label>
-                <Input
+                <CurrencyInput
                   id="amount"
                   value={formData.amount}
-                  onChange={(e) => handleChange("amount", e.target.value)}
-                  placeholder="e.g., $150,000"
+                  onValueChange={(v) => handleChange("amount", v)}
+                  placeholder="$150,000"
                 />
               </div>
               <div className="grid gap-2">

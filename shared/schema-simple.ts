@@ -51,6 +51,10 @@ export const projects = pgTable("projects", {
   deadline: timestamp("deadline"),
   status: text("status").notNull().default("draft"), // draft, submitted, awarded, declined
   description: text("description"),
+  amountRequested: integer("amount_requested"), // cents
+  amountAwarded: integer("amount_awarded"), // cents
+  awardedAt: timestamp("awarded_at"),
+  reportingDueAt: timestamp("reporting_due_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -176,6 +180,36 @@ export const responseVersions = pgTable("response_versions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const grantMetrics = pgTable("grant_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(),
+  key: text("key").notNull(), // snake_case identifier, e.g. "people_served"
+  label: text("label").notNull(),
+  type: text("type").notNull(), // number | currency | percent | text | date
+  value: text("value"),
+  target: text("target"),
+  unit: text("unit"),
+  category: text("category").notNull(), // impact | financial | timeline | reporting | custom
+  source: text("source").notNull().default("manual"), // manual | ai_suggested | preset
+  status: text("status").notNull().default("active"), // suggested | active | dismissed
+  sourceDocumentId: varchar("source_document_id").references(() => documents.id, { onDelete: "set null" }),
+  sourceChunkId: varchar("source_chunk_id").references(() => docChunks.id, { onDelete: "set null" }),
+  confidence: integer("confidence"),
+  rationale: text("rationale"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const grantMetricEvents = pgTable("grant_metric_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  metricId: varchar("metric_id").references(() => grantMetrics.id, { onDelete: "cascade" }).notNull(),
+  value: text("value").notNull(),
+  note: text("note"),
+  recordedAt: timestamp("recorded_at").defaultNow(),
+  recordedBy: varchar("recorded_by").references(() => users.id),
+});
+
 export const userSettings = pgTable("user_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull().unique(),
@@ -231,6 +265,35 @@ export const insertProjectSchema = createInsertSchema(projects).pick({
   amount: true,
   deadline: true,
   description: true,
+  amountRequested: true,
+  amountAwarded: true,
+  awardedAt: true,
+  reportingDueAt: true,
+});
+
+export const insertGrantMetricSchema = createInsertSchema(grantMetrics).pick({
+  projectId: true,
+  key: true,
+  label: true,
+  type: true,
+  value: true,
+  target: true,
+  unit: true,
+  category: true,
+  source: true,
+  status: true,
+  sourceDocumentId: true,
+  sourceChunkId: true,
+  confidence: true,
+  rationale: true,
+  sortOrder: true,
+});
+
+export const insertGrantMetricEventSchema = createInsertSchema(grantMetricEvents).pick({
+  metricId: true,
+  value: true,
+  note: true,
+  recordedBy: true,
 });
 
 export type User = typeof users.$inferSelect;
@@ -253,3 +316,7 @@ export type ResponseVersion = typeof responseVersions.$inferSelect;
 export type UserSettings = typeof userSettings.$inferSelect;
 export type InsertUserSettings = z.infer<typeof insertUserSettingsSchema>;
 export type InsertProject = z.infer<typeof insertProjectSchema>;
+export type GrantMetric = typeof grantMetrics.$inferSelect;
+export type InsertGrantMetric = z.infer<typeof insertGrantMetricSchema>;
+export type GrantMetricEvent = typeof grantMetricEvents.$inferSelect;
+export type InsertGrantMetricEvent = z.infer<typeof insertGrantMetricEventSchema>;

@@ -1,7 +1,7 @@
 import mammoth from "mammoth";
 import type { Document } from "@shared/schema";
 import { storage } from "../storage.js";
-import { aiService } from "./ai.js";
+import { aiService, type MetricSuggestion } from "./ai.js";
 
 export interface ProcessedFile {
   summary: string;
@@ -90,6 +90,21 @@ export class FileProcessor {
       document
     );
     return aiService.extractQuestions(extractedText);
+  }
+
+  async extractMetricsFromFile(
+    buffer: Buffer,
+    filename: string,
+    mimeType: string,
+    document?: Document | null
+  ): Promise<MetricSuggestion[]> {
+    const { extractedText } = await this.processFile(
+      buffer,
+      filename,
+      mimeType,
+      document
+    );
+    return aiService.extractMetrics(extractedText);
   }
 }
 

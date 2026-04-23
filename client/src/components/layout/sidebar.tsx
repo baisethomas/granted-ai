@@ -7,7 +7,8 @@ import {
   BookOpen,
   Video,
   HelpCircle,
-  LogOut
+  LogOut,
+  BarChart3
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLogout } from "@/hooks/useLogout";
@@ -22,6 +23,7 @@ const mainNavItems = [
   { id: "upload", label: "Upload", icon: CloudUpload },
   { id: "forms", label: "Grant Forms", icon: FileText },
   { id: "drafts", label: "Drafts", icon: Eye },
+  { id: "metrics", label: "Metrics", icon: BarChart3 },
   { id: "settings", label: "Settings", icon: Settings },
 ];
 

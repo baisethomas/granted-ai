@@ -804,6 +804,332 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ----- Grant Metrics -----
+  // Helper: verify the caller owns the given project.
+  async function assertProjectAccess(req: AuthenticatedRequest, projectId: string) {
+    const userId = getUserId(req);
+    const project = await storage.getProject(projectId);
+    if (!project) return { ok: false as const, status: 404, error: "Project not found" };
+    if (project.userId !== userId) {
+      return { ok: false as const, status: 403, error: "Forbidden" };
+    }
+    return { ok: true as const, project, userId };
+  }
+
+  async function assertMetricAccess(req: AuthenticatedRequest, metricId: string) {
+    const metric = await storage.getGrantMetric(metricId);
+    if (!metric) return { ok: false as const, status: 404, error: "Metric not found" };
+    const access = await assertProjectAccess(req, metric.projectId);
+    if (!access.ok) return access;
+    return { ok: true as const, metric, userId: access.userId };
+  }
+
+  app.get(
+    "/api/projects/:projectId/metrics",
+    requireSupabaseUser,
+    async (req: AuthenticatedRequest, res) => {
+      const access = await assertProjectAccess(req, req.params.projectId);
+      if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+      try {
+        const includeDismissed = req.query.includeDismissed === "true";
+        const [metrics, applicationMetrics, metricPresets] = await Promise.all([
+          storage.getGrantMetrics(req.params.projectId, { includeDismissed }),
+          (await import("./services/metrics.js")).computeApplicationMetrics(
+            req.params.projectId,
+          ),
+          Promise.resolve((await import("./services/metrics.js")).METRIC_PRESETS),
+        ]);
+        res.json({
+          metrics,
+          application: applicationMetrics,
+          presets: metricPresets,
+          project: {
+            id: access.project.id,
+            amountRequested: (access.project as any).amountRequested ?? null,
+            amountAwarded: (access.project as any).amountAwarded ?? null,
+            awardedAt: (access.project as any).awardedAt ?? null,
+            reportingDueAt: (access.project as any).reportingDueAt ?? null,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to fetch metrics:", error);
+        res.status(500).json({ error: "Failed to fetch metrics" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/projects/:projectId/metrics",
+    requireSupabaseUser,
+    async (req: AuthenticatedRequest, res) => {
+      const access = await assertProjectAccess(req, req.params.projectId);
+      if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+      try {
+        const body = req.body ?? {};
+        const { getPreset } = await import("./services/metrics.js");
+        const preset = body.presetKey ? getPreset(String(body.presetKey)) : undefined;
+
+        const metric = await storage.createGrantMetric({
+          projectId: req.params.projectId,
+          key: String(body.key ?? preset?.key ?? `metric_${Date.now()}`),
+          label: String(body.label ?? preset?.label ?? "Untitled metric"),
+          type: String(body.type ?? preset?.type ?? "number"),
+          value: body.value != null ? String(body.value) : null,
+          target: body.target != null ? String(body.target) : null,
+          unit: body.unit ?? preset?.unit ?? null,
+          category: String(body.category ?? preset?.category ?? "custom"),
+          source: preset ? "preset" : (body.source ?? "manual"),
+          status: body.status ?? "active",
+          sortOrder: body.sortOrder ?? 0,
+          rationale: body.rationale ?? null,
+        } as any);
+
+        if (metric.value) {
+          await storage.createGrantMetricEvent({
+            metricId: metric.id,
+            value: metric.value,
+            note: "Initial value",
+            recordedBy: access.userId,
+          } as any);
+        }
+        res.json(metric);
+      } catch (error: any) {
+        console.error("Failed to create metric:", error);
+        res.status(500).json({ error: "Failed to create metric", details: error?.message });
+      }
+    },
+  );
+
+  app.patch(
+    "/api/metrics/:id",
+    requireSupabaseUser,
+    async (req: AuthenticatedRequest, res) => {
+      const access = await assertMetricAccess(req, req.params.id);
+      if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+      try {
+        const body = req.body ?? {};
+        const updates: Record<string, unknown> = {};
+        const fields = [
+          "label",
+          "type",
+          "value",
+          "target",
+          "unit",
+          "category",
+          "status",
+          "sortOrder",
+          "rationale",
+        ] as const;
+        for (const f of fields) {
+          if (f in body) updates[f] = (body as any)[f];
+        }
+
+        const prev = access.metric;
+        const updated = await storage.updateGrantMetric(req.params.id, updates as any);
+
+        // Record an event when the value changed.
+        if ("value" in updates && updates.value !== prev.value && updated?.value != null) {
+          await storage.createGrantMetricEvent({
+            metricId: updated.id,
+            value: String(updated.value),
+            note: body.note ? String(body.note) : null,
+            recordedBy: access.userId,
+          } as any);
+        }
+        res.json(updated);
+      } catch (error: any) {
+        console.error("Failed to update metric:", error);
+        res.status(500).json({ error: "Failed to update metric", details: error?.message });
+      }
+    },
+  );
+
+  app.post(
+    "/api/metrics/:id/accept",
+    requireSupabaseUser,
+    async (req: AuthenticatedRequest, res) => {
+      const access = await assertMetricAccess(req, req.params.id);
+      if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+      try {
+        const updated = await storage.updateGrantMetric(req.params.id, { status: "active" });
+        res.json(updated);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to accept metric" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/metrics/:id/dismiss",
+    requireSupabaseUser,
+    async (req: AuthenticatedRequest, res) => {
+      const access = await assertMetricAccess(req, req.params.id);
+      if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+      try {
+        const updated = await storage.updateGrantMetric(req.params.id, { status: "dismissed" });
+        res.json(updated);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to dismiss metric" });
+      }
+    },
+  );
+
+  app.delete(
+    "/api/metrics/:id",
+    requireSupabaseUser,
+    async (req: AuthenticatedRequest, res) => {
+      const access = await assertMetricAccess(req, req.params.id);
+      if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+      try {
+        const ok = await storage.deleteGrantMetric(req.params.id);
+        res.json({ ok });
+      } catch (error) {
+        res.status(500).json({ error: "Failed to delete metric" });
+      }
+    },
+  );
+
+  app.get(
+    "/api/metrics/:id/history",
+    requireSupabaseUser,
+    async (req: AuthenticatedRequest, res) => {
+      const access = await assertMetricAccess(req, req.params.id);
+      if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+      try {
+        const events = await storage.getGrantMetricEvents(req.params.id);
+        res.json(events);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to fetch metric history" });
+      }
+    },
+  );
+
+  app.get(
+    "/api/metrics/portfolio",
+    requireSupabaseUser,
+    async (req: AuthenticatedRequest, res) => {
+      try {
+        const userId = getUserId(req);
+        const projects = await storage.getProjects(userId);
+        const projectIds = projects.map(p => p.id);
+        const metrics = await storage.getMetricsForProjects(projectIds);
+        const stats = await storage.getUserStats(userId);
+
+        // Aggregate totals by key across active metrics (numeric types only).
+        const activeMetrics = metrics.filter(m => m.status === "active");
+        const byKey: Record<string, { label: string; unit: string | null; type: string; total: number; count: number }> = {};
+        for (const m of activeMetrics) {
+          if (m.type !== "number" && m.type !== "currency" && m.type !== "percent") continue;
+          const n = Number(m.value);
+          if (!Number.isFinite(n)) continue;
+          const bucket = byKey[m.key] ?? {
+            label: m.label,
+            unit: m.unit,
+            type: m.type,
+            total: 0,
+            count: 0,
+          };
+          bucket.total += n;
+          bucket.count += 1;
+          byKey[m.key] = bucket;
+        }
+
+        res.json({
+          stats,
+          projects: projects.map(p => ({
+            id: p.id,
+            title: p.title,
+            funder: p.funder,
+            status: p.status,
+            deadline: p.deadline,
+            amountRequested: (p as any).amountRequested ?? null,
+            amountAwarded: (p as any).amountAwarded ?? null,
+          })),
+          totalsByKey: byKey,
+          metrics: activeMetrics,
+        });
+      } catch (error) {
+        console.error("Failed to fetch portfolio metrics:", error);
+        res.status(500).json({ error: "Failed to fetch portfolio metrics" });
+      }
+    },
+  );
+
+  // Ad-hoc extraction: upload a file and preview suggestions without persisting.
+  app.post(
+    "/api/projects/:projectId/metrics/extract",
+    uploadRateLimiter,
+    requireSupabaseUser,
+    upload.single("file"),
+    async (req: AuthenticatedRequest, res) => {
+      const access = await assertProjectAccess(req, req.params.projectId);
+      if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+      try {
+        const filePath = path.join("uploads", req.file.filename);
+        const buffer = fs.readFileSync(filePath);
+        const suggestions = await fileProcessor.extractMetricsFromFile(
+          buffer,
+          req.file.originalname,
+          req.file.mimetype,
+        );
+        try {
+          fs.unlinkSync(filePath);
+        } catch {}
+        res.json({ suggestions });
+      } catch (error: any) {
+        console.error("Metric extraction failed:", error);
+        res.status(500).json({ error: "Failed to extract metrics", details: error?.message });
+      }
+    },
+  );
+
+  // Bulk accept a batch of suggestions (typically coming from the extract preview).
+  app.post(
+    "/api/projects/:projectId/metrics/bulk",
+    requireSupabaseUser,
+    async (req: AuthenticatedRequest, res) => {
+      const access = await assertProjectAccess(req, req.params.projectId);
+      if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+      try {
+        const suggestions = Array.isArray(req.body?.suggestions) ? req.body.suggestions : [];
+        const status = req.body?.status === "suggested" ? "suggested" : "active";
+        const source = req.body?.source ?? "ai_suggested";
+        const rows = suggestions
+          .filter((s: any) => s && s.key && s.label && s.type && s.category)
+          .map((s: any) => ({
+            projectId: req.params.projectId,
+            key: String(s.key),
+            label: String(s.label),
+            type: String(s.type),
+            target: s.target != null ? String(s.target) : null,
+            unit: s.unit ?? null,
+            category: String(s.category),
+            source,
+            status,
+            confidence: typeof s.confidence === "number" ? s.confidence : null,
+            rationale: s.rationale ?? null,
+            sourceDocumentId: s.sourceDocumentId ?? null,
+          }));
+        const created = await storage.createGrantMetrics(rows as any);
+        res.json({ created });
+      } catch (error: any) {
+        console.error("Bulk metric create failed:", error);
+        res.status(500).json({ error: "Failed to create metrics", details: error?.message });
+      }
+    },
+  );
+
   // File extraction route
   app.post("/api/extract-questions", uploadRateLimiter, requireSupabaseUser, upload.single('file'), async (req: AuthenticatedRequest, res) => {
     try {

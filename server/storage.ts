@@ -17,10 +17,57 @@ import {
   type InsertDraftCitation,
   type AssumptionLabel,
   type InsertAssumptionLabel,
+  type GrantMetric,
+  type InsertGrantMetric,
+  type GrantMetricEvent,
+  type InsertGrantMetricEvent,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db, schema, sql as rawSql } from "./db";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, desc, inArray } from "drizzle-orm";
+import { parseAmountToNumber, formatCurrencyCompact } from "@shared/currency";
+
+function computeStatsFromProjects(projects: Project[]): {
+  activeProjects: number;
+  successRate: string;
+  totalAwarded: string;
+  dueThisWeek: number;
+} {
+  const activeProjects = projects.filter(
+    p => p.status === "draft" || p.status === "submitted",
+  ).length;
+
+  const oneWeekFromNow = new Date();
+  oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
+  const dueThisWeek = projects.filter(
+    p =>
+      p.deadline &&
+      new Date(p.deadline) <= oneWeekFromNow &&
+      p.status !== "awarded" &&
+      p.status !== "declined",
+  ).length;
+
+  const awardedProjects = projects.filter(p => p.status === "awarded");
+  const declinedCount = projects.filter(p => p.status === "declined").length;
+  const decidedCount = awardedProjects.length + declinedCount;
+  const successRate =
+    decidedCount === 0
+      ? "0%"
+      : `${Math.round((awardedProjects.length / decidedCount) * 100)}%`;
+
+  // Prefer the structured amount_awarded (cents); fall back to the legacy
+  // text `amount` column for projects created before the metrics migration.
+  const totalAwardedNum = awardedProjects.reduce((sum, p) => {
+    const anyP = p as unknown as { amountAwarded?: number | null; amount?: string | null };
+    if (anyP.amountAwarded && anyP.amountAwarded > 0) {
+      return sum + anyP.amountAwarded / 100;
+    }
+    return sum + parseAmountToNumber(anyP.amount);
+  }, 0);
+  const totalAwarded = formatCurrencyCompact(totalAwardedNum);
+
+  return { activeProjects, successRate, totalAwarded, dueThisWeek };
+}
 
 export interface IStorage {
   // User methods
@@ -135,6 +182,17 @@ export interface IStorage {
     totalAwarded: string;
     dueThisWeek: number;
   }>;
+
+  // Grant metrics methods
+  getGrantMetrics(projectId: string, opts?: { includeDismissed?: boolean }): Promise<GrantMetric[]>;
+  getGrantMetric(id: string): Promise<GrantMetric | undefined>;
+  createGrantMetric(metric: InsertGrantMetric): Promise<GrantMetric>;
+  createGrantMetrics(metrics: InsertGrantMetric[]): Promise<GrantMetric[]>;
+  updateGrantMetric(id: string, updates: Partial<GrantMetric>): Promise<GrantMetric | undefined>;
+  deleteGrantMetric(id: string): Promise<boolean>;
+  createGrantMetricEvent(event: InsertGrantMetricEvent): Promise<GrantMetricEvent>;
+  getGrantMetricEvents(metricId: string): Promise<GrantMetricEvent[]>;
+  getMetricsForProjects(projectIds: string[]): Promise<GrantMetric[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -149,6 +207,8 @@ export class MemStorage implements IStorage {
   private documentChunks: Map<string, DocChunk[]> = new Map();
   private draftCitations: Map<string, DraftCitation[]> = new Map();
   private assumptionLabels: Map<string, AssumptionLabel[]> = new Map();
+  private grantMetrics: Map<string, GrantMetric> = new Map();
+  private grantMetricEvents: Map<string, GrantMetricEvent> = new Map();
 
   async getUser(id: string): Promise<User | undefined> {
     return this.users.get(id);
@@ -605,21 +665,99 @@ export class MemStorage implements IStorage {
     dueThisWeek: number;
   }> {
     const projects = await this.getProjects(userId);
-    const activeProjects = projects.filter(p => p.status === "draft" || p.status === "submitted").length;
-    
-    const oneWeekFromNow = new Date();
-    oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
-    
-    const dueThisWeek = projects.filter(p => 
-      p.deadline && new Date(p.deadline) <= oneWeekFromNow && p.status !== "awarded" && p.status !== "declined"
-    ).length;
+    return computeStatsFromProjects(projects);
+  }
 
-    return {
-      activeProjects,
-      successRate: "67%", // This would be calculated from historical data
-      totalAwarded: "$2.4M", // This would be calculated from awarded grants
-      dueThisWeek
+  async getGrantMetrics(
+    projectId: string,
+    opts?: { includeDismissed?: boolean }
+  ): Promise<GrantMetric[]> {
+    const includeDismissed = opts?.includeDismissed ?? false;
+    return Array.from(this.grantMetrics.values())
+      .filter(m => m.projectId === projectId)
+      .filter(m => includeDismissed || m.status !== "dismissed")
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  }
+
+  async getGrantMetric(id: string): Promise<GrantMetric | undefined> {
+    return this.grantMetrics.get(id);
+  }
+
+  async createGrantMetric(metric: InsertGrantMetric): Promise<GrantMetric> {
+    const id = randomUUID();
+    const row: GrantMetric = {
+      id,
+      projectId: metric.projectId!,
+      key: metric.key!,
+      label: metric.label!,
+      type: metric.type!,
+      value: metric.value ?? null,
+      target: metric.target ?? null,
+      unit: metric.unit ?? null,
+      category: metric.category!,
+      source: metric.source ?? "manual",
+      status: metric.status ?? "active",
+      sourceDocumentId: metric.sourceDocumentId ?? null,
+      sourceChunkId: metric.sourceChunkId ?? null,
+      confidence: metric.confidence ?? null,
+      rationale: metric.rationale ?? null,
+      sortOrder: metric.sortOrder ?? 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
+    this.grantMetrics.set(id, row);
+    return row;
+  }
+
+  async createGrantMetrics(metrics: InsertGrantMetric[]): Promise<GrantMetric[]> {
+    const created: GrantMetric[] = [];
+    for (const m of metrics) {
+      created.push(await this.createGrantMetric(m));
+    }
+    return created;
+  }
+
+  async updateGrantMetric(
+    id: string,
+    updates: Partial<GrantMetric>
+  ): Promise<GrantMetric | undefined> {
+    const existing = this.grantMetrics.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...updates, updatedAt: new Date() };
+    this.grantMetrics.set(id, updated);
+    return updated;
+  }
+
+  async deleteGrantMetric(id: string): Promise<boolean> {
+    for (const event of Array.from(this.grantMetricEvents.values())) {
+      if (event.metricId === id) this.grantMetricEvents.delete(event.id);
+    }
+    return this.grantMetrics.delete(id);
+  }
+
+  async createGrantMetricEvent(event: InsertGrantMetricEvent): Promise<GrantMetricEvent> {
+    const id = randomUUID();
+    const row: GrantMetricEvent = {
+      id,
+      metricId: event.metricId!,
+      value: event.value!,
+      note: event.note ?? null,
+      recordedAt: new Date(),
+      recordedBy: event.recordedBy ?? null,
+    };
+    this.grantMetricEvents.set(id, row);
+    return row;
+  }
+
+  async getGrantMetricEvents(metricId: string): Promise<GrantMetricEvent[]> {
+    return Array.from(this.grantMetricEvents.values())
+      .filter(e => e.metricId === metricId)
+      .sort((a, b) => (b.recordedAt?.getTime() ?? 0) - (a.recordedAt?.getTime() ?? 0));
+  }
+
+  async getMetricsForProjects(projectIds: string[]): Promise<GrantMetric[]> {
+    const set = new Set(projectIds);
+    return Array.from(this.grantMetrics.values()).filter(m => set.has(m.projectId));
   }
 }
 
@@ -1128,11 +1266,97 @@ export class DbStorage implements IStorage {
     dueThisWeek: number;
   }> {
     const projects = await this.getProjects(userId);
-    const activeProjects = projects.filter(p => p.status === "draft" || p.status === "submitted").length;
-    const oneWeekFromNow = new Date();
-    oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
-    const dueThisWeek = projects.filter(p => p.deadline && new Date(p.deadline) <= oneWeekFromNow && p.status !== "awarded" && p.status !== "declined").length;
-    return { activeProjects, successRate: "67%", totalAwarded: "$2.4M", dueThisWeek };
+    return computeStatsFromProjects(projects);
+  }
+
+  async getGrantMetrics(
+    projectId: string,
+    opts?: { includeDismissed?: boolean }
+  ): Promise<GrantMetric[]> {
+    const includeDismissed = opts?.includeDismissed ?? false;
+    const where = includeDismissed
+      ? eq(schema.grantMetrics.projectId, projectId)
+      : and(
+          eq(schema.grantMetrics.projectId, projectId),
+          rawSql`${schema.grantMetrics.status} <> 'dismissed'`
+        );
+    const rows = await db
+      ?.select()
+      .from(schema.grantMetrics)
+      .where(where as any)
+      .orderBy(asc(schema.grantMetrics.sortOrder), asc(schema.grantMetrics.createdAt));
+    return rows ?? [];
+  }
+
+  async getGrantMetric(id: string): Promise<GrantMetric | undefined> {
+    const rows = await db
+      ?.select()
+      .from(schema.grantMetrics)
+      .where(eq(schema.grantMetrics.id, id));
+    return rows?.[0];
+  }
+
+  async createGrantMetric(metric: InsertGrantMetric): Promise<GrantMetric> {
+    const rows = await db
+      ?.insert(schema.grantMetrics)
+      .values(metric as any)
+      .returning();
+    return rows![0];
+  }
+
+  async createGrantMetrics(metrics: InsertGrantMetric[]): Promise<GrantMetric[]> {
+    if (metrics.length === 0) return [];
+    const rows = await db
+      ?.insert(schema.grantMetrics)
+      .values(metrics as any)
+      .returning();
+    return rows ?? [];
+  }
+
+  async updateGrantMetric(
+    id: string,
+    updates: Partial<GrantMetric>
+  ): Promise<GrantMetric | undefined> {
+    const rows = await db
+      ?.update(schema.grantMetrics)
+      .set({ ...(updates as any), updatedAt: new Date() })
+      .where(eq(schema.grantMetrics.id, id))
+      .returning();
+    return rows?.[0];
+  }
+
+  async deleteGrantMetric(id: string): Promise<boolean> {
+    const rows = await db
+      ?.delete(schema.grantMetrics)
+      .where(eq(schema.grantMetrics.id, id))
+      .returning();
+    return (rows?.length ?? 0) > 0;
+  }
+
+  async createGrantMetricEvent(event: InsertGrantMetricEvent): Promise<GrantMetricEvent> {
+    const rows = await db
+      ?.insert(schema.grantMetricEvents)
+      .values(event as any)
+      .returning();
+    return rows![0];
+  }
+
+  async getGrantMetricEvents(metricId: string): Promise<GrantMetricEvent[]> {
+    const rows = await db
+      ?.select()
+      .from(schema.grantMetricEvents)
+      .where(eq(schema.grantMetricEvents.metricId, metricId))
+      .orderBy(desc(schema.grantMetricEvents.recordedAt));
+    return rows ?? [];
+  }
+
+  async getMetricsForProjects(projectIds: string[]): Promise<GrantMetric[]> {
+    if (projectIds.length === 0) return [];
+    const rows = await db
+      ?.select()
+      .from(schema.grantMetrics)
+      .where(inArray(schema.grantMetrics.projectId, projectIds));
+    return rows ?? [];
   }
 }
 

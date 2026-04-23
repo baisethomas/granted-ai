@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -9,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FileUpload } from "@/components/ui/file-upload";
+import { parseAmountToNumber } from "@/lib/currency";
 import { api } from "@/lib/api";
 import { getAuthHeaders } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -85,7 +87,9 @@ export default function Forms() {
         setProjectForm({
           title: project.title || "",
           funder: project.funder || "",
-          amount: project.amount || "",
+          amount: project.amount
+            ? (parseAmountToNumber(project.amount) || "").toString()
+            : "",
           deadline: project.deadline ? new Date(project.deadline).toISOString().split('T')[0] : "",
           description: project.description || "",
         });
@@ -630,11 +634,11 @@ export default function Forms() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="amount">Grant Amount</Label>
-                <Input
+                <CurrencyInput
                   id="amount"
-                  placeholder="e.g., $150,000"
+                  placeholder="$150,000"
                   value={projectForm.amount}
-                  onChange={(e) => setProjectForm({ ...projectForm, amount: e.target.value })}
+                  onValueChange={(v) => setProjectForm({ ...projectForm, amount: v })}
                 />
               </div>
               <div className="space-y-2">

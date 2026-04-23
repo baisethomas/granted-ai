@@ -19,7 +19,11 @@ import {
   Send
 } from "lucide-react";
 
-export default function Dashboard() {
+interface DashboardProps {
+  onOpenProject?: (projectId: string) => void;
+}
+
+export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -168,6 +172,7 @@ export default function Dashboard() {
                   project={project}
                   onDelete={handleDeleteProject}
                   onEdit={handleEditProject}
+                  onOpen={onOpenProject}
                 />
               ))}
             </div>
