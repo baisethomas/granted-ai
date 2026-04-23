@@ -1,5 +1,5 @@
 import mammoth from "mammoth";
-import type { Document } from "@shared/schema";
+import type { Document } from "../../shared/schema.js";
 import { storage } from "../storage.js";
 import { aiService, type MetricSuggestion } from "./ai.js";
 

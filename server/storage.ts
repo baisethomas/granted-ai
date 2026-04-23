@@ -21,11 +21,11 @@ import {
   type InsertGrantMetric,
   type GrantMetricEvent,
   type InsertGrantMetricEvent,
-} from "@shared/schema";
+} from "../shared/schema.js";
 import { randomUUID } from "crypto";
 import { db, schema, sql as rawSql } from "./db.js";
 import { eq, and, asc, desc, inArray } from "drizzle-orm";
-import { parseAmountToNumber, formatCurrencyCompact } from "@shared/currency";
+import { parseAmountToNumber, formatCurrencyCompact } from "../shared/currency.js";
 
 function computeStatsFromProjects(projects: Project[]): {
   activeProjects: number;

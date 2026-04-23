@@ -1,5 +1,5 @@
 import { storage } from "../storage.js";
-import type { GrantMetric } from "@shared/schema";
+import type { GrantMetric } from "../../shared/schema.js";
 
 export type MetricType = "number" | "currency" | "percent" | "text" | "date";
 export type MetricCategory =
