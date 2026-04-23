@@ -50,7 +50,9 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     <aside className="w-64 bg-white border-r border-gray-100 flex flex-col h-screen">
       {/* Logo Section */}
       <div className="p-6 border-b border-gray-100">
-        <a href="#" className="text-2xl font-bold text-indigo-600">Granted</a>
+        <a href="/" className="inline-flex items-center">
+          <img src="/logo.png" alt="Granted AI" className="h-14 w-auto" />
+        </a>
       </div>
       
       {/* Navigation */}
