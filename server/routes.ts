@@ -20,6 +20,58 @@ function getUserId(req: AuthenticatedRequest): string {
   return req.supabaseUser.id;
 }
 
+// Columns on `projects` that clients are allowed to update. Anything else
+// (id/userId/organizationId/timestamps) is stripped to avoid accidental
+// spreads from the client breaking the update.
+const PROJECT_UPDATABLE_FIELDS = new Set([
+  "title",
+  "funder",
+  "amount",
+  "deadline",
+  "status",
+  "description",
+  "amountRequested",
+  "amountAwarded",
+  "awardedAt",
+  "reportingDueAt",
+]);
+
+const PROJECT_DATE_FIELDS = new Set([
+  "deadline",
+  "awardedAt",
+  "reportingDueAt",
+]);
+
+function coerceProjectDate(value: unknown): Date | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+  if (value instanceof Date) return value;
+  if (typeof value === "string" || typeof value === "number") {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) {
+      throw new Error(`Invalid date value: ${value}`);
+    }
+    return d;
+  }
+  throw new Error(`Unsupported date value: ${JSON.stringify(value)}`);
+}
+
+function sanitizeProjectUpdate(body: Record<string, unknown>): Record<string, unknown> {
+  const updates: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(body ?? {})) {
+    if (!PROJECT_UPDATABLE_FIELDS.has(key)) continue;
+    if (value === undefined) continue;
+    if (PROJECT_DATE_FIELDS.has(key)) {
+      updates[key] = coerceProjectDate(value);
+    } else {
+      updates[key] = value;
+    }
+  }
+  // Always bump updatedAt so downstream sorts reflect the change.
+  updates.updatedAt = new Date();
+  return updates;
+}
+
 // Configure multer for file uploads.
 // Use memory storage so uploads work in serverless environments (Vercel) where
 // only /tmp is writable. File buffers are read directly from req.file.buffer.
@@ -122,13 +174,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/projects/:id", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
-      const project = await storage.updateProject(req.params.id, req.body);
+      const userId = getUserId(req);
+      const projectId = req.params.id;
+
+      const existing = await storage.getProject(projectId);
+      if (!existing) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (existing.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized to update this project" });
+      }
+
+      const updates = sanitizeProjectUpdate(req.body);
+      const project = await storage.updateProject(projectId, updates);
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
       }
       res.json(project);
     } catch (error) {
-      res.status(500).json({ error: "Failed to update project" });
+      console.error(`[PUT /api/projects/${req.params.id}] Error:`, error);
+      res.status(500).json({
+        error: "Failed to update project",
+        message: error instanceof Error ? error.message : "Unexpected error",
+      });
     }
   });
 
