@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { documents, projects, questions, users, organizations } from '../shared/schema-simple';
+import { documents, projects, questions, users, organizations } from '../shared/schema-simple.js';
 
 // Use Supabase client for database operations
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ieicdrcpckcjgcgfylaj.supabase.co';

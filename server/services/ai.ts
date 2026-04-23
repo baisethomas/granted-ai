@@ -33,7 +33,7 @@
  */
 
 // Ensure environment variables are loaded first
-import "../config";
+import "../config.js";
 import OpenAI from "openai";
 
 // Timeout and retry configuration
