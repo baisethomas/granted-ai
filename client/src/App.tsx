@@ -34,6 +34,8 @@ import Forms from "@/pages/forms";
 import Drafts from "@/pages/drafts";
 import Settings from "@/pages/settings";
 import Pricing from "@/pages/pricing";
+import Privacy from "@/pages/privacy";
+import Terms from "@/pages/terms";
 import { NewProjectDialog } from "@/components/new-project-dialog";
 
 function AppContent() {
@@ -42,12 +44,15 @@ function AppContent() {
   const { user, loading, signOut } = useAuth();
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
 
+  const PUBLIC_PATHS = ["/privacy", "/terms", "/pricing"];
+  const isPublicPath = PUBLIC_PATHS.includes(location);
+
   // Handle redirect to /app when user logs in
   useEffect(() => {
-    if (user && location !== "/app") {
+    if (user && location !== "/app" && !isPublicPath) {
       setLocation("/app");
     }
-  }, [user, location, setLocation]);
+  }, [user, location, setLocation, isPublicPath]);
 
   // Handle redirect to landing when user logs out from an authenticated route
   useEffect(() => {
@@ -96,6 +101,12 @@ function AppContent() {
             <Route path="/pricing">
               <Pricing />
             </Route>
+            <Route path="/privacy">
+              <Privacy />
+            </Route>
+            <Route path="/terms">
+              <Terms />
+            </Route>
             <Route path="/">
               <LandingPage
                 onClickSeeHow={() => {
@@ -104,6 +115,27 @@ function AppContent() {
                 }}
                 onNavigateToAuth={() => setLocation("/auth")}
               />
+            </Route>
+          </ErrorBoundary>
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+
+  // Allow authenticated users to view public legal/marketing pages directly
+  if (user && isPublicPath) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <ErrorBoundary>
+            <Route path="/pricing">
+              <Pricing />
+            </Route>
+            <Route path="/privacy">
+              <Privacy />
+            </Route>
+            <Route path="/terms">
+              <Terms />
             </Route>
           </ErrorBoundary>
         </TooltipProvider>
