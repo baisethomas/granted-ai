@@ -13,6 +13,53 @@ export interface ExportData {
   };
 }
 
+// Remove trailing meta blocks ("Citations:", "Assumptions & Follow-ups:", etc.)
+// that some legacy drafts persisted inside the response body.
+function stripMetaBlocks(text: string): string {
+  if (!text) return text;
+  return text.replace(
+    /\n{1,}\s*(?:Citations|Assumptions(?:\s*&\s*Follow-?ups)?|Follow-?ups)\s*:\s*[\s\S]*$/i,
+    '',
+  );
+}
+
+// Strip markdown formatting so exports are clean prose, not AI-style markdown.
+function stripMarkdown(text: string): string {
+  if (!text) return text;
+
+  return stripMetaBlocks(text)
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/_(.+?)_/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^>\s+/gm, '')
+    .replace(/^[-*_]{3,}\s*$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+// Escape HTML so cleaned text can be safely embedded in the HTML export path.
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Return a copy of the response text that is safe for export: meta blocks
+// removed and any markdown artifacts stripped.
+function getCleanResponse(question: GrantQuestion): string {
+  return stripMarkdown(question.response || '');
+}
+
 /**
  * Enhanced clipboard export with professional formatting
  */
@@ -38,13 +85,14 @@ export async function exportToClipboard(data: ExportData): Promise<void> {
 
   const responses = completedQuestions
     .map((q, index) => {
-      const wordCount = q.response ? q.response.trim().split(/\s+/).length : 0;
+      const cleanResponse = getCleanResponse(q);
+      const wordCount = cleanResponse ? cleanResponse.trim().split(/\s+/).length : 0;
       const wordLimitText = q.wordLimit ? ` (${wordCount}/${q.wordLimit} words)` : ` (${wordCount} words)`;
-      
+
       return [
         `${index + 1}. ${q.question}${wordLimitText}`,
         '',
-        q.response || 'No response provided',
+        cleanResponse || 'No response provided',
         '',
         '---',
         ''
@@ -178,9 +226,10 @@ export async function exportToPDF(data: ExportData): Promise<void> {
 
   // Each question and response
   completedQuestions.forEach((question, index) => {
-    const wordCount = question.response ? question.response.trim().split(/\s+/).length : 0;
-    const wordLimitText = question.wordLimit 
-      ? ` (${wordCount}/${question.wordLimit} words)` 
+    const cleanResponse = getCleanResponse(question);
+    const wordCount = cleanResponse ? cleanResponse.trim().split(/\s+/).length : 0;
+    const wordLimitText = question.wordLimit
+      ? ` (${wordCount}/${question.wordLimit} words)`
       : ` (${wordCount} words)`;
 
     // Question header
@@ -188,7 +237,7 @@ export async function exportToPDF(data: ExportData): Promise<void> {
     addSpace(4);
 
     // Response content
-    const responseText = question.response || 'No response provided';
+    const responseText = cleanResponse || 'No response provided';
     addWrappedText(responseText, 10, false);
     addSpace(8);
   });
@@ -306,14 +355,20 @@ export async function exportToWord(data: ExportData): Promise<void> {
 
   // Questions and Responses
   completedQuestions.forEach((question, index) => {
-    const wordCount = question.response ? question.response.trim().split(/\s+/).length : 0;
+    const cleanResponse = getCleanResponse(question);
+    const wordCount = cleanResponse ? cleanResponse.trim().split(/\s+/).length : 0;
     const wordLimitText = question.wordLimit ? ` (${wordCount}/${question.wordLimit} words)` : ` (${wordCount} words)`;
+
+    const paragraphs = (cleanResponse || 'No response provided')
+      .split(/\n{2,}/)
+      .map((chunk) => chunk.trim())
+      .filter(Boolean);
 
     children.push(
       new Paragraph({
         children: [
-          new TextRun({ 
-            text: `${index + 1}. ${question.question}${wordLimitText}`, 
+          new TextRun({
+            text: `${index + 1}. ${question.question}${wordLimitText}`,
             bold: true,
             size: 22
           })
@@ -321,10 +376,12 @@ export async function exportToWord(data: ExportData): Promise<void> {
         heading: HeadingLevel.HEADING_2,
         spacing: { before: 300, after: 150 }
       }),
-      new Paragraph({
-        children: [new TextRun({ text: question.response || 'No response provided' })],
-        spacing: { after: 300 }
-      })
+      ...paragraphs.map((paragraph, pIndex) =>
+        new Paragraph({
+          children: [new TextRun({ text: paragraph })],
+          spacing: { after: pIndex === paragraphs.length - 1 ? 300 : 150 }
+        })
+      )
     );
   });
 
@@ -498,16 +555,19 @@ function createHTMLContent(data: ExportData, completedQuestions: GrantQuestion[]
   `;
 
   const responses = completedQuestions.map((question, index) => {
-    const wordCount = question.response ? question.response.trim().split(/\s+/).length : 0;
+    const cleanResponse = getCleanResponse(question);
+    const wordCount = cleanResponse ? cleanResponse.trim().split(/\s+/).length : 0;
     const wordLimitText = question.wordLimit ? ` <span class="word-count">(${wordCount}/${question.wordLimit} words)</span>` : ` <span class="word-count">(${wordCount} words)</span>`;
-    
+
+    const responseHtml = escapeHtml(cleanResponse || 'No response provided').replace(/\n/g, '<br>');
+
     return `
       <div class="question-block">
         <div class="question-header">
-          ${index + 1}. ${question.question}${wordLimitText}
+          ${escapeHtml(`${index + 1}. ${question.question}`)}${wordLimitText}
         </div>
         <div class="response-content">
-          ${(question.response || 'No response provided').replace(/\n/g, '<br>')}
+          ${responseHtml}
         </div>
       </div>
     `;

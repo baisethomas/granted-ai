@@ -518,25 +518,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        let responseText = grounded.text?.trim() || '';
-        if (grounded.citations?.length) {
-          responseText = responseText.replace(/\s+$/, '');
-          const citationsBlock = grounded.citations
-            .map((citation, index) => {
-              return `[#${index + 1}] ${citation.documentName} (chunk ${citation.chunkIndex + 1})${
-                citation.quote ? ` – "${citation.quote}"` : ''
-              }`;
-            })
-            .join('\n');
-          responseText += `\n\nCitations:\n${citationsBlock}`;
-        }
-
-        if (grounded.assumptions?.length) {
-          const assumptionsBlock = grounded.assumptions
-            .map((assumption, index) => `${index + 1}. ${assumption}`)
-            .join('\n');
-          responseText += `\n\nAssumptions & Follow-ups:\n${assumptionsBlock}`;
-        }
+        const responseText = (grounded.text || '').trim();
         
         const duration = Date.now() - startTime;
         console.log(`AI generation completed in ${duration}ms for question ${questionId}`);

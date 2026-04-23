@@ -45,6 +45,37 @@ const openai = openaiApiKey && openaiApiKey.startsWith("sk-")
   : null;
 
 // Inline auth middleware
+// Strip markdown formatting so the AI output is clean prose for grant docs.
+function stripMarkdown(text: string): string {
+  if (!text) return text;
+
+  return text
+    // Remove bold/italic markers
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/_(.+?)_/g, '$1')
+    // Remove headers (e.g., "## Heading")
+    .replace(/^#{1,6}\s+/gm, '')
+    // Remove bullet points
+    .replace(/^\s*[-*+]\s+/gm, '')
+    // Remove numbered list formatting but keep the content
+    .replace(/^\s*\d+\.\s+/gm, '')
+    // Remove inline code
+    .replace(/`([^`]+)`/g, '$1')
+    // Remove code blocks
+    .replace(/```[\s\S]*?```/g, '')
+    // Remove markdown links, keep the text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Remove blockquotes
+    .replace(/^>\s+/gm, '')
+    // Remove horizontal rules
+    .replace(/^[-*_]{3,}\s*$/gm, '')
+    // Collapse excessive blank lines
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function requireSupabaseUser(req: express.Request, res: express.Response, next: express.NextFunction) {
   if (req.method === "OPTIONS") {
     return next();
@@ -623,7 +654,9 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
       })
       .join('\n\n');
 
-    const instructions = `You are an expert grant writer. Use the provided snippets to answer the question with explicit citations. Return JSON with fields: text (string), citations (array of {documentName, documentId, chunkIndex, quote}), and assumptions (array of strings). Do not fabricate details.`;
+    const instructions = `You are an expert grant writer. Use the provided snippets to answer the question with explicit citations. Return JSON with fields: text (string), citations (array of {documentName, documentId, chunkIndex, quote}), and assumptions (array of strings). Do not fabricate details.
+
+IMPORTANT: The "text" field must contain plain text ONLY — no markdown. Do NOT use **bold**, *italics*, bullet points (-, *), numbered lists, headers (#, ##), code blocks, or any other markdown syntax. Do NOT include a "Citations" section or an "Assumptions" section inside the text. Write in clear, professional prose suitable for a formal grant application, using paragraph breaks for organization.`;
 
     const userPrompt = `Grant Question: ${question.question}\n\nTone: ${tone}\n${
       question.word_limit ? `Target word count: ${question.word_limit}` : ''
@@ -660,29 +693,13 @@ app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: any, re
       };
     });
 
-    const responseText = (parsed.text || parsed.answer || '').trim();
+    const responseText = stripMarkdown((parsed.text || parsed.answer || '').trim());
     const assumptions = Array.isArray(parsed.assumptions) ? parsed.assumptions : [];
 
-    // Format response with citations
-    let finalResponse = responseText;
-    if (normalizedCitations.length) {
-      finalResponse = finalResponse.replace(/\s+$/, '');
-      const citationsBlock = normalizedCitations
-        .map((citation: any, index: number) => {
-          return `[#${index + 1}] ${citation.documentName} (chunk ${citation.chunkIndex + 1})${
-            citation.quote ? ` – "${citation.quote}"` : ''
-          }`;
-        })
-        .join('\n');
-      finalResponse += `\n\nCitations:\n${citationsBlock}`;
-    }
-
-    if (assumptions.length) {
-      const assumptionsBlock = assumptions
-        .map((assumption: string, index: number) => `${index + 1}. ${assumption}`)
-        .join('\n');
-      finalResponse += `\n\nAssumptions & Follow-ups:\n${assumptionsBlock}`;
-    }
+    // Store only the clean response text. Citations and assumptions are
+    // returned separately in the payload and persisted in their own tables,
+    // so they don't need to pollute the document body.
+    const finalResponse = responseText;
 
     const duration = Date.now() - startTime;
     console.log(`[api/simple] AI generation completed in ${duration}ms`);
