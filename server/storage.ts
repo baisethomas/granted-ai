@@ -813,8 +813,49 @@ export class DbStorage implements IStorage {
   }
 
   async deleteProject(id: string): Promise<boolean> {
-    const rows = await db?.delete(schema.projects).where(eq(schema.projects.id, id)).returning();
-    return !!rows?.length;
+    if (!db) return false;
+
+    // Cascade children explicitly. The only FK pointing at projects that
+    // currently has ON DELETE CASCADE is grant_metrics (→ grant_metric_events).
+    // Everything else (grant_questions, assumption_labels, response_versions,
+    // draft_citations) is unmanaged, so a bare DELETE FROM projects fails
+    // with "violates foreign key constraint".
+    //
+    // Order matters: children of grant_questions must go before the
+    // grant_questions rows themselves.
+    return await db.transaction(async (tx: any) => {
+      const questionRows: Array<{ id: string }> = await tx
+        .select({ id: schema.grantQuestions.id })
+        .from(schema.grantQuestions)
+        .where(eq(schema.grantQuestions.projectId, id));
+      const questionIds = questionRows.map((q) => q.id);
+
+      if (questionIds.length > 0) {
+        await tx
+          .delete(schema.draftCitations)
+          .where(inArray(schema.draftCitations.draftId, questionIds));
+        await tx
+          .delete(schema.responseVersions)
+          .where(inArray(schema.responseVersions.questionId, questionIds));
+      }
+
+      await tx
+        .delete(schema.assumptionLabels)
+        .where(eq(schema.assumptionLabels.projectId, id));
+
+      await tx
+        .delete(schema.grantQuestions)
+        .where(eq(schema.grantQuestions.projectId, id));
+
+      // grant_metrics + grant_metric_events cascade from projects; no-op here.
+
+      const rows = await tx
+        .delete(schema.projects)
+        .where(eq(schema.projects.id, id))
+        .returning();
+
+      return rows.length > 0;
+    });
   }
 
   async getDocuments(userId: string): Promise<Document[]> {
