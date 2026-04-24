@@ -1,11 +1,18 @@
 import type { Request, Response, NextFunction } from "express";
 
+// Fire the "ALLOWED_ORIGINS missing" warning at most once per process
+// instead of on every single request (which spams Vercel logs).
+let warnedMissingAllowedOrigins = false;
+
 /**
  * CORS middleware that restricts origins to specific allowed domains
  * Configure via ALLOWED_ORIGINS environment variable (comma-separated)
  * Example: ALLOWED_ORIGINS=http://localhost:5173,https://granted.ai
- * 
- * In development, defaults to allowing localhost origins if not configured
+ *
+ * Same-origin requests (frontend and API on the same Vercel deployment) are
+ * always allowed regardless of ALLOWED_ORIGINS.
+ *
+ * In development, defaults to allowing common localhost origins if not configured.
  */
 export function corsMiddleware(req: Request, res: Response, next: NextFunction) {
   const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
@@ -13,11 +20,10 @@ export function corsMiddleware(req: Request, res: Response, next: NextFunction) 
 
   // Parse allowed origins from environment variable
   let allowedOrigins: string[] = [];
-  
+
   if (allowedOriginsEnv) {
     allowedOrigins = allowedOriginsEnv.split(",").map((origin) => origin.trim()).filter(Boolean);
   } else if (isDevelopment) {
-    // In development, allow common localhost origins if not configured
     allowedOrigins = [
       "http://localhost:5000",
       "http://localhost:5173",
@@ -27,12 +33,14 @@ export function corsMiddleware(req: Request, res: Response, next: NextFunction) 
       "http://127.0.0.1:3000",
     ];
   } else {
-    // In production, if no origins configured, log warning but don't allow all
-    console.warn(
-      "[CORS] WARNING: ALLOWED_ORIGINS not configured in production. " +
-      "Set ALLOWED_ORIGINS environment variable with comma-separated origins."
-    );
-    // Don't allow any origins if not configured in production
+    if (!warnedMissingAllowedOrigins) {
+      warnedMissingAllowedOrigins = true;
+      console.warn(
+        "[CORS] ALLOWED_ORIGINS not configured in production. " +
+        "Set ALLOWED_ORIGINS with comma-separated origins. " +
+        "Same-origin requests will continue to be allowed."
+      );
+    }
     allowedOrigins = [];
   }
 

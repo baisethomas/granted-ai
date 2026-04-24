@@ -224,46 +224,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/projects/:id", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    const projectId = req.params.id;
     try {
       const userId = getUserId(req);
-      const projectId = req.params.id;
-      
-      console.log(`[DELETE /api/projects/${projectId}] Request by user: ${userId}`);
-      
-      // First, let's check all projects for this user to debug
-      const userProjects = await storage.getProjects(userId);
-      console.log(`[DELETE /api/projects/${projectId}] User has ${userProjects.length} total projects`);
-      console.log(`[DELETE /api/projects/${projectId}] User project IDs:`, userProjects.map(p => p.id));
-      
       const project = await storage.getProject(projectId);
-      
+
       if (!project) {
-        console.log(`[DELETE /api/projects/${projectId}] Project not found in database`);
-        console.log(`[DELETE /api/projects/${projectId}] Checking if ID exists in user's projects:`, userProjects.some(p => p.id === projectId));
-        return res.status(404).json({ error: "Project not found", message: "This project does not exist or has already been deleted." });
+        return res.status(404).json({
+          error: "Project not found",
+          message: "This project does not exist or has already been deleted.",
+        });
       }
 
-      console.log(`[DELETE /api/projects/${projectId}] Found project owned by: ${project.userId}`);
-      
-      // Verify the project belongs to the user
       if (project.userId !== userId) {
-        console.log(`[DELETE /api/projects/${projectId}] AUTHORIZATION FAILED: Current user ${userId} tried to delete project owned by ${project.userId}`);
-        return res.status(403).json({ error: "Unauthorized to delete this project", message: "You don't have permission to delete this project." });
+        console.warn(
+          `[DELETE /api/projects/${projectId}] auth failed: user ${userId} is not owner ${project.userId}`
+        );
+        return res.status(403).json({
+          error: "Unauthorized to delete this project",
+          message: "You don't have permission to delete this project.",
+        });
       }
 
-      console.log(`[DELETE /api/projects/${projectId}] Authorization passed, attempting delete...`);
       const deleted = await storage.deleteProject(projectId);
-      
       if (!deleted) {
-        console.error(`[DELETE /api/projects/${projectId}] Delete operation returned false`);
-        return res.status(500).json({ error: "Failed to delete project", message: "An error occurred while deleting the project." });
+        console.error(`[DELETE /api/projects/${projectId}] deleteProject returned false`);
+        return res.status(500).json({
+          error: "Failed to delete project",
+          message: "An error occurred while deleting the project.",
+        });
       }
 
-      console.log(`[DELETE /api/projects/${projectId}] Successfully deleted by user ${userId}`);
       res.json({ message: "Project deleted successfully" });
     } catch (error) {
-      console.error(`[DELETE /api/projects/${req.params.id}] Exception:`, error);
-      res.status(500).json({ error: "Failed to delete project", message: error instanceof Error ? error.message : "An unexpected error occurred" });
+      console.error(`[DELETE /api/projects/${projectId}] exception:`, error);
+      res.status(500).json({
+        error: "Failed to delete project",
+        message: error instanceof Error ? error.message : "An unexpected error occurred",
+      });
     }
   });
 

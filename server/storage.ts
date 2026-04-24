@@ -1406,8 +1406,8 @@ export class DbStorage implements IStorage {
 const useDb = !!process.env.DATABASE_URL;
 export const storage: IStorage = useDb ? new DbStorage() : new MemStorage();
 
-if (useDb) {
-  console.info("[storage] Using DbStorage with configured DATABASE_URL.");
-} else {
-  console.warn("[storage] DATABASE_URL not set. Using in-memory storage; data will not persist across restarts.");
+if (!useDb) {
+  console.warn(
+    "[storage] DATABASE_URL not set. Using in-memory storage; data will not persist across restarts."
+  );
 }
