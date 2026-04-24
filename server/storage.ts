@@ -1070,8 +1070,10 @@ export class DbStorage implements IStorage {
       ORDER BY dc.embedding <=> '${vectorLiteral}'::vector
       LIMIT $2;
     `;
-    const result = await rawSql(query, [userId, limit]);
-    return (result?.rows || []).map((row: any) => ({
+    // postgres.js requires sql.unsafe for parameterized raw SQL; the result
+    // is already iterable as rows (no .rows wrapper like node-postgres).
+    const rows = (await rawSql.unsafe(query, [userId, limit])) as any[];
+    return (rows || []).map((row: any) => ({
       chunk: {
         id: row.chunk_id,
         documentId: row.chunk_document_id,
@@ -1117,7 +1119,7 @@ export class DbStorage implements IStorage {
     limit: number
   ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>> {
     if (!rawSql) return [];
-    const result = await rawSql(
+    const rows = (await rawSql.unsafe(
       `
       SELECT
         dc.id AS chunk_id,
@@ -1157,9 +1159,9 @@ export class DbStorage implements IStorage {
       LIMIT $3;
     `,
       [userId, `%${keywords}%`, limit]
-    );
+    )) as any[];
 
-    return (result?.rows || []).map((row: any) => ({
+    return (rows || []).map((row: any) => ({
       chunk: {
         id: row.chunk_id,
         documentId: row.chunk_document_id,
