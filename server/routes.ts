@@ -20,6 +20,44 @@ function getUserId(req: AuthenticatedRequest): string {
   return req.supabaseUser.id;
 }
 
+/**
+ * `draft_citations` rows use { sourceDocumentId, chunkRefs } but the drafts UI
+ * expects { documentName, documentId, chunkIndex, quote }. The generate endpoint
+ * returns the rich shape; list/refetch only had the DB shape, so citations
+ * rendered as "[1]" + "Chunk 1" with no document title or quote.
+ */
+async function enrichCitationsFromDraftRows(
+  draftCitations: Array<{
+    id?: string;
+    sourceDocumentId?: string | null;
+    chunkRefs?: unknown;
+    section?: string | null;
+  }>
+) {
+  return Promise.all(
+    draftCitations.map(async (c) => {
+      const sourceId = c.sourceDocumentId || "";
+      let documentName = "";
+      if (sourceId) {
+        const doc = await storage.getDocument(sourceId);
+        documentName = doc?.originalName || doc?.filename || "";
+      }
+      const refs = Array.isArray(c.chunkRefs) ? c.chunkRefs : [];
+      const first = refs[0] as { chunkIndex?: number; quote?: string } | undefined;
+      const chunkIndex = typeof first?.chunkIndex === "number" ? first.chunkIndex : 0;
+      const quote = typeof first?.quote === "string" ? first.quote : "";
+      return {
+        id: c.id,
+        section: c.section,
+        documentId: sourceId,
+        documentName: documentName || sourceId || "Uploaded document",
+        chunkIndex,
+        quote,
+      };
+    })
+  );
+}
+
 // Columns on `projects` that clients are allowed to update. Anything else
 // (id/userId/organizationId/timestamps) is stripped to avoid accidental
 // spreads from the client breaking the update.
@@ -495,7 +533,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const enriched = await Promise.all(
         questions.map(async (question: any) => {
           const projectId = question.projectId ?? question.project_id ?? req.params.projectId;
-          const citations = await storage.getDraftCitations(question.id);
+          const rawCitations = await storage.getDraftCitations(question.id);
+          const citations = await enrichCitationsFromDraftRows(rawCitations as any[]);
           const assumptions = await storage.getAssumptionLabels(projectId, question.id);
           return {
             ...question,
@@ -645,14 +684,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (projectId) {
           try {
             await storage.deleteAssumptionLabels(projectId, question.id);
-            for (const assumption of grounded.assumptions || []) {
+            for (const raw of grounded.assumptions || []) {
+              const assumptionText =
+                typeof raw === "string"
+                  ? raw.trim()
+                  : typeof (raw as any)?.text === "string"
+                    ? (raw as any).text.trim()
+                    : "";
+              if (!assumptionText) continue;
               await storage.createAssumptionLabel({
                 projectId,
                 draftId: question.id,
-                text: assumption,
-                category: "general",
+                text: assumptionText,
+                category: "context_gap",
                 confidence: 50,
-                suggestedQuestion: assumption,
+                suggestedQuestion: assumptionText,
                 position: { start: 0, end: 0 },
               });
             }

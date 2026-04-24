@@ -1042,21 +1042,53 @@ export default function Drafts() {
                                 <h5 className="text-sm font-semibold text-slate-800">Sources & Citations</h5>
                               </div>
                               <ul className="space-y-2 text-sm text-slate-700">
-                                {question.citations.map((citation: any, citationIndex: number) => (
-                                  <li key={`${question.id}-citation-${citationIndex}`} className="flex flex-col">
-                                    <span className="font-medium text-slate-900">
-                                      [{citationIndex + 1}] {citation.documentName || citation.documentId}
-                                    </span>
-                                    <span className="text-slate-600">
-                                      Chunk {typeof citation.chunkIndex === "number" ? citation.chunkIndex + 1 : citationIndex + 1}
-                                    </span>
-                                    {citation.quote && (
-                                      <span className="text-slate-500 text-xs mt-1">
-                                        “{citation.quote.length > 200 ? `${citation.quote.slice(0, 200)}…` : citation.quote}”
+                                {question.citations.map((citation: any, citationIndex: number) => {
+                                  const chunkRefs = Array.isArray(citation.chunkRefs)
+                                    ? citation.chunkRefs
+                                    : [];
+                                  const firstRef = chunkRefs[0] as
+                                    | { chunkIndex?: number; quote?: string }
+                                    | undefined;
+                                  const docTitle =
+                                    citation.documentName ||
+                                    citation.originalName ||
+                                    citation.filename ||
+                                    citation.documentId ||
+                                    citation.sourceDocumentId ||
+                                    "Source document";
+                                  const chunkIdx =
+                                    typeof citation.chunkIndex === "number"
+                                      ? citation.chunkIndex
+                                      : typeof firstRef?.chunkIndex === "number"
+                                        ? firstRef.chunkIndex
+                                        : citationIndex;
+                                  const quoteText =
+                                    (typeof citation.quote === "string" && citation.quote) ||
+                                    (typeof firstRef?.quote === "string" ? firstRef.quote : "");
+                                  return (
+                                    <li
+                                      key={`${question.id}-citation-${citationIndex}`}
+                                      className="flex flex-col"
+                                    >
+                                      <span className="font-medium text-slate-900">
+                                        [{citationIndex + 1}] {docTitle}
                                       </span>
-                                    )}
-                                  </li>
-                                ))}
+                                      <span className="text-slate-600 text-xs">
+                                        Snippet {chunkIdx + 1}
+                                        {citation.section ? ` · ${citation.section}` : ""}
+                                      </span>
+                                      {quoteText ? (
+                                        <span className="text-slate-500 text-xs mt-1">
+                                          “
+                                          {quoteText.length > 200
+                                            ? `${quoteText.slice(0, 200)}…`
+                                            : quoteText}
+                                          ”
+                                        </span>
+                                      ) : null}
+                                    </li>
+                                  );
+                                })}
                               </ul>
                             </div>
                           )}
@@ -1068,17 +1100,36 @@ export default function Drafts() {
                                 <h5 className="text-sm font-semibold">Assumptions flagged by AI</h5>
                               </div>
                               <ul className="space-y-2 text-sm text-amber-800">
-                                {question.assumptions.map((assumption: any, assumptionIndex: number) => (
-                                  <li key={`${question.id}-assumption-${assumptionIndex}`} className="flex items-start space-x-2">
-                                    <span className="font-medium text-amber-700">{assumptionIndex + 1}.</span>
-                                    <div className="flex-1">
-                                      <p>{assumption.text || assumption}</p>
-                                      {assumption.category && (
-                                        <p className="text-xs text-amber-600 mt-1 uppercase tracking-wide">{assumption.category}</p>
-                                      )}
-                                    </div>
-                                  </li>
-                                ))}
+                                {question.assumptions.map((assumption: any, assumptionIndex: number) => {
+                                  const body =
+                                    typeof assumption === "string"
+                                      ? assumption
+                                      : assumption?.text ?? assumption?.suggestedQuestion ?? "";
+                                  const cat =
+                                    typeof assumption === "object" && assumption?.category
+                                      ? String(assumption.category)
+                                      : "";
+                                  const showCategory =
+                                    cat && cat !== "general" && cat !== "context_gap";
+                                  return (
+                                    <li
+                                      key={`${question.id}-assumption-${assumptionIndex}`}
+                                      className="flex items-start space-x-2"
+                                    >
+                                      <span className="font-medium text-amber-700">
+                                        {assumptionIndex + 1}.
+                                      </span>
+                                      <div className="flex-1">
+                                        <p>{body}</p>
+                                        {showCategory ? (
+                                          <p className="text-xs text-amber-600 mt-1 uppercase tracking-wide">
+                                            {cat.replace(/_/g, " ")}
+                                          </p>
+                                        ) : null}
+                                      </div>
+                                    </li>
+                                  );
+                                })}
                               </ul>
                             </div>
                           )}

@@ -428,7 +428,7 @@ OUTPUT
 Return a single JSON object with EXACTLY these fields:
 - text (string): the response body. Plain text with [#N] inline citation markers. No markdown.
 - citations (array): one entry per unique marker used, shape { marker: "#N", documentName, documentId, chunkIndex, quote } where quote is a short verbatim phrase from the cited snippet.
-- assumptions (array of strings): gaps where the snippets did not support a claim the funder is likely to want. Phrase each as a question the applicant should answer (e.g. "How many staff members will work on this program?").
+- assumptions (array of strings): ONLY for gaps where the snippets did not support something the funder likely needs. Each item MUST be one concise question ending in "?". Do not state opinions or thematic summaries (wrong: "Community engagement is crucial…"). Correct: "How many participants do you project annually, and over what geography?"
 
 Stay within the word limit if one is given. The review committee values specificity over polish.`;
 
@@ -480,19 +480,36 @@ Stay within the word limit if one is given. The review committee values specific
         });
         const fallback = retrievedChunks[idx] ?? retrievedChunks[0];
         const reference = matchingChunk || fallback;
+        const chunkIndex =
+          typeof entry.chunkIndex === "number"
+            ? entry.chunkIndex
+            : typeof entry.chunk_index === "number"
+              ? entry.chunk_index
+              : reference.chunkIndex;
         return {
-          documentName: entry.documentName || reference.documentName,
-          documentId: entry.documentId || reference.documentId,
-          chunkIndex:
-            typeof entry.chunkIndex === 'number' ? entry.chunkIndex : reference.chunkIndex,
-          quote: entry.quote || reference.content.slice(0, 160),
+          documentName:
+            entry.documentName || entry.document_name || reference.documentName,
+          documentId:
+            entry.documentId || entry.document_id || reference.documentId,
+          chunkIndex,
+          quote:
+            (typeof entry.quote === "string" && entry.quote) ||
+            (typeof entry.snippet === "string" && entry.snippet) ||
+            reference.content.slice(0, 160),
         };
       });
+
+      const rawAssumptions = Array.isArray(parsed.assumptions) ? parsed.assumptions : [];
+      const assumptions = rawAssumptions
+        .map((a: any) =>
+          typeof a === "string" ? a.trim() : typeof a?.text === "string" ? a.text.trim() : ""
+        )
+        .filter((s: string) => s.length > 0);
 
       return {
         text: this.stripMarkdown(parsed.text || parsed.answer || ''),
         citations: normalizedCitations,
-        assumptions: Array.isArray(parsed.assumptions) ? parsed.assumptions : [],
+        assumptions,
       };
     } catch (error) {
       console.error('generateGroundedResponse failed:', error);
