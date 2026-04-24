@@ -584,6 +584,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.warn(`[generate] retrieveRelevantChunks failed, continuing without context:`, retrievalErr);
       }
 
+      const topSimilarity = retrievalResult.chunks[0]?.similarity;
+      const semanticCount = retrievalResult.chunks.filter((c) => c.source === "semantic").length;
+      const keywordCount = retrievalResult.chunks.filter((c) => c.source === "keyword").length;
+      console.log(
+        `[generate q=${questionId}] retrieved ${retrievalResult.chunks.length} chunks ` +
+          `(semantic=${semanticCount}, keyword=${keywordCount}, ` +
+          `topSim=${typeof topSimilarity === "number" ? topSimilarity.toFixed(2) : "n/a"}, ` +
+          `embeddingGenerated=${retrievalResult.embeddingGenerated})`
+      );
+
       const user = await storage.getUser(userId).catch(() => undefined);
 
       try {

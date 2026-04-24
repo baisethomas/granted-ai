@@ -364,23 +364,17 @@ Please try again in a moment, or use this framework to draft your response manua
     } = options;
 
     if (!retrievedChunks.length || !hasValidApiKey) {
-      const excerpts = retrievedChunks
-        .slice(0, 3)
-        .map((chunk) => `- ${chunk.documentName}: ${chunk.content}`)
-        .join('\n');
+      const reason = !hasValidApiKey
+        ? "AI generation is not configured on this deployment (no valid API key)."
+        : "No supporting material was found in the uploaded documents for this question.";
+      const actionable = !hasValidApiKey
+        ? "Ask an administrator to configure OPENAI_API_KEY."
+        : "Upload documents that cover the specific program, budget, outcomes, or organizational facts this question asks about, then regenerate.";
 
       return {
-        text:
-          `Using available snippets, here is a high-level draft. Please refine with additional details.\n\n${excerpts}`,
-        citations: retrievedChunks.slice(0, 3).map((chunk) => ({
-          documentName: chunk.documentName,
-          documentId: chunk.documentId,
-          chunkIndex: chunk.chunkIndex,
-          quote: chunk.content.slice(0, 160),
-        })),
-        assumptions: [
-          'Fallback summarization used because no valid LLM key was configured or no context snippets existed.',
-        ],
+        text: `${reason} ${actionable}`,
+        citations: [],
+        assumptions: [reason],
       };
     }
 
@@ -394,21 +388,68 @@ Please try again in a moment, or use this framework to draft your response manua
       })
       .join('\n\n');
 
-    const instructions = `You are an expert grant writer. Use the provided snippets to answer the question with explicit citations. Return JSON with fields: text (string), citations (array of {marker, documentName, documentId, chunkIndex, quote}), and assumptions (array of strings). Do not fabricate details.
+    const instructions = `You are a senior grant writer drafting one answer for a grant application. Follow EVERY rule below.
 
-IMPORTANT: The "text" field must contain plain text without any markdown formatting. Do not use **bold**, *italics*, bullet points (-), numbered lists, headers (#), or any other markdown syntax. Write in clear, professional prose suitable for a formal grant application. Use paragraph breaks for organization.`;
+VOICE
+- Write concrete, active-voice prose in first-person plural ("we") for the applicant organization.
+- Lead with numbers, dates, places, proper nouns, and specific program names drawn from the snippets. Replace adjectives with specifics.
+- Match the requested tone exactly. Do not shift register mid-response.
+- Plain text only: no markdown, no bullet points, no numbered lists, no headings, no bold or italics. Use paragraph breaks for organization.
 
-    const userPrompt = `Grant Question: ${question}\n\nTone: ${tone}\n${
-      wordLimit ? `Target word count: ${wordLimit}` : ''
-    }\n${
-      emphasisAreas.length ? `Emphasis areas: ${emphasisAreas.join(', ')}` : ''
-    }\nOrganization info: ${organizationInfo ? JSON.stringify(organizationInfo) : 'N/A'}\n\nContext Snippets:\n${contextLines}`;
+GROUNDING CONTRACT
+- Every factual claim (numbers, dates, program names, outcomes, partner names, populations served, geography, staffing, capacity, funding) MUST be traceable to a specific snippet. Cite it with the marker (e.g. [#2]) placed inline immediately after the claim.
+- If a claim the funder likely wants is NOT supported by the snippets, do one of the following: (a) omit the claim, or (b) write around it in general terms, and add a specific question about it to the "assumptions" array. Never invent numbers, dates, partner names, outcomes, or quotes.
+- Do not round, extrapolate, or combine numbers from different snippets unless one snippet explicitly does so.
+- If the snippets truly cannot answer the question, write a short honest response naming the 2–3 specific facts that are missing, and populate "assumptions" with those gaps.
+
+BOILERPLATE TO AVOID
+Do not use any of these phrases (or close variants):
+- "deeply committed", "firmly committed", "steadfast commitment"
+- "robust", "cutting-edge", "state-of-the-art", "world-class", "best-in-class"
+- "leverage" (as a verb), "synergy", "synergistic"
+- "empower" / "empowering" without naming the specific action
+- "holistic approach" without naming the components
+- "best practices" without naming which practice
+- "in today's rapidly changing world", "now more than ever"
+- "unique opportunity", "game-changing", "transformative" (as a vague adjective)
+- Stacked adjectives like "innovative, impactful, and transformative"
+- "address the issue of" — just state what we do about it
+
+QUESTION-TYPE GUIDANCE
+- Need / problem statement: lead with the specific population and the specific gap, supported by data from snippets. One focused paragraph.
+- Goals / objectives: name measurable outcomes with targets and deadlines. If no numeric target is in the snippets, put the target in assumptions.
+- Organization / capacity: lead with year founded (if present), tenure, size, and the most relevant prior programs or grants from the snippets.
+- Methodology / approach: name the specific activities, cadence, and who performs them.
+- Evaluation / measurement: name the metric, the measurement method, the reporting cadence, and who collects the data. Each from snippets.
+- Budget / cost: only include figures that appear in snippets. If none, say so briefly and flag as an assumption.
+- Sustainability: name specific funding sources, earned-revenue streams, or partnerships from snippets. No generic "diverse funding" language.
+
+OUTPUT
+Return a single JSON object with EXACTLY these fields:
+- text (string): the response body. Plain text with [#N] inline citation markers. No markdown.
+- citations (array): one entry per unique marker used, shape { marker: "#N", documentName, documentId, chunkIndex, quote } where quote is a short verbatim phrase from the cited snippet.
+- assumptions (array of strings): gaps where the snippets did not support a claim the funder is likely to want. Phrase each as a question the applicant should answer (e.g. "How many staff members will work on this program?").
+
+Stay within the word limit if one is given. The review committee values specificity over polish.`;
+
+    const userPrompt = [
+      `Grant Question: ${question}`,
+      `Tone: ${tone}`,
+      wordLimit ? `Target word count: ${wordLimit}` : "",
+      emphasisAreas.length ? `Emphasis areas: ${emphasisAreas.join(', ')}` : "",
+      `Organization info: ${organizationInfo ? JSON.stringify(organizationInfo) : 'N/A'}`,
+      ``,
+      `Context Snippets (cite these by marker):`,
+      contextLines,
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     try {
       const response = await openai.chat.completions.create({
         model: process.env.GRANTED_DEFAULT_MODEL || 'gpt-4o-mini',
         response_format: { type: 'json_object' },
-        temperature: 0.4,
+        temperature: 0.2,
         max_tokens: wordLimit ? Math.min(wordLimit * 3, 1500) : 1500,
         messages: [
           { role: 'system', content: instructions },

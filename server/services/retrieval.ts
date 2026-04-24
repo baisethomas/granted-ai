@@ -7,6 +7,14 @@ interface RetrieveOptions {
   limit?: number;
   semanticLimit?: number;
   keywordLimit?: number;
+  /**
+   * Minimum cosine similarity a semantic-only chunk must meet to be kept in
+   * the final result. Chunks that also matched a keyword search bypass this
+   * filter (since a keyword match is itself strong evidence of relevance).
+   *
+   * Default: 0.3. Tuned so we drop obvious noise without starving the prompt.
+   */
+  minSimilarity?: number;
 }
 
 export interface RetrievedChunk {
@@ -29,7 +37,14 @@ export interface RetrievalResult {
 }
 
 export async function retrieveRelevantChunks(options: RetrieveOptions): Promise<RetrievalResult> {
-  const { userId, query, limit = 8, semanticLimit = 8, keywordLimit = 4 } = options;
+  const {
+    userId,
+    query,
+    limit = 8,
+    semanticLimit = 8,
+    keywordLimit = 4,
+    minSimilarity = 0.3,
+  } = options;
 
   if (!query.trim()) {
     return { query, chunks: [], embeddingGenerated: false };
@@ -97,6 +112,15 @@ export async function retrieveRelevantChunks(options: RetrieveOptions): Promise<
   }
 
   const merged = Array.from(chunksMap.values())
+    .filter((chunk) => {
+      // Keyword matches are retained regardless of embedding similarity —
+      // the query literally appears in the chunk text, which is itself a
+      // strong signal. We only apply the similarity floor to purely
+      // semantic hits, which are where the noisy "low relevance" chunks
+      // that pad prompts with unrelated context tend to come from.
+      if (chunk.source === "keyword") return true;
+      return (chunk.similarity ?? 0) >= minSimilarity;
+    })
     .sort((a, b) => (b.similarity ?? 0) - (a.similarity ?? 0))
     .slice(0, limit);
 
