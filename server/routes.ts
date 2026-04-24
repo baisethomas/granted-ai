@@ -445,6 +445,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Vercel Cron trigger for the document worker. Vercel automatically
+  // sends Authorization: Bearer <CRON_SECRET> for cron invocations
+  // configured in vercel.json, so we verify that here. This lets us run
+  // the embedding pipeline on a schedule without exposing the manual
+  // DOCUMENT_WORKER_API_KEY.
+  app.get("/api/cron/process-documents", async (req, res) => {
+    try {
+      const cronSecret = process.env.CRON_SECRET;
+      if (!cronSecret) {
+        return res.status(500).json({ error: "CRON_SECRET not configured" });
+      }
+
+      const auth = req.headers["authorization"];
+      const authValue = Array.isArray(auth) ? auth[0] : auth;
+      if (authValue !== `Bearer ${cronSecret}`) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const batchSize = Number(req.query.batchSize) || Number(process.env.DOCUMENT_WORKER_BATCH_SIZE || "5");
+      const summary = await processDocumentJobs({ batchSize });
+
+      console.log("[cron] process-documents summary:", summary);
+      res.json({ ok: true, summary });
+    } catch (error: any) {
+      console.error("Cron process-documents failed:", error);
+      res.status(500).json({ error: "Cron execution failed", details: error.message });
+    }
+  });
+
   // Grant questions routes
   app.get("/api/projects/:projectId/questions", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {

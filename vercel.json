@@ -10,6 +10,12 @@
       "maxDuration": 90
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/process-documents",
+      "schedule": "*/5 * * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
