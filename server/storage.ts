@@ -24,7 +24,7 @@ import {
 } from "../shared/schema.js";
 import { randomUUID } from "crypto";
 import { db, schema, sql as rawSql } from "./db.js";
-import { eq, and, asc, desc, inArray } from "drizzle-orm";
+import { eq, and, asc, desc, inArray, ne } from "drizzle-orm";
 import { parseAmountToNumber, formatCurrencyCompact } from "../shared/currency.js";
 
 function computeStatsFromProjects(projects: Project[]): {
@@ -1347,16 +1347,15 @@ export class DbStorage implements IStorage {
     opts?: { includeDismissed?: boolean }
   ): Promise<GrantMetric[]> {
     const includeDismissed = opts?.includeDismissed ?? false;
+    // Use drizzle's `ne` — do not use `` rawSql`...` `` here: `sql` from db.ts is
+    // the postgres.js client (for rawSql.unsafe), not a callable tagged template.
     const where = includeDismissed
       ? eq(schema.grantMetrics.projectId, projectId)
-      : and(
-          eq(schema.grantMetrics.projectId, projectId),
-          rawSql`${schema.grantMetrics.status} <> 'dismissed'`
-        );
+      : and(eq(schema.grantMetrics.projectId, projectId), ne(schema.grantMetrics.status, "dismissed"));
     const rows = await db
       ?.select()
       .from(schema.grantMetrics)
-      .where(where as any)
+      .where(where)
       .orderBy(asc(schema.grantMetrics.sortOrder), asc(schema.grantMetrics.createdAt));
     return rows ?? [];
   }
