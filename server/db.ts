@@ -18,8 +18,35 @@ let _db: ReturnType<typeof drizzle> | undefined;
 export function getSql() {
   if (!process.env.DATABASE_URL) return undefined;
   if (!_sql) {
+    // Tuned for serverless (e.g. Vercel Functions) fronted by Supabase's
+    // transaction pooler (PgBouncer) on port 6543.
+    // - prepare: false — PgBouncer in transaction mode does not support
+    //   server-side prepared statements. Using defaults causes silent
+    //   errors and connection churn.
+    // - max: 1 — each Lambda instance only needs a single connection;
+    //   a large pool just fills the upstream pooler with idle sessions
+    //   and eventually causes CONNECT_TIMEOUT on new cold starts.
+    // - idle_timeout: 20s — release connection quickly so frozen
+    //   instances don't hold pooler slots.
+    // - connect_timeout: 10s — fail fast instead of hanging for 30s.
+    const isServerless = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+    const url = process.env.DATABASE_URL;
+
+    if (isServerless && /:5432\b/.test(url)) {
+      console.warn(
+        "[db] DATABASE_URL points at port 5432 (session pooler/direct) from a " +
+        "serverless runtime. For Vercel, use the Supabase transaction pooler on " +
+        "port 6543 to avoid CONNECT_TIMEOUT under cold starts."
+      );
+    }
+
     console.log("[db] Creating Postgres connection pool (lazy, on first DB access)...");
-    _sql = postgres(process.env.DATABASE_URL);
+    _sql = postgres(url, {
+      prepare: false,
+      max: isServerless ? 1 : 10,
+      idle_timeout: 20,
+      connect_timeout: 10,
+    });
     console.log("[db] Postgres connection pool created (connection happens on first query)");
   }
   return _sql;
