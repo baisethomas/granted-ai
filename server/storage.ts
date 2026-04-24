@@ -228,10 +228,21 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { 
-      ...insertUser, 
+    const user: User = {
       id,
-      createdAt: new Date()
+      username: insertUser.username,
+      password: insertUser.password ?? null,
+      organizationName: insertUser.organizationName ?? null,
+      organizationType: insertUser.organizationType ?? null,
+      ein: insertUser.ein ?? null,
+      foundedYear: insertUser.foundedYear ?? null,
+      primaryContact: insertUser.primaryContact ?? null,
+      email: insertUser.email ?? null,
+      mission: insertUser.mission ?? null,
+      focusAreas: insertUser.focusAreas ?? null,
+      googleId: null,
+      avatar: null,
+      createdAt: new Date(),
     };
     this.users.set(id, user);
     return user;
@@ -257,12 +268,23 @@ export class MemStorage implements IStorage {
   async createProject(userId: string, insertProject: InsertProject): Promise<Project> {
     const id = randomUUID();
     const project: Project = {
-      ...insertProject,
       id,
       userId,
+      // MemStorage is dev-only fallback; use userId as the org when one isn't
+      // explicitly supplied (single-tenant semantics).
+      organizationId: userId,
+      title: insertProject.title,
+      funder: insertProject.funder,
+      amount: insertProject.amount ?? null,
+      deadline: insertProject.deadline ?? null,
+      description: insertProject.description ?? null,
+      amountRequested: insertProject.amountRequested ?? null,
+      amountAwarded: insertProject.amountAwarded ?? null,
+      awardedAt: insertProject.awardedAt ?? null,
+      reportingDueAt: insertProject.reportingDueAt ?? null,
       status: "draft",
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
     this.projects.set(id, project);
     return project;
@@ -293,24 +315,28 @@ export class MemStorage implements IStorage {
     const id = randomUUID();
     const now = new Date();
     const document: Document = {
-      ...insertDocument,
       id,
       userId,
       organizationId: insertDocument.organizationId || userId,
+      filename: insertDocument.filename,
+      originalName: insertDocument.originalName,
+      fileType: insertDocument.fileType,
+      fileSize: insertDocument.fileSize,
+      category: insertDocument.category ?? null,
+      summary: insertDocument.summary ?? null,
       processed: insertDocument.processed ?? false,
       processingStatus: insertDocument.processingStatus || "pending",
+      processingError: insertDocument.processingError ?? null,
       storageBucket: insertDocument.storageBucket || "documents",
-      storagePath: insertDocument.storagePath || null,
-      storageUrl: insertDocument.storageUrl || null,
-      uploadedAt: now,
+      storagePath: insertDocument.storagePath ?? null,
+      storageUrl: insertDocument.storageUrl ?? null,
       processedAt: insertDocument.processedAt ?? null,
       summaryExtractedAt: insertDocument.summaryExtractedAt ?? null,
       embeddingGeneratedAt: insertDocument.embeddingGeneratedAt ?? null,
-      processingError: insertDocument.processingError ?? null,
-      summary: insertDocument.summary ?? null,
+      embeddingStatus: insertDocument.embeddingStatus ?? "pending",
       chunkCount: insertDocument.chunkCount ?? 0,
       embeddingModel: insertDocument.embeddingModel ?? null,
-      embeddingStatus: insertDocument.embeddingStatus ?? "pending",
+      uploadedAt: now,
     };
     this.documents.set(id, document);
     return document;
@@ -560,11 +586,15 @@ export class MemStorage implements IStorage {
   async createGrantQuestion(projectId: string, insertQuestion: InsertGrantQuestion): Promise<GrantQuestion> {
     const id = randomUUID();
     const question: GrantQuestion = {
-      ...insertQuestion,
       id,
       projectId,
+      question: insertQuestion.question,
+      wordLimit: insertQuestion.wordLimit ?? null,
+      priority: insertQuestion.priority ?? "medium",
+      errorMessage: insertQuestion.errorMessage ?? null,
+      response: null,
       responseStatus: "pending",
-      createdAt: new Date()
+      createdAt: new Date(),
     };
     this.grantQuestions.set(id, question);
     return question;
