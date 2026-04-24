@@ -365,9 +365,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await storage.createProcessingJob(documentRecord.id, "embedding", "queued");
 
-      // Clean up uploaded file
+      // Run the embedding worker inline so newly uploaded documents are
+      // immediately searchable. The job + cron pipeline still exists for
+      // retries and backfills, but we don't rely on it for happy-path
+      // latency (which matters more on Vercel Hobby where sub-daily crons
+      // aren't available).
+      try {
+        const summary = await processDocumentJobs({ batchSize: 1 });
+        console.log(`[upload] inline embedding for ${documentRecord.id}:`, summary);
+      } catch (workerErr) {
+        console.warn(
+          `[upload] inline embedding failed for ${documentRecord.id}, relying on queue:`,
+          workerErr
+        );
+      }
+
+      const freshDocument = await storage.getDocument(documentRecord.id);
+
       res.json({
-        ...updatedDocument,
+        ...(freshDocument ?? updatedDocument),
         summary: processed.summary,
         processed: true,
       });
