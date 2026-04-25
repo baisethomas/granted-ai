@@ -2,7 +2,12 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Sparkles, BarChart3 } from "lucide-react";
-import { api, type GrantMetric, type MetricCategory } from "@/lib/api";
+import {
+  api,
+  type GrantMetric,
+  type MetricCategory,
+  type RecordMetricEventPayload,
+} from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import {
   useAcceptMetric,
@@ -126,13 +131,12 @@ export function MetricsTab({ projectId }: MetricsTabProps) {
     }
   };
 
-  const handleSubmitMetricUpdate = async (payload: { value: string; note?: string | null }) => {
+  const handleSubmitMetricUpdate = async (payload: RecordMetricEventPayload) => {
     if (!recordingMetric) return;
     try {
       await recordMetricEvent.mutateAsync({
         id: recordingMetric.id,
-        value: payload.value,
-        note: payload.note,
+        ...payload,
       });
       toast({
         title: "Metric updated",

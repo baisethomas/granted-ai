@@ -772,6 +772,11 @@ export class MemStorage implements IStorage {
       metricId: event.metricId!,
       value: event.value!,
       note: event.note ?? null,
+      periodStart: event.periodStart ?? null,
+      periodEnd: event.periodEnd ?? null,
+      evidenceUrl: event.evidenceUrl ?? null,
+      sourceDocumentId: event.sourceDocumentId ?? null,
+      status: event.status ?? "recorded",
       recordedAt: new Date(),
       recordedBy: event.recordedBy ?? null,
     };

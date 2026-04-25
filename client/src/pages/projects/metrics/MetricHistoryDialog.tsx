@@ -6,6 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import type { GrantMetric, GrantMetricEvent } from "@/lib/api";
 import { formatMetricValue } from "./utils";
 
@@ -26,6 +27,16 @@ function formatDate(value: string | null | undefined): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function formatPeriod(event: GrantMetricEvent): string | null {
+  if (!event.periodStart && !event.periodEnd) return null;
+  if (event.periodStart && event.periodEnd) {
+    return `${formatDate(event.periodStart)} - ${formatDate(event.periodEnd)}`;
+  }
+  return event.periodStart
+    ? `From ${formatDate(event.periodStart)}`
+    : `Through ${formatDate(event.periodEnd)}`;
 }
 
 export function MetricHistoryDialog({
@@ -69,9 +80,27 @@ export function MetricHistoryDialog({
                     </p>
                     <p className="text-xs text-slate-500">{formatDate(event.recordedAt)}</p>
                   </div>
+                  <Badge variant="outline" className="capitalize">
+                    {event.status ?? "recorded"}
+                  </Badge>
                 </div>
+                {formatPeriod(event) ? (
+                  <p className="mt-2 text-xs font-medium text-slate-600">
+                    Period: {formatPeriod(event)}
+                  </p>
+                ) : null}
                 {event.note ? (
                   <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{event.note}</p>
+                ) : null}
+                {event.evidenceUrl ? (
+                  <a
+                    href={event.evidenceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-block text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                  >
+                    View evidence
+                  </a>
                 ) : null}
               </div>
             ))

@@ -1059,6 +1059,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return ` (${pct}% of target)`;
   }
 
+  function formatReportDate(value: Date | string | null | undefined) {
+    if (!value) return "";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  }
+
+  function formatReportPeriod(event: { periodStart?: Date | string | null; periodEnd?: Date | string | null }) {
+    const start = formatReportDate(event.periodStart);
+    const end = formatReportDate(event.periodEnd);
+    if (start && end) return `${start} - ${end}`;
+    if (start) return `from ${start}`;
+    if (end) return `through ${end}`;
+    return "";
+  }
+
+  function parseOptionalDate(value: unknown, fieldName: string): Date | null {
+    if (value === null || value === undefined || value === "") return null;
+    const d = new Date(String(value));
+    if (Number.isNaN(d.getTime())) {
+      throw new Error(`Invalid ${fieldName}`);
+    }
+    return d;
+  }
+
   app.get(
     "/api/projects/:projectId/metrics",
     requireSupabaseUser,
@@ -1104,13 +1129,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const metrics = await storage.getGrantMetrics(req.params.projectId);
         const activeMetrics = metrics.filter(m => m.status === "active");
-        const lines = activeMetrics.map(metric => {
-          const value = formatReportMetricValue(metric.value, metric.type, metric.unit);
-          const target = metric.target
-            ? formatReportMetricValue(metric.target, metric.type, metric.unit)
-            : null;
-          return `- ${metric.label}: ${value}${target ? ` of ${target}` : ""}${reportProgress(metric.value, metric.target)}`;
-        });
+        const lines = await Promise.all(
+          activeMetrics.map(async metric => {
+            const value = formatReportMetricValue(metric.value, metric.type, metric.unit);
+            const target = metric.target
+              ? formatReportMetricValue(metric.target, metric.type, metric.unit)
+              : null;
+            const events = await storage.getGrantMetricEvents(metric.id);
+            const latest = events[0];
+            const details: string[] = [];
+            if (latest) {
+              const period = formatReportPeriod(latest);
+              if (period) details.push(`period ${period}`);
+              if (latest.status && latest.status !== "recorded") details.push(`status ${latest.status}`);
+              if (latest.note) details.push(`note: ${latest.note}`);
+              if ((latest as any).evidenceUrl) details.push(`evidence: ${(latest as any).evidenceUrl}`);
+            }
+            return `- ${metric.label}: ${value}${target ? ` of ${target}` : ""}${reportProgress(metric.value, metric.target)}${
+              details.length ? `; ${details.join("; ")}` : ""
+            }`;
+          })
+        );
 
         const text = [
           `Grant Metrics Report Summary: ${access.project.title}`,
@@ -1303,10 +1342,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const note =
           body.note === null || body.note === undefined ? "" : String(body.note).trim();
+        const periodStart = parseOptionalDate(body.periodStart, "periodStart");
+        const periodEnd = parseOptionalDate(body.periodEnd, "periodEnd");
+        if (periodStart && periodEnd && periodStart.getTime() > periodEnd.getTime()) {
+          return res.status(400).json({ error: "periodStart must be before periodEnd" });
+        }
+        const evidenceUrl =
+          body.evidenceUrl === null || body.evidenceUrl === undefined
+            ? ""
+            : String(body.evidenceUrl).trim();
+        const sourceDocumentId =
+          body.sourceDocumentId === null || body.sourceDocumentId === undefined
+            ? ""
+            : String(body.sourceDocumentId).trim();
+        const status =
+          body.status === "submitted" || body.status === "accepted" ? body.status : "recorded";
+
         const event = await storage.createGrantMetricEvent({
           metricId: updated.id,
           value,
           note: note || null,
+          periodStart,
+          periodEnd,
+          evidenceUrl: evidenceUrl || null,
+          sourceDocumentId: sourceDocumentId || null,
+          status,
           recordedBy: access.userId,
         } as any);
 

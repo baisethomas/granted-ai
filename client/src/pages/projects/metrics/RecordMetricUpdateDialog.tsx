@@ -11,14 +11,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { GrantMetric } from "@/lib/api";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { GrantMetric, RecordMetricEventPayload } from "@/lib/api";
 import { formatMetricValue } from "./utils";
 
 interface RecordMetricUpdateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   metric: GrantMetric | null;
-  onSubmit: (payload: { value: string; note?: string | null }) => Promise<unknown> | unknown;
+  onSubmit: (payload: RecordMetricEventPayload) => Promise<unknown> | unknown;
 }
 
 function inputTypeFor(metric: GrantMetric | null): string {
@@ -38,12 +45,20 @@ export function RecordMetricUpdateDialog({
 }: RecordMetricUpdateDialogProps) {
   const [value, setValue] = useState("");
   const [note, setNote] = useState("");
+  const [periodStart, setPeriodStart] = useState("");
+  const [periodEnd, setPeriodEnd] = useState("");
+  const [evidenceUrl, setEvidenceUrl] = useState("");
+  const [status, setStatus] = useState<RecordMetricEventPayload["status"]>("recorded");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setValue(metric?.value ?? "");
     setNote("");
+    setPeriodStart("");
+    setPeriodEnd("");
+    setEvidenceUrl("");
+    setStatus("recorded");
   }, [open, metric]);
 
   const handleSave = async () => {
@@ -53,6 +68,10 @@ export function RecordMetricUpdateDialog({
       await onSubmit({
         value: value.trim(),
         note: note.trim() ? note.trim() : null,
+        periodStart: periodStart || null,
+        periodEnd: periodEnd || null,
+        evidenceUrl: evidenceUrl.trim() ? evidenceUrl.trim() : null,
+        status,
       });
       onOpenChange(false);
     } finally {
@@ -98,6 +117,55 @@ export function RecordMetricUpdateDialog({
               placeholder="What changed, what period this covers, or what evidence supports it?"
               rows={4}
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="metric-period-start">Period start</Label>
+              <Input
+                id="metric-period-start"
+                type="date"
+                value={periodStart}
+                onChange={e => setPeriodStart(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="metric-period-end">Period end</Label>
+              <Input
+                id="metric-period-end"
+                type="date"
+                value={periodEnd}
+                onChange={e => setPeriodEnd(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="metric-evidence-url">Evidence URL</Label>
+            <Input
+              id="metric-evidence-url"
+              type="url"
+              value={evidenceUrl}
+              onChange={e => setEvidenceUrl(e.target.value)}
+              placeholder="https://..."
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label>Status</Label>
+            <Select
+              value={status}
+              onValueChange={v => setStatus(v as RecordMetricEventPayload["status"])}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recorded">Recorded</SelectItem>
+                <SelectItem value="submitted">Submitted</SelectItem>
+                <SelectItem value="accepted">Accepted</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

@@ -47,8 +47,23 @@ export interface GrantMetricEvent {
   metricId: string;
   value: string;
   note: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  evidenceUrl: string | null;
+  sourceDocumentId: string | null;
+  status: "recorded" | "submitted" | "accepted";
   recordedAt: string;
   recordedBy: string | null;
+}
+
+export interface RecordMetricEventPayload {
+  value: string;
+  note?: string | null;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  evidenceUrl?: string | null;
+  sourceDocumentId?: string | null;
+  status?: "recorded" | "submitted" | "accepted";
 }
 
 export interface RecordMetricEventResponse {
@@ -468,7 +483,7 @@ export const api = {
 
   async recordMetricEvent(
     id: string,
-    data: { value: string; note?: string | null },
+    data: RecordMetricEventPayload,
   ): Promise<RecordMetricEventResponse> {
     const res = await apiRequest("POST", `/api/metrics/${id}/events`, data);
     return res.json();

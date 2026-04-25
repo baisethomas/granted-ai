@@ -206,6 +206,11 @@ export const grantMetricEvents = pgTable("grant_metric_events", {
   metricId: varchar("metric_id").references(() => grantMetrics.id, { onDelete: "cascade" }).notNull(),
   value: text("value").notNull(),
   note: text("note"),
+  periodStart: timestamp("period_start"),
+  periodEnd: timestamp("period_end"),
+  evidenceUrl: text("evidence_url"),
+  sourceDocumentId: varchar("source_document_id").references(() => documents.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("recorded"),
   recordedAt: timestamp("recorded_at").defaultNow(),
   recordedBy: varchar("recorded_by").references(() => users.id),
 });
@@ -293,6 +298,11 @@ export const insertGrantMetricEventSchema = createInsertSchema(grantMetricEvents
   metricId: true,
   value: true,
   note: true,
+  periodStart: true,
+  periodEnd: true,
+  evidenceUrl: true,
+  sourceDocumentId: true,
+  status: true,
   recordedBy: true,
 });
 

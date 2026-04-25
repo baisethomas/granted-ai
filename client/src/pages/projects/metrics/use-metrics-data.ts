@@ -4,6 +4,7 @@ import {
   type GrantMetric,
   type GrantMetricEvent,
   type MetricSuggestion,
+  type RecordMetricEventPayload,
   type MetricsResponse,
 } from "@/lib/api";
 
@@ -56,8 +57,8 @@ export function useMetricHistory(metricId: string | null | undefined) {
 export function useRecordMetricEvent(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, value, note }: { id: string; value: string; note?: string | null }) =>
-      api.recordMetricEvent(id, { value, note }),
+    mutationFn: ({ id, ...data }: { id: string } & RecordMetricEventPayload) =>
+      api.recordMetricEvent(id, data),
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: metricsQueryKey(projectId) });
       qc.invalidateQueries({ queryKey: metricHistoryQueryKey(variables.id) });
