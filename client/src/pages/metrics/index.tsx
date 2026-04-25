@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatsCard } from "@/components/ui/stats-card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { BarChart3, FolderOpen, TrendingUp, DollarSign, Clock } from "lucide-react";
 import { api, type PortfolioMetricsResponse } from "@/lib/api";
 
@@ -27,9 +30,11 @@ function formatTotal(
 }
 
 export default function PortfolioMetricsPage({ onOpenProject }: PortfolioMetricsPageProps) {
+  const [periodStart, setPeriodStart] = useState("");
+  const [periodEnd, setPeriodEnd] = useState("");
   const { data, isLoading, error } = useQuery<PortfolioMetricsResponse>({
-    queryKey: ["/api/metrics/portfolio"],
-    queryFn: () => api.getPortfolioMetrics(),
+    queryKey: ["/api/metrics/portfolio", periodStart, periodEnd],
+    queryFn: () => api.getPortfolioMetrics({ periodStart, periodEnd }),
   });
 
   if (isLoading) {
@@ -68,6 +73,46 @@ export default function PortfolioMetricsPage({ onOpenProject }: PortfolioMetrics
           Roll-up view of outcomes and progress across all your grants.
         </p>
       </div>
+
+      <Card>
+        <CardContent className="flex flex-wrap items-end gap-3 p-4">
+          <div className="grid gap-1">
+            <label htmlFor="portfolio-period-start" className="text-xs font-medium text-slate-600">
+              Period start
+            </label>
+            <Input
+              id="portfolio-period-start"
+              type="date"
+              value={periodStart}
+              onChange={e => setPeriodStart(e.target.value)}
+              className="w-[170px]"
+            />
+          </div>
+          <div className="grid gap-1">
+            <label htmlFor="portfolio-period-end" className="text-xs font-medium text-slate-600">
+              Period end
+            </label>
+            <Input
+              id="portfolio-period-end"
+              type="date"
+              value={periodEnd}
+              onChange={e => setPeriodEnd(e.target.value)}
+              className="w-[170px]"
+            />
+          </div>
+          {(periodStart || periodEnd) && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPeriodStart("");
+                setPeriodEnd("");
+              }}
+            >
+              Clear
+            </Button>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatsCard
@@ -163,6 +208,17 @@ export default function PortfolioMetricsPage({ onOpenProject }: PortfolioMetrics
                           maximumFractionDigits: 0,
                         }).format(p.amountAwarded / 100)}
                       </span>
+                    )}
+                    <span className="text-xs text-slate-500">
+                      {p.metricsTracked} metric{p.metricsTracked === 1 ? "" : "s"}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {p.metricUpdatesInPeriod} update{p.metricUpdatesInPeriod === 1 ? "" : "s"}
+                    </span>
+                    {p.metricsMissingValues > 0 && (
+                      <Badge variant="destructive" className="text-[11px]">
+                        {p.metricsMissingValues} missing
+                      </Badge>
                     )}
                   </div>
                 </button>

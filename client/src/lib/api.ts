@@ -124,6 +124,9 @@ export interface PortfolioMetricsResponse {
     deadline: string | null;
     amountRequested: number | null;
     amountAwarded: number | null;
+    metricsTracked: number;
+    metricsMissingValues: number;
+    metricUpdatesInPeriod: number;
   }>;
   totalsByKey: Record<
     string,
@@ -489,8 +492,15 @@ export const api = {
     return res.json();
   },
 
-  async getPortfolioMetrics(): Promise<PortfolioMetricsResponse> {
-    const res = await apiRequest("GET", "/api/metrics/portfolio");
+  async getPortfolioMetrics(opts?: {
+    periodStart?: string | null;
+    periodEnd?: string | null;
+  }): Promise<PortfolioMetricsResponse> {
+    const params = new URLSearchParams();
+    if (opts?.periodStart) params.set("periodStart", opts.periodStart);
+    if (opts?.periodEnd) params.set("periodEnd", opts.periodEnd);
+    const qs = params.toString();
+    const res = await apiRequest("GET", `/api/metrics/portfolio${qs ? `?${qs}` : ""}`);
     return res.json();
   },
 

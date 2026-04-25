@@ -1388,13 +1388,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const projectIds = projects.map(p => p.id);
         const metrics = await storage.getMetricsForProjects(projectIds);
         const stats = await storage.getUserStats(userId);
+        const periodStart = parseOptionalDate(req.query.periodStart, "periodStart");
+        const periodEnd = parseOptionalDate(req.query.periodEnd, "periodEnd");
+        if (periodStart && periodEnd && periodStart.getTime() > periodEnd.getTime()) {
+          return res.status(400).json({ error: "periodStart must be before periodEnd" });
+        }
 
         // Aggregate totals by key across active metrics (numeric types only).
         const activeMetrics = metrics.filter(m => m.status === "active");
         const byKey: Record<string, { label: string; unit: string | null; type: string; total: number; count: number }> = {};
+        const metricEvents = new Map<string, Awaited<ReturnType<typeof storage.getGrantMetricEvents>>>();
+
+        await Promise.all(
+          activeMetrics.map(async metric => {
+            metricEvents.set(metric.id, await storage.getGrantMetricEvents(metric.id));
+          })
+        );
+
+        const eventInPeriod = (event: any) => {
+          const recordedAt = event.recordedAt ? new Date(event.recordedAt) : null;
+          if (!recordedAt || Number.isNaN(recordedAt.getTime())) return false;
+          if (periodStart && recordedAt < periodStart) return false;
+          if (periodEnd && recordedAt > periodEnd) return false;
+          return true;
+        };
+
         for (const m of activeMetrics) {
           if (m.type !== "number" && m.type !== "currency" && m.type !== "percent") continue;
-          const n = Number(m.value);
+          const periodEvent = (periodStart || periodEnd)
+            ? metricEvents.get(m.id)?.find(eventInPeriod)
+            : undefined;
+          const n = Number(periodEvent?.value ?? m.value);
           if (!Number.isFinite(n)) continue;
           const bucket = byKey[m.key] ?? {
             label: m.label,
@@ -1408,17 +1432,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
           byKey[m.key] = bucket;
         }
 
+        const metricsByProject = new Map<string, typeof activeMetrics>();
+        for (const metric of activeMetrics) {
+          const existing = metricsByProject.get(metric.projectId) ?? [];
+          existing.push(metric);
+          metricsByProject.set(metric.projectId, existing);
+        }
+
         res.json({
           stats,
-          projects: projects.map(p => ({
-            id: p.id,
-            title: p.title,
-            funder: p.funder,
-            status: p.status,
-            deadline: p.deadline,
-            amountRequested: (p as any).amountRequested ?? null,
-            amountAwarded: (p as any).amountAwarded ?? null,
-          })),
+          projects: projects.map(p => {
+            const projectMetrics = metricsByProject.get(p.id) ?? [];
+            const updateCount = projectMetrics.reduce((sum, metric) => {
+              const events = metricEvents.get(metric.id) ?? [];
+              return sum + events.filter(eventInPeriod).length;
+            }, 0);
+            return {
+              id: p.id,
+              title: p.title,
+              funder: p.funder,
+              status: p.status,
+              deadline: p.deadline,
+              amountRequested: (p as any).amountRequested ?? null,
+              amountAwarded: (p as any).amountAwarded ?? null,
+              metricsTracked: projectMetrics.length,
+              metricsMissingValues: projectMetrics.filter(metric => !metric.value).length,
+              metricUpdatesInPeriod: updateCount,
+            };
+          }),
           totalsByKey: byKey,
           metrics: activeMetrics,
         });
