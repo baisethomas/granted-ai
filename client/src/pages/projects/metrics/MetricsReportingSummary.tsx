@@ -1,4 +1,11 @@
-import { AlertCircle, CalendarDays, CheckCircle2, Clock3, Target } from "lucide-react";
+import {
+  AlertCircle,
+  CalendarDays,
+  CheckCircle2,
+  ClipboardCopy,
+  Clock3,
+  Target,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,6 +16,7 @@ interface MetricsReportingSummaryProps {
   metrics: GrantMetric[];
   project: MetricsResponse["project"];
   onRecordUpdate: (metric: GrantMetric) => void;
+  onCopyReport: () => void;
 }
 
 function formatDate(value: string | null | undefined): string {
@@ -43,6 +51,7 @@ export function MetricsReportingSummary({
   metrics,
   project,
   onRecordUpdate,
+  onCopyReport,
 }: MetricsReportingSummaryProps) {
   const activeMetrics = metrics.filter(m => m.status === "active");
   const metricsMissingValues = activeMetrics.filter(m => !m.value);
@@ -84,6 +93,15 @@ export function MetricsReportingSummary({
               : "All values recorded"}
           </Badge>
         </div>
+
+        {activeMetrics.length > 0 ? (
+          <div className="mt-4">
+            <Button variant="outline" size="sm" onClick={onCopyReport}>
+              <ClipboardCopy className="mr-2 h-4 w-4" />
+              Copy report summary
+            </Button>
+          </div>
+        ) : null}
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border border-slate-200 p-3">

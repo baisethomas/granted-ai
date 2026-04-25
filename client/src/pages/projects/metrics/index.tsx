@@ -23,7 +23,13 @@ import { MetricEditorDialog } from "./MetricEditorDialog";
 import { MetricsReportingSummary } from "./MetricsReportingSummary";
 import { RecordMetricUpdateDialog } from "./RecordMetricUpdateDialog";
 import { ExtractFromFileDialog } from "./ExtractFromFileDialog";
-import { CATEGORY_LABELS, CATEGORY_ORDER, groupMetricsByCategory } from "./utils";
+import {
+  CATEGORY_LABELS,
+  CATEGORY_ORDER,
+  formatMetricValue,
+  groupMetricsByCategory,
+  progressPct,
+} from "./utils";
 
 interface MetricsTabProps {
   projectId: string;
@@ -148,6 +154,38 @@ export function MetricsTab({ projectId }: MetricsTabProps) {
     }
   };
 
+  const handleCopyReportSummary = async () => {
+    const activeMetrics = (data?.metrics ?? []).filter(m => m.status === "active");
+    const lines = activeMetrics.map(metric => {
+      const value = formatMetricValue(metric.value, metric.type, metric.unit);
+      const target = metric.target
+        ? formatMetricValue(metric.target, metric.type, metric.unit)
+        : null;
+      const pct = progressPct(metric.value, metric.target);
+      const progress = pct !== null ? ` (${pct}% of target)` : "";
+      return `- ${metric.label}: ${value}${target ? ` of ${target}` : ""}${progress}`;
+    });
+    const body = [
+      "Grant Metrics Report Summary",
+      "",
+      ...lines,
+    ].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(body);
+      toast({
+        title: "Report summary copied",
+        description: "Metrics are ready to paste into a funder update or report.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Failed to copy summary",
+        description: err?.message ?? "Your browser did not allow clipboard access.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -180,6 +218,7 @@ export function MetricsTab({ projectId }: MetricsTabProps) {
         metrics={data.metrics}
         project={data.project}
         onRecordUpdate={handleRecordUpdate}
+        onCopyReport={handleCopyReportSummary}
       />
 
       {/* Outcome metrics header + actions */}
