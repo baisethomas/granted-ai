@@ -8,21 +8,45 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Pencil, Trash2, Sparkles, Check, X } from "lucide-react";
+import {
+  CalendarClock,
+  Check,
+  History,
+  MoreHorizontal,
+  Pencil,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
 import type { GrantMetric } from "@/lib/api";
 import { formatMetricValue, progressPct } from "./utils";
 
 interface MetricCardProps {
   metric: GrantMetric;
   onEdit: (metric: GrantMetric) => void;
+  onRecordUpdate?: (metric: GrantMetric) => void;
+  onViewHistory?: (metric: GrantMetric) => void;
   onDelete: (metric: GrantMetric) => void;
   onAccept?: (metric: GrantMetric) => void;
   onDismiss?: (metric: GrantMetric) => void;
 }
 
+function formatUpdatedAt(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export function MetricCard({
   metric,
   onEdit,
+  onRecordUpdate,
+  onViewHistory,
   onDelete,
   onAccept,
   onDismiss,
@@ -33,6 +57,7 @@ export function MetricCard({
     ? formatMetricValue(metric.target, metric.type, metric.unit)
     : null;
   const isSuggested = metric.status === "suggested";
+  const updatedAtLabel = formatUpdatedAt(metric.updatedAt);
 
   return (
     <Card className={`h-full ${isSuggested ? "border-dashed border-indigo-300 bg-indigo-50/40" : ""}`}>
@@ -63,9 +88,22 @@ export function MetricCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {!isSuggested && onRecordUpdate && (
+                <DropdownMenuItem onClick={() => onRecordUpdate(metric)}>
+                  <CalendarClock className="mr-2 h-4 w-4" />
+                  Record update
+                </DropdownMenuItem>
+              )}
+              {!isSuggested && onViewHistory && (
+                <DropdownMenuItem onClick={() => onViewHistory(metric)}>
+                  <History className="mr-2 h-4 w-4" />
+                  View history
+                </DropdownMenuItem>
+              )}
+              {!isSuggested && (onRecordUpdate || onViewHistory) && <DropdownMenuSeparator />}
               <DropdownMenuItem onClick={() => onEdit(metric)}>
                 <Pencil className="mr-2 h-4 w-4" />
-                Edit
+                Edit setup
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -95,6 +133,32 @@ export function MetricCard({
               />
             </div>
             <p className="text-[11px] text-slate-500 mt-1">{pct}% of target</p>
+          </div>
+        )}
+
+        {!isSuggested && updatedAtLabel && (
+          <p className="text-[11px] text-slate-500">Last updated {updatedAtLabel}</p>
+        )}
+
+        {!isSuggested && (
+          <div className="flex items-center gap-2 pt-1">
+            {onRecordUpdate && (
+              <Button size="sm" className="h-8" onClick={() => onRecordUpdate(metric)}>
+                <CalendarClock className="mr-1 h-3.5 w-3.5" />
+                Update
+              </Button>
+            )}
+            {onViewHistory && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8"
+                onClick={() => onViewHistory(metric)}
+              >
+                <History className="mr-1 h-3.5 w-3.5" />
+                History
+              </Button>
+            )}
           </div>
         )}
 

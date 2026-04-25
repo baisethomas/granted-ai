@@ -1203,6 +1203,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
   );
 
+  app.post(
+    "/api/metrics/:id/events",
+    requireSupabaseUser,
+    async (req: AuthenticatedRequest, res) => {
+      const access = await assertMetricAccess(req, req.params.id);
+      if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+      try {
+        const body = req.body ?? {};
+        const rawValue = body.value;
+        const value =
+          rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
+
+        if (!value) {
+          return res.status(400).json({ error: "Metric value is required" });
+        }
+
+        const updated = await storage.updateGrantMetric(req.params.id, { value } as any);
+        if (!updated) {
+          return res.status(404).json({ error: "Metric not found" });
+        }
+
+        const note =
+          body.note === null || body.note === undefined ? "" : String(body.note).trim();
+        const event = await storage.createGrantMetricEvent({
+          metricId: updated.id,
+          value,
+          note: note || null,
+          recordedBy: access.userId,
+        } as any);
+
+        res.json({ metric: updated, event });
+      } catch (error: any) {
+        console.error("Failed to record metric update:", error);
+        res.status(500).json({ error: "Failed to record metric update", details: error?.message });
+      }
+    },
+  );
+
   app.get(
     "/api/metrics/portfolio",
     requireSupabaseUser,

@@ -1,8 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type GrantMetric, type MetricSuggestion, type MetricsResponse } from "@/lib/api";
+import {
+  api,
+  type GrantMetric,
+  type GrantMetricEvent,
+  type MetricSuggestion,
+  type MetricsResponse,
+} from "@/lib/api";
 
 export function metricsQueryKey(projectId: string) {
   return ["metrics", projectId] as const;
+}
+
+export function metricHistoryQueryKey(metricId: string) {
+  return ["metric-history", metricId] as const;
 }
 
 export function useMetrics(projectId: string) {
@@ -31,6 +41,26 @@ export function useUpdateMetric(projectId: string) {
       api.updateMetric(id, updates),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: metricsQueryKey(projectId) });
+    },
+  });
+}
+
+export function useMetricHistory(metricId: string | null | undefined) {
+  return useQuery<GrantMetricEvent[]>({
+    queryKey: metricHistoryQueryKey(metricId ?? ""),
+    queryFn: () => api.getMetricHistory(metricId!),
+    enabled: Boolean(metricId),
+  });
+}
+
+export function useRecordMetricEvent(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, value, note }: { id: string; value: string; note?: string | null }) =>
+      api.recordMetricEvent(id, { value, note }),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: metricsQueryKey(projectId) });
+      qc.invalidateQueries({ queryKey: metricHistoryQueryKey(variables.id) });
     },
   });
 }

@@ -51,6 +51,11 @@ export interface GrantMetricEvent {
   recordedBy: string | null;
 }
 
+export interface RecordMetricEventResponse {
+  metric: GrantMetric;
+  event: GrantMetricEvent;
+}
+
 export interface ApplicationMetrics {
   completionPct: number;
   questionsTotal: number;
@@ -453,6 +458,14 @@ export const api = {
 
   async getMetricHistory(id: string): Promise<GrantMetricEvent[]> {
     const res = await apiRequest("GET", `/api/metrics/${id}/history`);
+    return res.json();
+  },
+
+  async recordMetricEvent(
+    id: string,
+    data: { value: string; note?: string | null },
+  ): Promise<RecordMetricEventResponse> {
+    const res = await apiRequest("POST", `/api/metrics/${id}/events`, data);
     return res.json();
   },
 

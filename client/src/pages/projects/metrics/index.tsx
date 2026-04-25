@@ -10,13 +10,17 @@ import {
   useCreateMetric,
   useDeleteMetric,
   useDismissMetric,
+  useMetricHistory,
   useExtractMetrics,
   useMetrics,
+  useRecordMetricEvent,
   useUpdateMetric,
 } from "./use-metrics-data";
 import { ApplicationMetricsCard } from "./ApplicationMetricsCard";
 import { MetricCard } from "./MetricCard";
+import { MetricHistoryDialog } from "./MetricHistoryDialog";
 import { MetricEditorDialog } from "./MetricEditorDialog";
+import { RecordMetricUpdateDialog } from "./RecordMetricUpdateDialog";
 import { ExtractFromFileDialog } from "./ExtractFromFileDialog";
 import { CATEGORY_LABELS, CATEGORY_ORDER, groupMetricsByCategory } from "./utils";
 
@@ -30,6 +34,7 @@ export function MetricsTab({ projectId }: MetricsTabProps) {
 
   const createMetric = useCreateMetric(projectId);
   const updateMetric = useUpdateMetric(projectId);
+  const recordMetricEvent = useRecordMetricEvent(projectId);
   const deleteMetric = useDeleteMetric(projectId);
   const acceptMetric = useAcceptMetric(projectId);
   const dismissMetric = useDismissMetric(projectId);
@@ -39,7 +44,10 @@ export function MetricsTab({ projectId }: MetricsTabProps) {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
   const [editingMetric, setEditingMetric] = useState<GrantMetric | null>(null);
+  const [recordingMetric, setRecordingMetric] = useState<GrantMetric | null>(null);
+  const [historyMetric, setHistoryMetric] = useState<GrantMetric | null>(null);
   const [extractOpen, setExtractOpen] = useState(false);
+  const history = useMetricHistory(historyMetric?.id);
 
   const { suggestedMetrics, grouped } = useMemo(() => {
     const all = data?.metrics ?? [];
@@ -61,6 +69,14 @@ export function MetricsTab({ projectId }: MetricsTabProps) {
     setEditingMetric(null);
     setEditorMode("create");
     setEditorOpen(true);
+  };
+
+  const handleRecordUpdate = (metric: GrantMetric) => {
+    setRecordingMetric(metric);
+  };
+
+  const handleViewHistory = (metric: GrantMetric) => {
+    setHistoryMetric(metric);
   };
 
   const handleDelete = async (metric: GrantMetric) => {
@@ -106,6 +122,28 @@ export function MetricsTab({ projectId }: MetricsTabProps) {
       });
     } else {
       await createMetric.mutateAsync(payload);
+    }
+  };
+
+  const handleSubmitMetricUpdate = async (payload: { value: string; note?: string | null }) => {
+    if (!recordingMetric) return;
+    try {
+      await recordMetricEvent.mutateAsync({
+        id: recordingMetric.id,
+        value: payload.value,
+        note: payload.note,
+      });
+      toast({
+        title: "Metric updated",
+        description: `${recordingMetric.label} is ready for reporting.`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Failed to record update",
+        description: err?.message ?? "Unable to update this metric.",
+        variant: "destructive",
+      });
+      throw err;
     }
   };
 
@@ -178,6 +216,8 @@ export function MetricsTab({ projectId }: MetricsTabProps) {
                 key={m.id}
                 metric={m}
                 onEdit={handleEdit}
+                onRecordUpdate={handleRecordUpdate}
+                onViewHistory={handleViewHistory}
                 onDelete={handleDelete}
                 onAccept={handleAcceptSuggestion}
                 onDismiss={handleDismissSuggestion}
@@ -226,6 +266,8 @@ export function MetricsTab({ projectId }: MetricsTabProps) {
                   key={m.id}
                   metric={m}
                   onEdit={handleEdit}
+                  onRecordUpdate={handleRecordUpdate}
+                  onViewHistory={handleViewHistory}
                   onDelete={handleDelete}
                 />
               ))}
@@ -241,6 +283,25 @@ export function MetricsTab({ projectId }: MetricsTabProps) {
         metric={editingMetric}
         presets={data.presets}
         onSubmit={handleSubmitMetric}
+      />
+
+      <RecordMetricUpdateDialog
+        open={Boolean(recordingMetric)}
+        onOpenChange={open => {
+          if (!open) setRecordingMetric(null);
+        }}
+        metric={recordingMetric}
+        onSubmit={handleSubmitMetricUpdate}
+      />
+
+      <MetricHistoryDialog
+        open={Boolean(historyMetric)}
+        onOpenChange={open => {
+          if (!open) setHistoryMetric(null);
+        }}
+        metric={historyMetric}
+        events={history.data ?? []}
+        isLoading={history.isLoading}
       />
 
       <ExtractFromFileDialog
