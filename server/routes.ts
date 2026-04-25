@@ -1016,6 +1016,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return { ok: true as const, metric, userId: access.userId };
   }
 
+  function formatReportMetricValue(
+    value: string | null | undefined,
+    type: string,
+    unit: string | null | undefined,
+  ) {
+    if (!value) return "Not recorded";
+    if (type === "currency") {
+      const n = Number(value);
+      return Number.isFinite(n)
+        ? new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+            maximumFractionDigits: 0,
+          }).format(n)
+        : value;
+    }
+    if (type === "percent") {
+      const n = Number(value);
+      return Number.isFinite(n) ? `${n}%` : value;
+    }
+    if (type === "number") {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return value;
+      return unit ? `${n.toLocaleString("en-US")} ${unit}` : n.toLocaleString("en-US");
+    }
+    if (type === "date") {
+      const d = new Date(value);
+      return Number.isNaN(d.getTime())
+        ? value
+        : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    }
+    return value;
+  }
+
+  function reportProgress(value: string | null | undefined, target: string | null | undefined) {
+    if (!value || !target) return "";
+    const v = Number(value);
+    const t = Number(target);
+    if (!Number.isFinite(v) || !Number.isFinite(t) || t === 0) return "";
+    const pct = Math.max(0, Math.min(100, Math.round((v / t) * 100)));
+    return ` (${pct}% of target)`;
+  }
+
   app.get(
     "/api/projects/:projectId/metrics",
     requireSupabaseUser,
@@ -1047,6 +1090,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Failed to fetch metrics:", error);
         res.status(500).json({ error: "Failed to fetch metrics" });
+      }
+    },
+  );
+
+  app.get(
+    "/api/projects/:projectId/metrics/report-summary",
+    requireSupabaseUser,
+    async (req: AuthenticatedRequest, res) => {
+      const access = await assertProjectAccess(req, req.params.projectId);
+      if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+      try {
+        const metrics = await storage.getGrantMetrics(req.params.projectId);
+        const activeMetrics = metrics.filter(m => m.status === "active");
+        const lines = activeMetrics.map(metric => {
+          const value = formatReportMetricValue(metric.value, metric.type, metric.unit);
+          const target = metric.target
+            ? formatReportMetricValue(metric.target, metric.type, metric.unit)
+            : null;
+          return `- ${metric.label}: ${value}${target ? ` of ${target}` : ""}${reportProgress(metric.value, metric.target)}`;
+        });
+
+        const text = [
+          `Grant Metrics Report Summary: ${access.project.title}`,
+          `Funder: ${access.project.funder}`,
+          "",
+          ...(lines.length ? lines : ["No active metrics have been recorded yet."]),
+        ].join("\n");
+
+        res.json({ text, metricsCount: activeMetrics.length });
+      } catch (error: any) {
+        console.error("Failed to build metrics report summary:", error);
+        res.status(500).json({ error: "Failed to build metrics report summary", details: error?.message });
       }
     },
   );

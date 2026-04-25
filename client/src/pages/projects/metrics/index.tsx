@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Sparkles, BarChart3 } from "lucide-react";
-import type { GrantMetric, MetricCategory } from "@/lib/api";
+import { api, type GrantMetric, type MetricCategory } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import {
   useAcceptMetric,
@@ -23,13 +23,7 @@ import { MetricEditorDialog } from "./MetricEditorDialog";
 import { MetricsReportingSummary } from "./MetricsReportingSummary";
 import { RecordMetricUpdateDialog } from "./RecordMetricUpdateDialog";
 import { ExtractFromFileDialog } from "./ExtractFromFileDialog";
-import {
-  CATEGORY_LABELS,
-  CATEGORY_ORDER,
-  formatMetricValue,
-  groupMetricsByCategory,
-  progressPct,
-} from "./utils";
+import { CATEGORY_LABELS, CATEGORY_ORDER, groupMetricsByCategory } from "./utils";
 
 interface MetricsTabProps {
   projectId: string;
@@ -155,24 +149,9 @@ export function MetricsTab({ projectId }: MetricsTabProps) {
   };
 
   const handleCopyReportSummary = async () => {
-    const activeMetrics = (data?.metrics ?? []).filter(m => m.status === "active");
-    const lines = activeMetrics.map(metric => {
-      const value = formatMetricValue(metric.value, metric.type, metric.unit);
-      const target = metric.target
-        ? formatMetricValue(metric.target, metric.type, metric.unit)
-        : null;
-      const pct = progressPct(metric.value, metric.target);
-      const progress = pct !== null ? ` (${pct}% of target)` : "";
-      return `- ${metric.label}: ${value}${target ? ` of ${target}` : ""}${progress}`;
-    });
-    const body = [
-      "Grant Metrics Report Summary",
-      "",
-      ...lines,
-    ].join("\n");
-
     try {
-      await navigator.clipboard.writeText(body);
+      const summary = await api.getMetricsReportSummary(projectId);
+      await navigator.clipboard.writeText(summary.text);
       toast({
         title: "Report summary copied",
         description: "Metrics are ready to paste into a funder update or report.",

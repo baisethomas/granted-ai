@@ -419,6 +419,11 @@ export const api = {
     return res.json();
   },
 
+  async getMetricsReportSummary(projectId: string): Promise<{ text: string; metricsCount: number }> {
+    const res = await apiRequest("GET", `/api/projects/${projectId}/metrics/report-summary`);
+    return res.json();
+  },
+
   async createMetric(projectId: string, data: Partial<GrantMetric> & { presetKey?: string }): Promise<GrantMetric> {
     const res = await apiRequest("POST", `/api/projects/${projectId}/metrics`, data);
     return res.json();
