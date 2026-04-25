@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { getAuthUrl } from "@/lib/domains";
 
 export default function MarketingHeader({ onLogout }: { onLogout?: () => void }) {
   return (
@@ -14,7 +15,7 @@ export default function MarketingHeader({ onLogout }: { onLogout?: () => void })
           {onLogout ? (
             <Button variant="outline" onClick={onLogout}>Log out</Button>
           ) : (
-            <a href="/auth" className="text-slate-700 hover:text-slate-900">Log in</a>
+            <a href={getAuthUrl()} className="text-slate-700 hover:text-slate-900">Log in</a>
           )}
         </div>
       </div>

@@ -30,10 +30,11 @@ export const signIn = async (email: string, password: string) => {
 }
 
 export const signInWithGoogle = async () => {
+  const appDomain = import.meta.env.VITE_APP_DOMAIN || 'https://grantedai.app';
   return await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${window.location.origin}/app`
+      redirectTo: `${appDomain}/app`
     }
   })
 }

@@ -8,6 +8,7 @@ import { Route, useLocation } from "wouter";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { LogoutProvider } from "@/hooks/useLogout";
 import { Login } from "@/components/Login";
+import { isMarketingDomain, getAuthUrl, APP_DOMAIN } from "@/lib/domains";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MainHeader } from "@/components/layout/main-header";
 
@@ -105,15 +106,27 @@ function AppContent() {
     );
   }
 
+  // Authenticated users on marketing domain → send to the app
+  if (!loading && user && isMarketingDomain()) {
+    window.location.href = `${APP_DOMAIN}/app`;
+    return null;
+  }
+
   // Logged-out routes: "/" (landing) and "/auth" (login/signup)
   if (!user) {
+    if (isMarketingDomain() && location === '/auth') {
+      window.location.href = `${APP_DOMAIN}/auth`;
+      return null;
+    }
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <ErrorBoundary fallback={AuthErrorFallback}>
-            <Route path="/auth">
-              <Login />
-            </Route>
+            {!isMarketingDomain() && (
+              <Route path="/auth">
+                <Login />
+              </Route>
+            )}
             <Route path="/pricing">
               <Pricing />
             </Route>
@@ -129,7 +142,13 @@ function AppContent() {
                   const el = document.getElementById('how');
                   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }}
-                onNavigateToAuth={() => setLocation("/auth")}
+                onNavigateToAuth={() => {
+                  if (isMarketingDomain()) {
+                    window.location.href = `${APP_DOMAIN}/auth`;
+                  } else {
+                    setLocation("/auth");
+                  }
+                }}
               />
             </Route>
           </ErrorBoundary>
@@ -322,7 +341,7 @@ function MarketingHeader({ onLogout }: { onLogout?: () => void }) {
           {onLogout ? (
             <Button variant="outline" onClick={onLogout}>Log out</Button>
           ) : (
-            <a href="/auth" className="text-slate-700 hover:text-slate-900">Log in</a>
+            <a href={getAuthUrl()} className="text-slate-700 hover:text-slate-900">Log in</a>
           )}
         </div>
       </div>

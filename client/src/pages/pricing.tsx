@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import MarketingHeader from "@/components/layout/marketing-header";
+import { getAuthUrl } from "@/lib/domains";
 
 export default function Pricing() {
   return (
@@ -39,7 +40,7 @@ export default function Pricing() {
               <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> Basic agentic writing</li>
               <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> Community support</li>
             </ul>
-            <a href="/auth" className="mt-auto inline-block rounded-lg px-6 py-3 font-bold text-white bg-blue-500 hover:bg-blue-600 active:bg-blue-700 transition focus:outline-none focus:ring-4 focus:ring-blue-200 text-center shadow">Get Started</a>
+            <a href={getAuthUrl()} className="mt-auto inline-block rounded-lg px-6 py-3 font-bold text-white bg-blue-500 hover:bg-blue-600 active:bg-blue-700 transition focus:outline-none focus:ring-4 focus:ring-blue-200 text-center shadow">Get Started</a>
           </div>
 
           {/* Pro */}
@@ -57,7 +58,7 @@ export default function Pricing() {
               <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> Rubric scoring & Fundability Gauge</li>
               <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> Email support</li>
             </ul>
-            <a href="/auth" className="mt-auto inline-block rounded-lg px-6 py-3 font-bold text-white bg-purple-600 hover:bg-purple-700 active:bg-purple-800 transition focus:outline-none focus:ring-4 focus:ring-purple-200 text-center shadow-lg">Try Pro</a>
+            <a href={getAuthUrl()} className="mt-auto inline-block rounded-lg px-6 py-3 font-bold text-white bg-purple-600 hover:bg-purple-700 active:bg-purple-800 transition focus:outline-none focus:ring-4 focus:ring-purple-200 text-center shadow-lg">Try Pro</a>
           </div>
 
           {/* Team */}
@@ -74,7 +75,7 @@ export default function Pricing() {
               <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> Collaboration tools, roles & permissions</li>
               <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> Priority support</li>
             </ul>
-            <a href="/auth" className="mt-auto inline-block rounded-lg px-6 py-3 font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 transition focus:outline-none focus:ring-4 focus:ring-indigo-200 text-center shadow">Start Team</a>
+            <a href={getAuthUrl()} className="mt-auto inline-block rounded-lg px-6 py-3 font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 transition focus:outline-none focus:ring-4 focus:ring-indigo-200 text-center shadow">Start Team</a>
           </div>
 
           {/* Enterprise */}
@@ -180,7 +181,7 @@ export default function Pricing() {
           </h2>
           <p className="text-slate-600 mt-3 text-lg">Start free today — upgrade only when you’re ready for more power.</p>
           <div className="mt-6 flex items-center justify-center gap-3">
-            <a href="/auth"><Button>Get Started Free</Button></a>
+            <a href={getAuthUrl()}><Button>Get Started Free</Button></a>
             <a href="#" onClick={(e) => { e.preventDefault(); alert("Demo booking coming soon"); }}>
               <Button variant="outline">Book a Demo</Button>
             </a>
@@ -212,7 +213,7 @@ function PlanCard({ name, price, tagline, features, ctaLabel, highlight }: {
             <li key={f}>{f}</li>
           ))}
         </ul>
-        <a href="/auth">
+        <a href={getAuthUrl()}>
           <Button className={`${highlight ? "bg-[var(--brand-a)] hover:bg-[color-mix(in_srgb,var(--brand-a) 85%,black)]" : ""} w-full`}>{ctaLabel}</Button>
         </a>
       </CardContent>

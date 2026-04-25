@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getAuthUrl } from "@/lib/domains";
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -98,7 +99,7 @@ export function AuthErrorFallback({ error, resetError }: { error: Error; resetEr
             <Button onClick={resetError} variant="outline">
               Try Again
             </Button>
-            <Button onClick={() => window.location.href = '/auth'}>
+            <Button onClick={() => window.location.href = getAuthUrl()}>
               Go to Login
             </Button>
           </div>
