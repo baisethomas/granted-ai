@@ -20,6 +20,7 @@ import { ApplicationMetricsCard } from "./ApplicationMetricsCard";
 import { MetricCard } from "./MetricCard";
 import { MetricHistoryDialog } from "./MetricHistoryDialog";
 import { MetricEditorDialog } from "./MetricEditorDialog";
+import { MetricsReportingSummary } from "./MetricsReportingSummary";
 import { RecordMetricUpdateDialog } from "./RecordMetricUpdateDialog";
 import { ExtractFromFileDialog } from "./ExtractFromFileDialog";
 import { CATEGORY_LABELS, CATEGORY_ORDER, groupMetricsByCategory } from "./utils";
@@ -174,6 +175,12 @@ export function MetricsTab({ projectId }: MetricsTabProps) {
     <div className="space-y-6">
       {/* Application (auto-derived) metrics */}
       <ApplicationMetricsCard data={data.application} />
+
+      <MetricsReportingSummary
+        metrics={data.metrics}
+        project={data.project}
+        onRecordUpdate={handleRecordUpdate}
+      />
 
       {/* Outcome metrics header + actions */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
