@@ -104,7 +104,7 @@ export function ExtractFromFileDialog({
         if (!next) reset();
       }}
     >
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-indigo-600" />
@@ -183,7 +183,7 @@ export function ExtractFromFileDialog({
                           {s.unit ? ` ${s.unit}` : ""}
                         </Badge>
                       )}
-                      <span className="text-[10px] text-slate-500 ml-auto">
+                      <span className="text-[10px] text-slate-500 sm:ml-auto">
                         {s.confidence}% confidence
                       </span>
                     </div>

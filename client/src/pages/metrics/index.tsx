@@ -63,9 +63,9 @@ export default function PortfolioMetricsPage({ onOpenProject }: PortfolioMetrics
   const totalsEntries = Object.entries(data.totalsByKey);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 md:space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+        <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2 md:text-2xl">
           <BarChart3 className="h-5 w-5 text-indigo-600" />
           Portfolio metrics
         </h2>
@@ -75,8 +75,8 @@ export default function PortfolioMetricsPage({ onOpenProject }: PortfolioMetrics
       </div>
 
       <Card>
-        <CardContent className="flex flex-wrap items-end gap-3 p-4">
-          <div className="grid gap-1">
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:flex-wrap sm:items-end">
+          <div className="grid gap-1 sm:w-auto">
             <label htmlFor="portfolio-period-start" className="text-xs font-medium text-slate-600">
               Period start
             </label>
@@ -85,10 +85,10 @@ export default function PortfolioMetricsPage({ onOpenProject }: PortfolioMetrics
               type="date"
               value={periodStart}
               onChange={e => setPeriodStart(e.target.value)}
-              className="w-[170px]"
+              className="w-full sm:w-[170px]"
             />
           </div>
-          <div className="grid gap-1">
+          <div className="grid gap-1 sm:w-auto">
             <label htmlFor="portfolio-period-end" className="text-xs font-medium text-slate-600">
               Period end
             </label>
@@ -97,7 +97,7 @@ export default function PortfolioMetricsPage({ onOpenProject }: PortfolioMetrics
               type="date"
               value={periodEnd}
               onChange={e => setPeriodEnd(e.target.value)}
-              className="w-[170px]"
+              className="w-full sm:w-[170px]"
             />
           </div>
           {(periodStart || periodEnd) && (
@@ -114,7 +114,7 @@ export default function PortfolioMetricsPage({ onOpenProject }: PortfolioMetrics
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 md:grid-cols-4">
         <StatsCard
           title="Active projects"
           value={data.stats.activeProjects}
@@ -190,13 +190,13 @@ export default function PortfolioMetricsPage({ onOpenProject }: PortfolioMetrics
                   key={p.id}
                   type="button"
                   onClick={() => onOpenProject?.(p.id)}
-                  className="w-full text-left px-6 py-3 hover:bg-slate-50 transition-colors flex items-center justify-between gap-3"
+                  className="w-full text-left px-4 py-4 hover:bg-slate-50 transition-colors flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between md:px-6 md:py-3"
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-slate-900 truncate">{p.title}</p>
                     <p className="text-xs text-slate-500 truncate">{p.funder}</p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                     <Badge variant="outline" className="text-[11px] capitalize">
                       {p.status}
                     </Badge>

@@ -184,23 +184,23 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       {/* Usage & Billing Dashboard */}
       <Card className="shadow-sm border border-slate-200">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
+        <CardHeader className="p-4 md:p-6">
+          <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-blue-600" />
             <span>Usage & Billing</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 md:p-6">
           <UsageDashboard organizationId={1} />
         </CardContent>
       </Card>
 
       <Card className="shadow-sm border border-slate-200">
-        <CardContent className="p-6">
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Settings & Profile</h2>
+        <CardContent className="p-4 md:p-6">
+          <h2 className="text-xl font-bold text-slate-900 mb-2 md:text-2xl">Settings & Profile</h2>
           <p className="text-slate-600 mb-8">
             Manage your organization information, AI preferences, and account settings.
           </p>
@@ -330,11 +330,11 @@ export default function Settings() {
 
       {/* AI Preferences */}
       <Card className="shadow-sm border border-slate-200">
-        <CardHeader className="p-6 border-b border-slate-200">
+        <CardHeader className="p-4 border-b border-slate-200 md:p-6">
           <CardTitle className="text-lg font-semibold text-slate-900">AI Generation Preferences</CardTitle>
           <p className="text-sm text-slate-600 mt-1">Customize how the AI generates grant responses</p>
         </CardHeader>
-        <CardContent className="p-6 space-y-6">
+        <CardContent className="p-4 space-y-6 md:p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label>Default Writing Tone</Label>
@@ -372,7 +372,7 @@ export default function Settings() {
 
           <div className="space-y-3">
             <Label>Emphasis Areas (Check all that apply)</Label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 md:gap-4">
               {[
                 "Impact & Outcomes",
                 "Innovation", 
@@ -401,8 +401,8 @@ export default function Settings() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-            <div>
+          <div className="flex items-start justify-between gap-4 p-4 bg-slate-50 rounded-lg">
+            <div className="min-w-0">
               <p className="font-medium text-slate-900">Automatic Question Detection</p>
               <p className="text-sm text-slate-600">
                 Automatically identify and parse questions from uploaded grant documents
@@ -418,13 +418,13 @@ export default function Settings() {
 
       {/* LLM Configuration */}
       <Card className="shadow-sm border border-slate-200">
-        <CardHeader className="p-6 border-b border-slate-200">
+        <CardHeader className="p-4 border-b border-slate-200 md:p-6">
           <CardTitle className="text-lg font-semibold text-slate-900">AI Model Configuration</CardTitle>
           <p className="text-sm text-slate-600 mt-1">
             Choose your preferred AI model and configure API settings
           </p>
         </CardHeader>
-        <CardContent className="p-6 space-y-6">
+        <CardContent className="p-4 space-y-6 md:p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label>Primary AI Model</Label>
@@ -477,14 +477,14 @@ export default function Settings() {
             <Label className="text-sm font-medium text-slate-700">Model Performance Settings</Label>
             <div className="space-y-6">
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-slate-900">Response Creativity</p>
                     <p className="text-xs text-slate-600">Higher values produce more creative responses</p>
                   </div>
-                  <div className="flex items-center space-x-4">
+                  <div className="flex w-full items-center gap-3 sm:w-auto sm:space-x-4">
                     <span className="text-xs text-slate-500">Conservative</span>
-                    <div className="w-32">
+                    <div className="min-w-0 flex-1 sm:w-32 sm:flex-none">
                       <Slider
                         value={[aiSettings.creativity]}
                         onValueChange={(value) => setAiSettings({ ...aiSettings, creativity: value[0] })}
@@ -498,14 +498,14 @@ export default function Settings() {
                 </div>
               </div>
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-slate-900">Context Usage</p>
                     <p className="text-xs text-slate-600">How much of your uploaded context to use</p>
                   </div>
-                  <div className="flex items-center space-x-4">
+                  <div className="flex w-full items-center gap-3 sm:w-auto sm:space-x-4">
                     <span className="text-xs text-slate-500">Minimal</span>
-                    <div className="w-32">
+                    <div className="min-w-0 flex-1 sm:w-32 sm:flex-none">
                       <Slider
                         value={[aiSettings.contextUsage]}
                         onValueChange={(value) => setAiSettings({ ...aiSettings, contextUsage: value[0] })}
@@ -525,13 +525,13 @@ export default function Settings() {
 
       {/* Account Settings */}
       <Card className="shadow-sm border border-slate-200">
-        <CardHeader className="p-6 border-b border-slate-200">
+        <CardHeader className="p-4 border-b border-slate-200 md:p-6">
           <CardTitle className="text-lg font-semibold text-slate-900">Account Settings</CardTitle>
           <p className="text-sm text-slate-600 mt-1">Manage your account preferences and notifications</p>
         </CardHeader>
-        <CardContent className="p-6 space-y-4">
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-            <div>
+        <CardContent className="p-4 space-y-4 md:p-6">
+          <div className="flex items-start justify-between gap-4 p-4 bg-slate-50 rounded-lg">
+            <div className="min-w-0">
               <p className="font-medium text-slate-900">Email Notifications</p>
               <p className="text-sm text-slate-600">Receive updates on generation status and deadlines</p>
             </div>
@@ -540,8 +540,8 @@ export default function Settings() {
               onCheckedChange={(checked) => setAccountSettings({ ...accountSettings, emailNotifications: checked })}
             />
           </div>
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-            <div>
+          <div className="flex items-start justify-between gap-4 p-4 bg-slate-50 rounded-lg">
+            <div className="min-w-0">
               <p className="font-medium text-slate-900">Auto-Save Drafts</p>
               <p className="text-sm text-slate-600">Automatically save changes as you edit responses</p>
             </div>
@@ -550,8 +550,8 @@ export default function Settings() {
               onCheckedChange={(checked) => setAccountSettings({ ...accountSettings, autoSave: checked })}
             />
           </div>
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-            <div>
+          <div className="flex items-start justify-between gap-4 p-4 bg-slate-50 rounded-lg">
+            <div className="min-w-0">
               <p className="font-medium text-slate-900">Usage Analytics</p>
               <p className="text-sm text-slate-600">Track your grant writing progress and success metrics</p>
             </div>
@@ -565,13 +565,13 @@ export default function Settings() {
 
       {/* Sign Out */}
       <Card className="shadow-sm border border-slate-200">
-        <CardHeader className="p-6 border-b border-slate-200">
+        <CardHeader className="p-4 border-b border-slate-200 md:p-6">
           <CardTitle className="text-lg font-semibold text-slate-900">Sign Out</CardTitle>
           <p className="text-sm text-slate-600 mt-1">
             End your session on this device. You'll need to log in again to access your account.
           </p>
         </CardHeader>
-        <CardContent className="p-6">
+        <CardContent className="p-4 md:p-6">
           <Button
             variant="outline"
             onClick={handleLogout}
@@ -585,14 +585,14 @@ export default function Settings() {
       </Card>
 
       {/* Save Changes */}
-      <div className="flex items-center justify-end space-x-4 pt-6">
-        <Button variant="outline" onClick={handleResetDefaults}>
+      <div className="flex flex-col-reverse gap-3 pt-6 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
+        <Button variant="outline" onClick={handleResetDefaults} className="w-full sm:w-auto">
           Reset to Defaults
         </Button>
         <Button 
           onClick={handleSaveSettings}
           disabled={updateSettingsMutation.isPending}
-          className="bg-[var(--brand-a)] hover:bg-[color-mix(in_srgb,var(--brand-a) 85%,black)]"
+          className="w-full bg-[var(--brand-a)] hover:bg-[color-mix(in_srgb,var(--brand-a) 85%,black)] sm:w-auto"
         >
           <Save className="mr-2 h-4 w-4" />
           {updateSettingsMutation.isPending ? "Saving..." : "Save Changes"}

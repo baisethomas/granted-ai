@@ -87,13 +87,13 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       {/* Welcome Section */}
       <Card className="shadow-sm border border-slate-200">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900">
+        <CardContent className="p-4 md:p-6">
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-xl font-bold text-slate-900 md:text-2xl">
                 Nonprofit Excellence Foundation
               </h2>
               <p className="text-slate-600 mt-1">
@@ -101,7 +101,7 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
               </p>
             </div>
             <Button 
-              className="bg-primary-600 hover:bg-primary-700" 
+              className="w-full bg-primary-600 hover:bg-primary-700 sm:w-auto"
               onClick={() => {
                 setIsNewProjectDialogOpen(true);
               }}
@@ -112,7 +112,7 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 md:grid-cols-4 md:gap-6">
             <StatsCard
               title="Active Projects"
               value={stats?.activeProjects || 0}
@@ -143,7 +143,7 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
 
       {/* Current Projects */}
       <Card className="shadow-sm border border-slate-200">
-        <CardHeader className="p-6 border-b border-slate-200">
+        <CardHeader className="p-4 border-b border-slate-200 md:p-6">
           <CardTitle className="text-lg font-semibold text-slate-900">
             Current Projects
           </CardTitle>
@@ -151,7 +151,7 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
             Track your ongoing grant applications
           </p>
         </CardHeader>
-        <CardContent className="p-6">
+        <CardContent className="p-4 md:p-6">
           {projects.length === 0 ? (
             <div className="text-center py-12">
               <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -181,14 +181,14 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
       </Card>
 
       {/* Recent Activity & Upcoming Deadlines */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
         <Card className="shadow-sm border border-slate-200">
-          <CardHeader className="p-6 border-b border-slate-200">
+          <CardHeader className="p-4 border-b border-slate-200 md:p-6">
             <CardTitle className="text-lg font-semibold text-slate-900">
               Recent Activity
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-6">
+          <CardContent className="p-4 md:p-6">
             <div className="space-y-4">
               {projects.length === 0 ? (
                 <p className="text-slate-500 text-center py-8">No recent activity</p>
@@ -210,12 +210,12 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
         </Card>
 
         <Card className="shadow-sm border border-slate-200">
-          <CardHeader className="p-6 border-b border-slate-200">
+          <CardHeader className="p-4 border-b border-slate-200 md:p-6">
             <CardTitle className="text-lg font-semibold text-slate-900">
               Upcoming Deadlines
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-6">
+          <CardContent className="p-4 md:p-6">
             <div className="space-y-4">
               {projects.filter((p: any) => p.deadline).length === 0 ? (
                 <p className="text-slate-500 text-center py-8">No upcoming deadlines</p>
@@ -223,12 +223,12 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
                 projects
                   .filter((p: any) => p.deadline)
                   .map((project: any) => (
-                    <div key={project.id} className="flex items-center justify-between">
-                      <div>
+                    <div key={project.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
                         <p className="font-medium text-slate-900">{project.title}</p>
                         <p className="text-sm text-slate-600">{project.funder}</p>
                       </div>
-                      <div className="text-right">
+                      <div className="text-left sm:text-right">
                         <p className="text-sm font-medium text-orange-600">
                           {new Date(project.deadline).toLocaleDateString("en-US", {
                             month: "short",
