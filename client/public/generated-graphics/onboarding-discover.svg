@@ -1,0 +1,44 @@
+<svg width="720" height="720" viewBox="0 0 720 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="amber" x1="166" y1="96" x2="558" y2="650" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB22D"/>
+      <stop offset="1" stop-color="#FFE7A3"/>
+    </linearGradient>
+    <linearGradient id="slate" x1="163" y1="168" x2="442" y2="612" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0C344C"/>
+      <stop offset="1" stop-color="#6D8790"/>
+    </linearGradient>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="3" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="table" tableValues="0 .16"/></feComponentTransfer>
+      <feBlend mode="multiply" in2="SourceGraphic"/>
+    </filter>
+  </defs>
+  <rect width="720" height="720" fill="#FFFDF8"/>
+  <path d="M152 308c-49 25-75 83-48 130 29 49 95 53 150 35 56-19 87-4 136 28 54 35 137 53 185 1 50-54 17-142-35-180-55-40-80-62-96-127-17-68-100-93-151-50-50 41-86 135-141 163Z" fill="url(#amber)" opacity=".72"/>
+  <path d="M105 367c23-111 151-144 253-112 104 33 202 63 257 158 45 78-37 157-139 142-111-16-153 70-268 39C109 568 85 462 105 367Z" fill="#D6E2E0" opacity=".62"/>
+  <rect x="172" y="238" width="250" height="306" rx="8" fill="url(#slate)"/>
+  <rect x="206" y="284" width="123" height="8" rx="4" fill="#EAF7FF"/>
+  <rect x="206" y="311" width="176" height="6" rx="3" fill="#88B4C3"/>
+  <rect x="206" y="337" width="142" height="6" rx="3" fill="#88B4C3"/>
+  <rect x="206" y="392" width="171" height="10" rx="5" fill="#EAF7FF"/>
+  <rect x="206" y="421" width="124" height="6" rx="3" fill="#88B4C3"/>
+  <rect x="206" y="446" width="158" height="6" rx="3" fill="#88B4C3"/>
+  <rect x="266" y="126" width="160" height="184" rx="6" fill="#FFE49C"/>
+  <path d="M266 126h160v40c-24 9-34 29-29 60-34-15-78-12-131-2V126Z" fill="#FF9E26" opacity=".72"/>
+  <rect x="296" y="185" width="96" height="6" rx="3" fill="#0D3D58"/>
+  <rect x="296" y="209" width="77" height="5" rx="2.5" fill="#FFA51F"/>
+  <rect x="296" y="232" width="106" height="5" rx="2.5" fill="#D99E42"/>
+  <rect x="296" y="254" width="63" height="5" rx="2.5" fill="#0D3D58"/>
+  <path d="M430 213h61c24 0 43 19 43 43v105c0 28 23 51 51 51h42" stroke="#0D3D58" stroke-width="5" stroke-linecap="round"/>
+  <path d="M245 171h-74c-24 0-43 19-43 43v0c0 24 19 43 43 43h60" stroke="#0D3D58" stroke-width="5" stroke-linecap="round"/>
+  <path d="M92 496h120c29 0 53-24 53-53v-23" stroke="#0D3D58" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="627" cy="412" r="13" fill="#FFB22D"/>
+  <circle cx="105" cy="504" r="20" fill="#FFB22D"/>
+  <rect x="445" y="445" width="145" height="90" rx="6" fill="#FFF1C7"/>
+  <rect x="474" y="478" width="81" height="5" rx="2.5" fill="#0D3D58"/>
+  <rect x="474" y="501" width="52" height="5" rx="2.5" fill="#FFA51F"/>
+  <rect x="474" y="524" width="96" height="5" rx="2.5" fill="#9AB5BC"/>
+  <rect width="720" height="720" filter="url(#grain)" opacity=".55"/>
+</svg>
