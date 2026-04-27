@@ -1,52 +1,53 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle2, Clock, Shield } from "lucide-react";
+import { Eye, LockKeyhole, Target } from "lucide-react";
 
 export function TrustSection() {
-  const benefits = [
-    "Drafts aligned to funder priorities",
-    "Context reuse across applications",
-    "Version history with \"current\" selection",
-    "Simple exports when you're ready",
+  const trustItems = [
+    {
+      icon: LockKeyhole,
+      title: "Private by default",
+      description: "Your uploaded content is used to help your organization draft. It should not feel like a public prompt box.",
+    },
+    {
+      icon: Eye,
+      title: "Review remains yours",
+      description: "Granted accelerates the first draft. Your team still owns strategy, factual accuracy, and final submission decisions.",
+    },
+    {
+      icon: Target,
+      title: "Impact stays visible",
+      description: "Program details, metrics, and reporting needs stay connected to the grant work instead of scattered across files.",
+    },
   ];
 
   return (
-    <section className="py-12 border-t border-slate-200/80 bg-white/70">
-      <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-        <div className="col-span-1 md:col-span-2">
-          <h2 className="text-2xl font-semibold text-slate-900">
-            Built for Nonprofits, By People Who Understand Them
+    <section className="border-t border-slate-200/80 bg-white py-16">
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="max-w-3xl">
+          <div className="text-sm font-semibold uppercase tracking-widest text-slate-500">
+            Trust
+          </div>
+          <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
+            Built for teams that cannot afford generic grant drafts
           </h2>
-          <ul className="mt-4 space-y-3 text-slate-700">
-            {benefits.map((benefit, index) => (
-              <li key={index} className="flex items-start gap-2">
-                <CheckCircle2 className="mt-0.5 h-5 w-5 text-slate-900" />
-                {benefit}
-              </li>
-            ))}
-          </ul>
-          <p className="text-slate-600 mt-4">
-            We know grant writing can be overwhelming, especially for small teams and grassroots organizations. 
-            Granted makes the process simple, strategic, and stress-free — without sacrificing quality.
+          <p className="mt-4 text-lg leading-8 text-slate-600">
+            Small development teams need speed, but they also need accuracy, privacy, and a
+            clear review path. Granted is designed around that discipline.
           </p>
         </div>
-        <Card className="hover:shadow-md transition">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <Clock className="h-5 w-5 text-slate-900" />
-              <h3 className="font-medium">Save dozens of hours</h3>
-            </div>
-            <p className="text-slate-600 mt-2">
-              Teams report moving from blank page to strong first draft in minutes, not weeks.
-            </p>
-            <div className="flex items-center gap-3 mt-4">
-              <Shield className="h-5 w-5 text-slate-900" />
-              <h3 className="font-medium">Your data, private</h3>
-            </div>
-            <p className="text-slate-600 mt-2">
-              Your uploads are used only to help you draft. No public training or sharing.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-3">
+          {trustItems.map((item) => (
+            <Card key={item.title} className="hover:shadow-md transition">
+              <CardContent className="p-6">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-a)] to-[var(--brand-b)] text-white">
+                  <item.icon className="h-5 w-5" />
+                </div>
+                <h3 className="mt-5 font-semibold text-slate-900">{item.title}</h3>
+                <p className="mt-2 leading-7 text-slate-600">{item.description}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     </section>
   );

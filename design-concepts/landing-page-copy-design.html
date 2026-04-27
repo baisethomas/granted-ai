@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Granted Landing Page Concept</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --ink: #14213d;
+        --muted: #5b6475;
+        --line: #dfe6ef;
+        --paper: #fffaf0;
+        --cream: #fff8e8;
+        --blue: #0f4c81;
+        --teal: #237c7b;
+        --amber: #f2b544;
+        --green: #2c6e49;
+        --bg: #f7f9fc;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      img {
+        display: block;
+        max-width: 100%;
+      }
+
+      .page {
+        min-height: 100vh;
+        background:
+          linear-gradient(180deg, rgba(255, 250, 240, 0.96) 0%, rgba(247, 249, 252, 0.98) 46%, #ffffff 100%);
+      }
+
+      .shell {
+        width: min(1120px, calc(100% - 40px));
+        margin: 0 auto;
+      }
+
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: rgba(255, 250, 240, 0.88);
+        border-bottom: 1px solid rgba(223, 230, 239, 0.9);
+        backdrop-filter: blur(14px);
+      }
+
+      .nav-inner {
+        height: 72px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 800;
+        letter-spacing: 0;
+      }
+
+      .brand img {
+        width: 44px;
+        height: 44px;
+        object-fit: contain;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 0 18px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        font-weight: 700;
+        font-size: 14px;
+        background: #ffffff;
+      }
+
+      .button.primary {
+        color: #ffffff;
+        border-color: var(--blue);
+        background: var(--blue);
+        box-shadow: 0 12px 28px rgba(15, 76, 129, 0.22);
+      }
+
+      .hero {
+        padding: 72px 0 48px;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1.02fr 0.98fr;
+        gap: 56px;
+        align-items: center;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--green);
+        font-size: 13px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .eyebrow::before {
+        content: "";
+        width: 32px;
+        height: 2px;
+        border-radius: 999px;
+        background: var(--amber);
+      }
+
+      h1 {
+        margin: 18px 0 0;
+        font-size: clamp(42px, 6vw, 72px);
+        line-height: 0.98;
+        letter-spacing: 0;
+        max-width: 760px;
+      }
+
+      .hero-copy {
+        margin: 24px 0 0;
+        color: var(--muted);
+        font-size: 19px;
+        line-height: 1.65;
+        max-width: 620px;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 30px;
+      }
+
+      .hero-points {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-top: 30px;
+      }
+
+      .point {
+        min-height: 86px;
+        padding: 14px;
+        border: 1px solid rgba(223, 230, 239, 0.9);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.74);
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .point strong {
+        display: block;
+        color: var(--ink);
+        font-size: 14px;
+        margin-bottom: 4px;
+      }
+
+      .hero-art {
+        position: relative;
+      }
+
+      .hero-art::before {
+        content: "";
+        position: absolute;
+        inset: 9% -2% 4% 4%;
+        border-radius: 24px;
+        background: #f7d989;
+        transform: rotate(-4deg);
+        opacity: 0.48;
+      }
+
+      .hero-art img {
+        position: relative;
+        width: 100%;
+        border-radius: 18px;
+        border: 1px solid rgba(223, 230, 239, 0.96);
+        box-shadow: 0 24px 60px rgba(20, 33, 61, 0.14);
+      }
+
+      .section {
+        padding: 76px 0;
+      }
+
+      .section.white {
+        background: #ffffff;
+      }
+
+      .section-head {
+        max-width: 720px;
+      }
+
+      .kicker {
+        color: var(--teal);
+        font-size: 13px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      h2 {
+        margin: 10px 0 0;
+        font-size: clamp(30px, 4vw, 46px);
+        line-height: 1.08;
+        letter-spacing: 0;
+      }
+
+      .section-intro {
+        margin-top: 14px;
+        color: var(--muted);
+        font-size: 17px;
+        line-height: 1.65;
+      }
+
+      .workflow {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-top: 34px;
+      }
+
+      .workflow-step {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 18px;
+        background: #ffffff;
+      }
+
+      .workflow-step img {
+        height: 126px;
+        width: 100%;
+        object-fit: contain;
+        margin-bottom: 16px;
+      }
+
+      .step-label {
+        color: var(--teal);
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      h3 {
+        margin: 8px 0 0;
+        font-size: 18px;
+        line-height: 1.25;
+      }
+
+      .workflow-step p,
+      .feature p,
+      .trust p {
+        color: var(--muted);
+        line-height: 1.6;
+        margin: 10px 0 0;
+        font-size: 15px;
+      }
+
+      .feature-band {
+        display: grid;
+        grid-template-columns: 0.88fr 1.12fr;
+        gap: 48px;
+        align-items: center;
+      }
+
+      .feature-art {
+        border-radius: 18px;
+        background: var(--cream);
+        padding: 18px;
+        border: 1px solid rgba(223, 230, 239, 0.95);
+      }
+
+      .feature-art img {
+        border-radius: 12px;
+      }
+
+      .feature-list {
+        display: grid;
+        gap: 18px;
+      }
+
+      .feature {
+        padding-bottom: 18px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .feature:last-child {
+        padding-bottom: 0;
+        border-bottom: 0;
+      }
+
+      .trust-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 18px;
+        margin-top: 34px;
+      }
+
+      .trust {
+        min-height: 214px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #ffffff;
+        padding: 22px;
+      }
+
+      .trust-mark {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        color: #ffffff;
+        background: var(--green);
+        font-weight: 800;
+      }
+
+      .cta {
+        padding: 74px 0 86px;
+        background: var(--ink);
+        color: #ffffff;
+      }
+
+      .cta-inner {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 32px;
+        align-items: center;
+      }
+
+      .cta h2 {
+        max-width: 760px;
+      }
+
+      .cta p {
+        color: #cdd6e4;
+        max-width: 660px;
+      }
+
+      .cta .button.primary {
+        background: var(--amber);
+        border-color: var(--amber);
+        color: #231600;
+        box-shadow: none;
+      }
+
+      @media (max-width: 900px) {
+        .nav-links a:not(.button) {
+          display: none;
+        }
+
+        .hero-grid,
+        .feature-band,
+        .cta-inner {
+          grid-template-columns: 1fr;
+        }
+
+        .hero-points,
+        .workflow,
+        .trust-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .hero {
+          padding-top: 44px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="nav">
+        <div class="shell nav-inner">
+          <a class="brand" href="#">
+            <img src="../client/public/logo.png" alt="Granted" />
+            <span>Granted</span>
+          </a>
+          <nav class="nav-links" aria-label="Primary navigation">
+            <a href="#workflow">How it works</a>
+            <a href="#features">Features</a>
+            <a href="#trust">Trust</a>
+            <a class="button" href="#">Log in</a>
+          </nav>
+        </div>
+      </header>
+
+      <section class="hero">
+        <div class="shell hero-grid">
+          <div>
+            <div class="eyebrow">AI grant drafting workspace</div>
+            <h1>Grant drafts grounded in your organization’s real story</h1>
+            <p class="hero-copy">
+              Upload past proposals, budgets, impact reports, and program materials. Granted uses that context to draft funder-aligned responses your team can review, revise, and export.
+            </p>
+            <div class="actions">
+              <a class="button primary" href="#">Start a draft</a>
+              <a class="button" href="#workflow">See the workflow</a>
+            </div>
+            <div class="hero-points" aria-label="Product highlights">
+              <div class="point"><strong>Reusable memory</strong>Stop rebuilding the same organization context for every application.</div>
+              <div class="point"><strong>Funder alignment</strong>Draft against the questions, priorities, and language in each opportunity.</div>
+              <div class="point"><strong>Review-ready output</strong>Keep versions organized before exporting a polished draft.</div>
+            </div>
+          </div>
+          <div class="hero-art">
+            <img src="../client/public/generated-graphics/grant-abstract-1.png" alt="Illustration of a nonprofit professional reviewing grant materials" />
+          </div>
+        </div>
+      </section>
+
+      <section class="section white" id="workflow">
+        <div class="shell">
+          <div class="section-head">
+            <div class="kicker">Workflow</div>
+            <h2>Move from source material to stronger first draft</h2>
+            <p class="section-intro">
+              Granted is built around the work grant teams already do: collecting evidence, answering funder questions, reviewing language, and preparing clean exports.
+            </p>
+          </div>
+          <div class="workflow">
+            <article class="workflow-step">
+              <img src="../client/public/generated-graphics/onboarding-upload.svg" alt="" />
+              <div class="step-label">Step 1</div>
+              <h3>Upload your source materials</h3>
+              <p>Add mission statements, prior proposals, budgets, bios, impact reports, and program notes.</p>
+            </article>
+            <article class="workflow-step">
+              <img src="../client/public/generated-graphics/onboarding-questions.svg" alt="" />
+              <div class="step-label">Step 2</div>
+              <h3>Add grant questions</h3>
+              <p>Paste questions or upload an application so Granted can map each response to the funder’s ask.</p>
+            </article>
+            <article class="workflow-step">
+              <img src="../client/public/generated-graphics/onboarding-drafts.svg" alt="" />
+              <div class="step-label">Step 3</div>
+              <h3>Generate a draft</h3>
+              <p>Produce tailored answers using your stored context, with less blank-page writing and rework.</p>
+            </article>
+            <article class="workflow-step">
+              <img src="../client/public/generated-graphics/onboarding-impact.svg" alt="" />
+              <div class="step-label">Step 4</div>
+              <h3>Review and export</h3>
+              <p>Revise, select the current version, and export a clean application draft for final submission review.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="features">
+        <div class="shell feature-band">
+          <div class="feature-art">
+            <img src="../client/public/generated-graphics/grant-abstract-3.png" alt="Illustration of organized grant documents and extracted source material" />
+          </div>
+          <div>
+            <div class="kicker">Why it works</div>
+            <h2>Less generic AI. More usable grant material.</h2>
+            <div class="feature-list">
+              <article class="feature">
+                <h3>Organization memory</h3>
+                <p>Granted keeps your mission, programs, budgets, staff experience, and past proposal language available across applications.</p>
+              </article>
+              <article class="feature">
+                <h3>Source-grounded drafting</h3>
+                <p>Drafts are based on the material you provide, so claims and details are easier for your team to verify.</p>
+              </article>
+              <article class="feature">
+                <h3>Versioned review</h3>
+                <p>Keep iterations organized as your team edits language, updates metrics, and selects the final response.</p>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section white" id="trust">
+        <div class="shell">
+          <div class="section-head">
+            <div class="kicker">Trust</div>
+            <h2>Built for teams that cannot afford generic grant drafts</h2>
+            <p class="section-intro">
+              Small development teams need speed, but they also need accuracy, privacy, and a clear review path. The copy should sell that discipline directly.
+            </p>
+          </div>
+          <div class="trust-grid">
+            <article class="trust">
+              <div class="trust-mark">1</div>
+              <h3>Private by default</h3>
+              <p>Your uploaded content is used to help your organization draft. It should not feel like a public prompt box.</p>
+            </article>
+            <article class="trust">
+              <div class="trust-mark">2</div>
+              <h3>Review remains yours</h3>
+              <p>Granted accelerates the first draft. Your team still owns strategy, factual accuracy, and final submission decisions.</p>
+            </article>
+            <article class="trust">
+              <div class="trust-mark">3</div>
+              <h3>Impact stays visible</h3>
+              <p>Program details, metrics, and reporting needs stay connected to the grant work instead of scattered across files.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="cta">
+        <div class="shell cta-inner">
+          <div>
+            <div class="kicker">Ready when the next grant opens</div>
+            <h2>Build your organization memory once. Use it across every draft.</h2>
+            <p class="section-intro">
+              Start with your existing materials and turn the next application into a focused review process instead of a blank-page scramble.
+            </p>
+          </div>
+          <a class="button primary" href="#">Start a draft</a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

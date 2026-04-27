@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
 
 interface HeroSectionProps {
   onClickSeeHow: () => void;
@@ -7,38 +7,69 @@ interface HeroSectionProps {
 }
 
 export function HeroSection({ onClickSeeHow, onNavigateToAuth }: HeroSectionProps) {
+  const highlights = [
+    {
+      title: "Reusable memory",
+      description: "Stop rebuilding the same organization context for every application.",
+    },
+    {
+      title: "Funder alignment",
+      description: "Draft against the questions, priorities, and language in each opportunity.",
+    },
+    {
+      title: "Review-ready output",
+      description: "Keep versions organized before exporting a polished draft.",
+    },
+  ];
+
   return (
-    <section className="py-20 bg-white">
-      <div className="max-w-6xl mx-auto px-6 flex flex-col-reverse lg:flex-row items-center gap-12">
+    <section className="bg-white py-20 md:py-24">
+      <div className="max-w-6xl mx-auto px-6 flex flex-col-reverse lg:flex-row items-center gap-12 lg:gap-16">
         <div className="w-full lg:w-1/2">
-          <h1 className="text-5xl font-extrabold leading-tight tracking-tight">
+          <div className="text-sm font-semibold uppercase tracking-widest text-slate-500">
+            AI grant drafting workspace
+          </div>
+          <h1 className="mt-4 text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
             <span className="bg-gradient-to-r from-[var(--brand-a)] via-[var(--brand-b)] to-[var(--brand-c)] bg-clip-text text-transparent">
-              Granted — Your Grant Team in a Browser
+              Turn your organization's story into stronger grant drafts
             </span>
           </h1>
-          <p className="mt-5 text-slate-600 text-lg">
-            AI-powered grant writing that learns your story, finds funding, and delivers ready-to-submit applications — from start to finish — with minimal effort from you.
+          <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">
+            Upload past proposals, budgets, impact reports, and program materials. Granted uses that
+            context to draft funder-aligned responses your team can review, revise, and export.
           </p>
-          <ul className="mt-6 space-y-2 text-slate-700">
-            <li>• Upload docs; we build your context</li>
-            <li>• Generate tailored answers with AI</li>
-            <li>• Track drafts, versions, and deadlines</li>
-          </ul>
-          <div className="mt-6 flex gap-3">
+          <div className="mt-6 flex flex-wrap gap-3">
             <Button onClick={onNavigateToAuth}>
-              Try Granted Free <ArrowRight className="ml-2 h-4 w-4" />
+              Start a Draft <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
             <Button variant="outline" onClick={onClickSeeHow}>
-              See How It Works
+              See the Workflow
             </Button>
+          </div>
+          <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {highlights.map((highlight) => (
+              <div
+                key={highlight.title}
+                className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+              >
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                  <CheckCircle2 className="h-4 w-4 text-[var(--brand-a)]" />
+                  {highlight.title}
+                </div>
+                <p className="mt-2 text-sm leading-5 text-slate-600">{highlight.description}</p>
+              </div>
+            ))}
           </div>
         </div>
         <div className="w-full lg:w-1/2">
-          <img 
-            src={"/u3552739745_Friendly_illustration_of_a_nonprofit_professional_32e0e39f-7aab-471c-809d-4b1abfd8b0c0_0.png"} 
-            alt="Nonprofit professional working" 
-            className="w-full h-auto" 
-          />
+          <div className="relative">
+            <div className="absolute inset-6 rounded-3xl bg-gradient-to-br from-[var(--brand-a)]/10 via-[var(--brand-b)]/10 to-[var(--brand-c)]/20 blur-2xl" />
+            <img
+              src="/generated-graphics/grant-abstract-1.png"
+              alt="Illustration of a nonprofit professional reviewing grant materials"
+              className="relative w-full rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
+            />
+          </div>
         </div>
       </div>
     </section>

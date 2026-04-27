@@ -7,6 +7,14 @@ export function FAQSection() {
       answer: "We build a private, per-organization knowledge base to tailor responses. Your content is not shared or used for public model training.",
     },
     {
+      question: "Will the draft sound like our organization?",
+      answer: "Granted uses your uploaded materials to preserve your language, programs, priorities, and evidence instead of starting from a generic prompt.",
+    },
+    {
+      question: "Is this a replacement for a grant writer?",
+      answer: "No. Granted helps produce stronger first drafts and organize review. Your team still owns strategy, accuracy, and final submission.",
+    },
+    {
       question: "Can we keep multiple draft versions?",
       answer: "Yes—versioning is built in. Mark a version as current any time and export when ready.",
     },

@@ -329,6 +329,10 @@ Verify Supabase auth is working:
 SUPABASE_TEST_ACCESS_TOKEN=<your-jwt> npm run test:auth
 ```
 
+Prerequisites:
+- The app server is running, or `AUTH_SMOKE_BASE_URL` points at a reachable deployment.
+- `SUPABASE_TEST_ACCESS_TOKEN` is a valid Supabase user access token for the same project configured by `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
+
 This confirms that:
 - Anonymous requests are properly rejected
 - Valid Supabase JWTs can access protected endpoints

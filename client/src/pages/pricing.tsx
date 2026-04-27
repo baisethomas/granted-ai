@@ -1,189 +1,242 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import MarketingHeader from "@/components/layout/marketing-header";
 import { getAuthUrl } from "@/lib/domains";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
+
+const plans = [
+  {
+    name: "Starter",
+    eyebrow: "For early grant work",
+    price: "Free",
+    period: "",
+    description: "Start organizing source material and drafting smaller applications.",
+    cta: "Start Free",
+    href: getAuthUrl(),
+    highlighted: false,
+    features: [
+      "5 projects per month",
+      "20 document uploads",
+      "Basic draft generation",
+      "Export-ready review flow",
+    ],
+  },
+  {
+    name: "Pro",
+    eyebrow: "Best for active writers",
+    price: "$29",
+    period: "/mo",
+    description: "For grant writers and consultants turning repeated context into stronger drafts.",
+    cta: "Try Pro",
+    href: getAuthUrl(),
+    highlighted: true,
+    features: [
+      "Unlimited projects",
+      "Unlimited document uploads",
+      "Organization memory across drafts",
+      "Version history and export tools",
+    ],
+  },
+  {
+    name: "Team",
+    eyebrow: "For growing teams",
+    price: "$49",
+    period: "/mo",
+    description: "Shared grant drafting for small development teams working from the same source material.",
+    cta: "Start Team",
+    href: getAuthUrl(),
+    highlighted: false,
+    features: [
+      "3 team seats included",
+      "Shared organization memory",
+      "Project-level draft workspace",
+      "Priority support",
+    ],
+  },
+  {
+    name: "Enterprise",
+    eyebrow: "For institutions",
+    price: "Custom",
+    period: "",
+    description: "For organizations with larger teams, procurement needs, or custom rollout requirements.",
+    cta: "Contact Sales",
+    href: "mailto:sales@granted.ai",
+    highlighted: false,
+    features: [
+      "Custom onboarding",
+      "Security and procurement review",
+      "Dedicated support path",
+      "Roadmap and integration planning",
+    ],
+  },
+];
+
+const included = [
+  "Private organization knowledge base",
+  "Document-grounded draft generation",
+  "Editable response versions",
+  "Clean export workflow",
+];
+
+const faqs = [
+  {
+    question: "Can we start before we know which plan we need?",
+    answer: "Yes. Start with the free plan, upload a small set of source materials, and test the drafting workflow before upgrading.",
+  },
+  {
+    question: "Do plans replace our final grant review process?",
+    answer: "No. Granted speeds up drafting and organization, but your team still owns final strategy, facts, and submission decisions.",
+  },
+  {
+    question: "What happens as our document library grows?",
+    answer: "Paid plans are designed around reusing organization context across more projects, uploads, and repeated grant workflows.",
+  },
+];
 
 export default function Pricing() {
   return (
-    <div
-      className="min-h-screen"
-      style={{ background: "linear-gradient(105deg, #f9fafb 0%, #eef2f7 80%, #f6ede7 100%)" }}
-    >
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <MarketingHeader />
-      <section className="py-16">
-        <div className="max-w-6xl mx-auto px-6 text-center">
-          <span className="inline-block mb-4 rounded-lg border border-white/10 px-3 py-1">
-            <span className="uppercase tracking-widest text-xs font-bold text-blue-500">Pricing</span>
-          </span>
-          <h1 className="mb-4 text-gray-900 font-normal leading-tight tracking-tight text-4xl sm:text-5xl">
-            Find the <span className="bg-gradient-to-r from-[var(--brand-b)] to-[var(--brand-a)] bg-clip-text text-transparent">perfect plan</span> for you
+
+      <section className="bg-white py-16 md:py-20">
+        <div className="mx-auto max-w-6xl px-6 text-center">
+          <div className="text-sm font-semibold uppercase tracking-widest text-slate-500">
+            Pricing
+          </div>
+          <h1 className="mx-auto mt-4 max-w-4xl text-4xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-5xl">
+            Simple plans for turning source material into{" "}
+            <span className="bg-gradient-to-r from-[var(--brand-a)] via-[var(--brand-b)] to-[var(--brand-c)] bg-clip-text text-transparent">
+              stronger grant drafts
+            </span>
           </h1>
-          <h2 className="text-lg font-normal mb-6 text-gray-700">
-            Choose from flexible plans designed to accelerate your projects with powerful AI features.
-          </h2>
+          <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-slate-600">
+            Start small, then scale as your grant pipeline grows. Every plan keeps the focus
+            on reusable organization memory, reviewable drafts, and clean exports.
+          </p>
         </div>
       </section>
 
-      {/* App-specific four-plan layout */}
-      <section className="w-full px-6 pb-4 -mt-4">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
-          {/* Starter */}
-          <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 px-7 py-8 flex flex-col">
-            <span className="mb-2 uppercase text-xs tracking-wider font-semibold text-blue-500">Starter</span>
-            <div className="flex items-end mb-3">
-              <span className="text-5xl font-bold text-gray-900">Free</span>
-            </div>
-            <p className="mb-5 text-gray-600">Small teams starting their grant journey.</p>
-            <ul className="mb-7 space-y-2 text-sm">
-              <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> 5 projects / month</li>
-              <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> 20 uploads</li>
-              <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> Basic agentic writing</li>
-              <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> Community support</li>
-            </ul>
-            <a href={getAuthUrl()} className="mt-auto inline-block rounded-lg px-6 py-3 font-bold text-white bg-blue-500 hover:bg-blue-600 active:bg-blue-700 transition focus:outline-none focus:ring-4 focus:ring-blue-200 text-center shadow">Get Started</a>
-          </div>
+      <section className="px-6 pb-16">
+        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+          {plans.map((plan) => (
+            <Card
+              key={plan.name}
+              className={`relative flex h-full flex-col overflow-hidden bg-white transition hover:-translate-y-0.5 hover:shadow-lg ${
+                plan.highlighted
+                  ? "border-[var(--brand-a)] shadow-xl ring-4 ring-[var(--brand-a)]/10"
+                  : "border-slate-200 shadow-sm"
+              }`}
+            >
+              {plan.highlighted && (
+                <div className="absolute right-5 top-5 rounded-full bg-gradient-to-r from-[var(--brand-a)] to-[var(--brand-b)] px-3 py-1 text-xs font-semibold text-white">
+                  Most popular
+                </div>
+              )}
+              <CardContent className={`flex h-full flex-col p-6 ${plan.highlighted ? "pt-16" : ""}`}>
+                <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                  {plan.eyebrow}
+                </div>
+                <h2 className="mt-3 text-2xl font-bold text-slate-900">{plan.name}</h2>
+                <div className="mt-5 flex items-end gap-1">
+                  <span className="text-4xl font-extrabold tracking-tight text-slate-900">
+                    {plan.price}
+                  </span>
+                  {plan.period && (
+                    <span className="pb-1 text-sm font-medium text-slate-500">{plan.period}</span>
+                  )}
+                </div>
+                <p className="mt-4 min-h-20 text-sm leading-6 text-slate-600">
+                  {plan.description}
+                </p>
+                <ul className="mt-6 space-y-3 text-sm text-slate-700">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex gap-2">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand-a)]" />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <a href={plan.href} className="mt-8 block">
+                  <Button
+                    className="w-full"
+                    variant={plan.highlighted ? "default" : "outline"}
+                  >
+                    {plan.cta}
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </a>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
 
-          {/* Pro */}
-          <div className="relative bg-white/95 rounded-2xl shadow-2xl border-2 border-purple-300 px-7 py-10 flex flex-col md:scale-105">
-            <span className="absolute -top-5 left-1/2 -translate-x-1/2 px-4 py-1 bg-purple-500 text-white text-xs rounded-full font-semibold shadow">Most Popular</span>
-            <span className="mb-2 uppercase text-xs tracking-wider font-semibold text-purple-600">Pro</span>
-            <div className="flex items-end mb-3">
-              <span className="text-5xl font-bold text-gray-900">$29</span>
-              <span className="ml-1 text-base text-gray-500 font-medium">/mo or $290/yr</span>
+      <section className="border-y border-slate-200/80 bg-white py-14">
+        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+          <div>
+            <div className="text-sm font-semibold uppercase tracking-widest text-slate-500">
+              Included
             </div>
-            <p className="mb-5 text-gray-700">Grant writers who want full power.</p>
-            <ul className="mb-7 space-y-2 text-sm">
-              <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> Unlimited projects & uploads</li>
-              <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> Full agentic assistant</li>
-              <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> Rubric scoring & Fundability Gauge</li>
-              <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> Email support</li>
-            </ul>
-            <a href={getAuthUrl()} className="mt-auto inline-block rounded-lg px-6 py-3 font-bold text-white bg-purple-600 hover:bg-purple-700 active:bg-purple-800 transition focus:outline-none focus:ring-4 focus:ring-purple-200 text-center shadow-lg">Try Pro</a>
+            <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900">
+              Pricing should be easy to evaluate.
+            </h2>
+            <p className="mt-4 text-lg leading-8 text-slate-600">
+              The plan choice should come down to volume and team needs, not whether you get
+              the core drafting workflow.
+            </p>
           </div>
-
-          {/* Team */}
-          <div className="bg-white/95 rounded-2xl shadow-lg border border-indigo-200 px-7 py-8 flex flex-col">
-            <span className="mb-2 uppercase text-xs tracking-wider font-semibold text-indigo-600">Team</span>
-            <div className="flex items-end mb-3">
-              <span className="text-5xl font-bold text-gray-900">$49</span>
-              <span className="ml-1 text-base text-gray-500 font-medium">/mo (3 users) or $490/yr</span>
-            </div>
-            <p className="mb-5 text-gray-700">Collaboration tools for small to mid-size teams.</p>
-            <ul className="mb-7 space-y-2 text-sm">
-              <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> All Pro features</li>
-              <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> Shared org memory</li>
-              <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> Collaboration tools, roles & permissions</li>
-              <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> Priority support</li>
-            </ul>
-            <a href={getAuthUrl()} className="mt-auto inline-block rounded-lg px-6 py-3 font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 transition focus:outline-none focus:ring-4 focus:ring-indigo-200 text-center shadow">Start Team</a>
-          </div>
-
-          {/* Enterprise */}
-          <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 px-7 py-8 flex flex-col">
-            <span className="mb-2 uppercase text-xs tracking-wider font-semibold text-orange-600">Enterprise</span>
-            <div className="flex items-end mb-3">
-              <span className="text-2xl font-semibold text-gray-900">Custom Quote</span>
-            </div>
-            <p className="mb-5 text-gray-600">Advanced needs for large institutions.</p>
-            <ul className="mb-7 space-y-2 text-sm">
-              <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> All Team features</li>
-              <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> API access & SSO</li>
-              <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> Compliance add-ons</li>
-              <li className="flex items-center"><IconCheck className="text-green-500 mr-2" /> Dedicated onboarding & support</li>
-            </ul>
-            <a href="#" onClick={(e) => { e.preventDefault(); alert("Sales contact coming soon"); }} className="mt-auto inline-block rounded-lg px-6 py-3 font-bold text-white bg-orange-500 hover:bg-orange-600 active:bg-orange-700 transition focus:outline-none focus:ring-4 focus:ring-orange-200 text-center shadow">Contact Sales</a>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {included.map((item) => (
+              <div key={item} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center gap-3 font-semibold text-slate-900">
+                  <CheckCircle2 className="h-5 w-5 text-[var(--brand-a)]" />
+                  {item}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Tier details */}
-      <section className="py-12">
-        <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <DetailCard
-            title="Starter — $0/month"
-            bullets={[
-              "5 projects per month",
-              "20 document uploads",
-              "Basic agentic grant writing (limited usage)",
-              "Community-based support",
-            ]}
-            intro="Perfect for small teams just beginning their grant journey."
-          />
-          <DetailCard
-            title="Pro — $29/month (or $290/year)"
-            bullets={[
-              "Unlimited projects & uploads",
-              "Full agentic assistant with minimal clarifications",
-              "Rubric scoring tools & Fundability Gauge",
-              "Email support",
-            ]}
-            intro="Full power for dedicated grant writers and consultants. Includes everything in Starter, plus:"
-          />
-          <DetailCard
-            title="Team — $49/month for 3 users (or $490/year)"
-            bullets={[
-              "Shared organizational memory database",
-              "Multi-user roles and permissions",
-              "Inline commenting & version history",
-              "Priority support",
-            ]}
-            intro="Collaboration tools for growing teams. Includes everything in Pro, plus:"
-          />
-          <DetailCard
-            title="Enterprise — Custom Pricing"
-            bullets={[
-              "API access for integrations",
-              "Single Sign-On (SSO)",
-              "SOC 2 & security add-ons",
-              "Dedicated onboarding specialist",
-              "SLA-backed priority support",
-            ]}
-            intro="Enterprise-grade features for institutions, universities, and multi-department organizations. Includes everything in Team, plus:"
-          />
-        </div>
-      </section>
-
-      {/* Add-ons */}
-      <section className="py-12 bg-[var(--accent)]/40">
-        <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>AI Credit Packs</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-slate-700">10k tokens / 100 queries for $10</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Overage</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-slate-700">$0.10 per 1k tokens beyond plan limits</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Volume Discounts</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-slate-700">For high-usage organizations</p>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      {/* CTA */}
       <section className="py-16">
-        <div className="max-w-6xl mx-auto px-6 text-center">
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="mx-auto max-w-3xl text-center">
+            <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">
+              Common pricing questions
+            </h2>
+          </div>
+          <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-3">
+            {faqs.map((faq) => (
+              <Card key={faq.question} className="border-slate-200 bg-white shadow-sm">
+                <CardContent className="p-6">
+                  <h3 className="font-semibold text-slate-900">{faq.question}</h3>
+                  <p className="mt-3 leading-7 text-slate-600">{faq.answer}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white py-16">
+        <div className="mx-auto max-w-6xl px-6 text-center">
           <h2 className="text-3xl font-extrabold tracking-tight">
-            <span className="bg-gradient-to-r from-[var(--brand-a)] via-[var(--brand-b)] to-[var(--brand-c)] bg-clip-text text-transparent">Ready to write less and win more?</span>
+            <span className="bg-gradient-to-r from-[var(--brand-a)] via-[var(--brand-b)] to-[var(--brand-c)] bg-clip-text text-transparent">
+              Build your organization memory once. Use it across every draft.
+            </span>
           </h2>
-          <p className="text-slate-600 mt-3 text-lg">Start free today — upgrade only when you’re ready for more power.</p>
-          <div className="mt-6 flex items-center justify-center gap-3">
-            <a href={getAuthUrl()}><Button>Get Started Free</Button></a>
-            <a href="#" onClick={(e) => { e.preventDefault(); alert("Demo booking coming soon"); }}>
-              <Button variant="outline">Book a Demo</Button>
+          <p className="mx-auto mt-3 max-w-2xl text-lg leading-8 text-slate-600">
+            Start free today, then upgrade when your grant workload needs more projects,
+            uploads, or team capacity.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <a href={getAuthUrl()}>
+              <Button>
+                Start Free <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </a>
+            <a href="mailto:sales@granted.ai">
+              <Button variant="outline">Contact Sales</Button>
             </a>
           </div>
         </div>
@@ -191,60 +244,3 @@ export default function Pricing() {
     </div>
   );
 }
-
-function PlanCard({ name, price, tagline, features, ctaLabel, highlight }: {
-  name: string;
-  price: string;
-  tagline: string;
-  features: string[];
-  ctaLabel: string;
-  highlight?: boolean;
-}) {
-  return (
-    <Card className={`${highlight ? "border-[var(--brand-a)] shadow-md" : ""}`}>
-      <CardHeader>
-        <CardTitle className="text-xl">{name}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="text-2xl font-extrabold">{price}</div>
-        <div className="text-slate-600 text-sm">{tagline}</div>
-        <ul className="text-sm text-slate-700 space-y-1 list-disc pl-5">
-          {features.map((f) => (
-            <li key={f}>{f}</li>
-          ))}
-        </ul>
-        <a href={getAuthUrl()}>
-          <Button className={`${highlight ? "bg-[var(--brand-a)] hover:bg-[color-mix(in_srgb,var(--brand-a) 85%,black)]" : ""} w-full`}>{ctaLabel}</Button>
-        </a>
-      </CardContent>
-    </Card>
-  );
-}
-
-function DetailCard({ title, intro, bullets }: { title: string; intro: string; bullets: string[] }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-slate-700">{intro}</p>
-        <ul className="mt-3 text-slate-700 space-y-1 list-disc pl-5">
-          {bullets.map((b) => (
-            <li key={b}>{b}</li>
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
-  );
-}
-
-function IconCheck({ className = "" }: { className?: string }) {
-  return (
-    <svg className={`h-5 w-5 ${className}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-    </svg>
-  );
-}
-
-

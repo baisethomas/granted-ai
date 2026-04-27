@@ -16,7 +16,6 @@ import { OnboardingDialog } from "@/components/onboarding-dialog";
 
 // Import landing page components
 import { HeroSection } from "@/components/landing/hero-section";
-import { StatsSection } from "@/components/landing/stats-section";
 import { HowItWorksSection } from "@/components/landing/how-it-works";
 import { FeaturesSection } from "@/components/landing/features-section";
 import { TrustSection } from "@/components/landing/trust-section";
@@ -327,7 +326,6 @@ function LandingPage({ onClickSeeHow, onNavigateToAuth }: { onClickSeeHow: () =>
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <MarketingHeader />
       <HeroSection onClickSeeHow={onClickSeeHow} onNavigateToAuth={onNavigateToAuth} />
-      <StatsSection />
       <HowItWorksSection />
       <FeaturesSection />
       <TrustSection />
