@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import MarketingHeader from "@/components/layout/marketing-header";
+import { Footer } from "@/components/landing/footer";
 import { getAuthUrl } from "@/lib/domains";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 
@@ -241,6 +242,8 @@ export default function Pricing() {
           </div>
         </div>
       </section>
+
+      <Footer />
     </div>
   );
 }
