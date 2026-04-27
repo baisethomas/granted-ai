@@ -12,6 +12,7 @@ import { isMarketingDomain, getAuthUrl, APP_DOMAIN } from "@/lib/domains";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MainHeader } from "@/components/layout/main-header";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
+import { OnboardingDialog } from "@/components/onboarding-dialog";
 
 // Import landing page components
 import { HeroSection } from "@/components/landing/hero-section";
@@ -297,6 +298,7 @@ function AppLayoutWithTabs({
         open={isNewProjectDialogOpen}
         onOpenChange={setIsNewProjectDialogOpen}
       />
+      <OnboardingDialog onNavigate={onTabChange} />
     </div>
   );
 }
