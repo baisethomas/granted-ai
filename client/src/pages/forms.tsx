@@ -249,6 +249,7 @@ export default function Forms() {
           }
         }
       } catch (error) {
+        void error;
       }
 
       // Create questions and get their IDs (only create new questions)
