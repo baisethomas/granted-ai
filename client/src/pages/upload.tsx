@@ -231,10 +231,10 @@ export default function Upload() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       <Card className="shadow-sm border border-slate-200">
-        <CardContent className="p-6">
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Upload Documents</h2>
+        <CardContent className="p-4 md:p-6">
+          <h2 className="text-xl font-bold text-slate-900 mb-2 md:text-2xl">Upload Documents</h2>
           <p className="text-slate-600 mb-8">
             Add your organization documents to build context for AI-powered grant writing.
             These files help the AI understand your mission, capabilities, and past successes.
@@ -244,7 +244,7 @@ export default function Upload() {
           <FileUpload onUpload={handleUpload} />
 
           {/* Document Categories */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+          <div className="grid grid-cols-1 gap-3 mt-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
             {documentCategories.map((category) => {
               const Icon = category.icon;
               return (
@@ -265,9 +265,9 @@ export default function Upload() {
 
       {/* Uploaded Documents */}
       <Card className="shadow-sm border border-slate-200">
-        <CardHeader className="p-6 border-b border-slate-200">
-          <div className="flex items-center justify-between">
-            <div>
+        <CardHeader className="p-4 border-b border-slate-200 md:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <CardTitle className="text-lg font-semibold text-slate-900">
                 Uploaded Documents
               </CardTitle>
@@ -299,13 +299,13 @@ export default function Upload() {
           ) : (
             <div className="divide-y divide-slate-200">
               {documents.map((document) => (
-                <div key={document.id} className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                <div key={document.id} className="p-4 md:p-6 flex flex-col gap-4 hover:bg-slate-50 transition-colors lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex min-w-0 items-start gap-3 md:gap-4">
+                    <div className="w-10 h-10 bg-red-100 rounded-lg flex shrink-0 items-center justify-center">
                       <i className={getFileIcon(document.fileType)}></i>
                     </div>
-                    <div>
-                      <h4 className="font-medium text-slate-900">{document.originalName}</h4>
+                    <div className="min-w-0">
+                      <h4 className="truncate font-medium text-slate-900">{document.originalName}</h4>
                       <p className="text-sm text-slate-600">
                         {document.fileType.split('/')[1].toUpperCase()} • {formatFileSize(document.fileSize)} • Uploaded {formatDate(document.uploadedAt)}
                       </p>
@@ -326,7 +326,7 @@ export default function Upload() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center space-x-4">
+                  <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                     <Badge className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryColor(document.category)}`}>
                       {getCategoryLabel(document.category)}
                     </Badge>
@@ -357,7 +357,7 @@ export default function Upload() {
                         asChild
                         variant="outline"
                         size="sm"
-                        className="hidden md:flex items-center space-x-1"
+                        className="flex items-center space-x-1"
                       >
                         <a href={document.storageUrl} target="_blank" rel="noopener noreferrer">
                           <Download className="h-4 w-4 mr-1" />

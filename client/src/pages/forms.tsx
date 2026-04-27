@@ -502,10 +502,10 @@ export default function Forms() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       <Card className="shadow-sm border border-slate-200">
-        <CardContent className="p-6">
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Grant Form Input</h2>
+        <CardContent className="p-4 md:p-6">
+          <h2 className="text-xl font-bold text-slate-900 mb-2 md:text-2xl">Grant Form Input</h2>
           <p className="text-slate-600 mb-8">
             Enter or paste grant application questions and requirements. Our AI will generate 
             tailored responses based on your uploaded documents.
@@ -560,9 +560,9 @@ export default function Forms() {
           </div>
 
           {/* Form Input Methods */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 gap-4 mb-8 lg:grid-cols-2 lg:gap-6">
             <Card className="border-2 border-primary-200 bg-primary-50">
-              <CardContent className="p-6">
+              <CardContent className="p-4 md:p-6">
                 <div className="flex items-center space-x-3 mb-4">
                   <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
                     <Keyboard className="text-white h-4 w-4" />
@@ -585,7 +585,7 @@ export default function Forms() {
             </Card>
 
             <Card className="border-2 border-slate-200">
-              <CardContent className="p-6">
+              <CardContent className="p-4 md:p-6">
                 <div className="flex items-center space-x-3 mb-4">
                   <div className="w-8 h-8 bg-slate-600 rounded-lg flex items-center justify-center">
                     <FileUp className="text-white h-4 w-4" />
@@ -674,7 +674,7 @@ export default function Forms() {
             {questions.map((question, index) => (
               <Card key={question.id} className="border border-slate-200">
                 <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between gap-3 mb-3">
                     <Label className="text-sm font-medium text-slate-700">
                       Question {index + 1}
                     </Label>
@@ -695,8 +695,8 @@ export default function Forms() {
                     onChange={(e) => updateQuestion(question.id, 'question', e.target.value)}
                     className="mb-3"
                   />
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-2">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                    <div className="flex items-center gap-2">
                       <Label htmlFor={`wordLimit-${question.id}`} className="text-sm text-slate-600">
                         Word Limit:
                       </Label>
@@ -706,10 +706,10 @@ export default function Forms() {
                         placeholder="500"
                         value={question.wordLimit || ""}
                         onChange={(e) => updateQuestion(question.id, 'wordLimit', parseInt(e.target.value) || null)}
-                        className="w-20"
+                        className="w-24"
                       />
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center gap-2">
                       <Label htmlFor={`priority-${question.id}`} className="text-sm text-slate-600">
                         Priority:
                       </Label>
@@ -800,18 +800,19 @@ export default function Forms() {
           </Card>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-end space-x-4 mt-8 pt-6 border-t border-slate-200">
+          <div className="flex flex-col-reverse gap-3 mt-8 pt-6 border-t border-slate-200 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
             <Button 
               variant="outline" 
               onClick={handleSaveDraft}
               disabled={saveProjectMutation.isPending}
+              className="w-full sm:w-auto"
             >
               {saveProjectMutation.isPending ? "Saving..." : "Save Draft"}
             </Button>
             <Button 
               onClick={handleGenerateResponses}
               disabled={generateResponsesMutation.isPending || saveProjectMutation.isPending}
-              className="bg-primary-600 hover:bg-primary-700"
+              className="w-full bg-primary-600 hover:bg-primary-700 sm:w-auto"
             >
               <Wand2 className="mr-2 h-4 w-4" />
               {generateResponsesMutation.isPending ? "Generating..." : "Generate Responses"}
@@ -833,15 +834,15 @@ export default function Forms() {
           
           <Card className="border-blue-200 bg-blue-50">
             <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
                   <h4 className="font-semibold text-blue-900 mb-1">Ready to Generate?</h4>
                   <p className="text-sm text-blue-700">
                     {clarificationQuestions.filter(q => q.isAnswered).length} of {clarificationQuestions.length} clarifications completed.
                     You can proceed with generation or continue answering questions.
                   </p>
                 </div>
-                <div className="flex space-x-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
                   <Button 
                     variant="outline"
                     onClick={() => setShowClarifications(false)}
@@ -876,7 +877,7 @@ export default function Forms() {
 
       {/* Upload Modal */}
       <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Upload Grant Application Form</DialogTitle>
           </DialogHeader>

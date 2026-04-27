@@ -51,14 +51,14 @@ export function ProjectCard({ project, onDelete, onEdit, onOpen }: ProjectCardPr
       onClick={clickable ? () => onOpen?.(project.id) : undefined}
     >
       <CardContent className="p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100">
               <i className="fas fa-file-alt text-blue-600"></i>
             </div>
-            <div>
-              <h4 className="font-medium text-slate-900">{project.title}</h4>
-              <p className="text-sm text-slate-600">
+            <div className="min-w-0">
+              <h4 className="truncate font-medium text-slate-900">{project.title}</h4>
+              <p className="truncate text-sm text-slate-600">
                 {project.funder}
                 {(() => {
                   const amount = formatCurrencyDisplay(project.amount);
@@ -68,7 +68,7 @@ export function ProjectCard({ project, onDelete, onEdit, onOpen }: ProjectCardPr
             </div>
           </div>
           <div
-            className="flex items-center space-x-4"
+            className="flex flex-wrap items-center gap-2 sm:gap-4"
             onClick={e => e.stopPropagation()}
           >
             <Badge 

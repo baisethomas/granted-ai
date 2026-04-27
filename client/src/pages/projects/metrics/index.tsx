@@ -205,8 +205,8 @@ export function MetricsTab({ projectId }: MetricsTabProps) {
       />
 
       {/* Outcome metrics header + actions */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-slate-600" />
             Outcome metrics
@@ -215,12 +215,12 @@ export function MetricsTab({ projectId }: MetricsTabProps) {
             Track commitments, outputs, and impact. Extract suggestions from the RFP or add your own.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setExtractOpen(true)}>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Button className="w-full sm:w-auto" variant="outline" onClick={() => setExtractOpen(true)}>
             <Sparkles className="h-4 w-4 mr-2" />
             Extract from file
           </Button>
-          <Button onClick={handleAdd}>
+          <Button className="w-full sm:w-auto" onClick={handleAdd}>
             <Plus className="h-4 w-4 mr-2" />
             Add metric
           </Button>
@@ -266,12 +266,12 @@ export function MetricsTab({ projectId }: MetricsTabProps) {
             <p className="text-sm text-slate-600 mt-1">
               Upload the grant application to auto-suggest metrics, or add one manually.
             </p>
-            <div className="flex justify-center gap-2 mt-4">
-              <Button variant="outline" onClick={() => setExtractOpen(true)}>
+            <div className="mt-4 flex flex-col justify-center gap-2 sm:flex-row">
+              <Button className="w-full sm:w-auto" variant="outline" onClick={() => setExtractOpen(true)}>
                 <Sparkles className="h-4 w-4 mr-2" />
                 Extract from file
               </Button>
-              <Button onClick={handleAdd}>
+              <Button className="w-full sm:w-auto" onClick={handleAdd}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add metric
               </Button>

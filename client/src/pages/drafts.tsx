@@ -692,12 +692,12 @@ export default function Drafts() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       <Card className="shadow-sm border border-slate-200">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900">Generated Draft Preview</h2>
+        <CardContent className="p-4 md:p-6">
+          <div className="flex flex-col gap-4 mb-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-xl font-bold text-slate-900 md:text-2xl">Generated Draft Preview</h2>
               <p className="text-slate-600 mt-1">
                 Review and edit your AI-generated grant responses
                 {hasUnsavedChanges && (
@@ -705,7 +705,7 @@ export default function Drafts() {
                 )}
               </p>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <Select 
                 value={selectedProject} 
                 onValueChange={(value) => {
@@ -722,7 +722,7 @@ export default function Drafts() {
                   setSelectedProject(value);
                 }}
               >
-                <SelectTrigger className="w-64">
+                <SelectTrigger className="w-full sm:w-64">
                   <SelectValue placeholder="Select a project" />
                 </SelectTrigger>
                 <SelectContent>
@@ -734,7 +734,7 @@ export default function Drafts() {
                 </SelectContent>
               </Select>
               {selectedProject && (
-                <div className="flex space-x-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <Button 
                     variant="outline"
                     onClick={() => {
@@ -771,9 +771,9 @@ export default function Drafts() {
             <>
               {/* Draft Header */}
               <Card className="bg-slate-50 mb-6">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3">
+                <CardContent className="p-4 md:p-6">
+                  <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                       <Badge className={getProjectStatusColor(selectedProjectData.status)}>
                         {getProjectStatusIcon(selectedProjectData.status)}
                         {getProjectStatusLabel(selectedProjectData.status)}
@@ -797,7 +797,7 @@ export default function Drafts() {
                       </Button>
                     )}
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <div>
                       <p className="text-sm font-medium text-slate-600">Project</p>
                       <p className="text-slate-900">{selectedProjectData.title}</p>
@@ -830,7 +830,7 @@ export default function Drafts() {
               </Card>
 
               {/* Progress Indicator */}
-              <div className="flex items-center space-x-4 mb-8">
+              <div className="flex flex-col gap-2 mb-8 sm:flex-row sm:items-center sm:gap-4">
                 <div className="flex-1 bg-slate-200 rounded-full h-2">
                   <div 
                     className="bg-primary-600 h-2 rounded-full transition-all duration-300" 
@@ -869,8 +869,8 @@ export default function Drafts() {
                   
                   return (
                   <Card key={question.id} className="border border-slate-200">
-                    <CardHeader className="p-6 border-b border-slate-200 bg-slate-50">
-                      <div className="flex items-start justify-between">
+                    <CardHeader className="p-4 border-b border-slate-200 bg-slate-50 md:p-6">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="flex-1">
                           <CardTitle className="font-semibold text-slate-900 mb-2">
                             Question {index + 1}
@@ -882,7 +882,7 @@ export default function Drafts() {
                             )}
                           </p>
                         </div>
-                        <div className="ml-4 flex items-center space-x-2">
+                        <div className="flex flex-wrap items-center gap-2 sm:ml-4">
                           <Badge className={getStatusColor(normalizedQuestion.responseStatus)}>
                             {getStatusIcon(normalizedQuestion.responseStatus)}
                             {getStatusLabel(normalizedQuestion.responseStatus)}
@@ -896,14 +896,14 @@ export default function Drafts() {
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="p-6">
+                    <CardContent className="p-4 md:p-6">
                       {normalizedQuestion.response && 
                        (normalizedQuestion.responseStatus === "complete" || 
                         normalizedQuestion.responseStatus === "edited" || 
                         normalizedQuestion.responseStatus === "needs_context") ? (
                         <>
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center space-x-4">
+                          <div className="flex flex-col gap-3 mb-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
                               <span className="text-sm text-slate-600">
                                 {normalizedQuestion.responseStatus === "edited" ? "Edited Response" : "Generated Response"}
                               </span>
@@ -928,7 +928,7 @@ export default function Drafts() {
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center space-x-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               {editingQuestionId === normalizedQuestion.id ? (
                                 <>
                                   <Button 
@@ -995,8 +995,8 @@ export default function Drafts() {
                                   className="min-h-[200px] w-full font-normal text-sm leading-relaxed resize-none"
                                   placeholder="Enter your response here..."
                                 />
-                                <div className="flex items-center justify-between text-xs text-slate-500">
-                                  <div className="flex items-center space-x-4">
+                                <div className="flex flex-col gap-2 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+                                  <div className="flex flex-wrap items-center gap-2 sm:gap-4">
                                     <span>Auto-save enabled</span>
                                     <span className="text-slate-400">•</span>
                                     <span>Ctrl+S to save, Esc to cancel</span>
@@ -1010,7 +1010,7 @@ export default function Drafts() {
                                       </>
                                     )}
                                   </div>
-                                  <div className="flex items-center space-x-2">
+                                  <div className="flex items-center gap-2">
                                     {normalizedQuestion.wordLimit && (
                                       <span className={wordCount > normalizedQuestion.wordLimit ? "text-red-600" : "text-green-600"}>
                                         {wordCount}/{normalizedQuestion.wordLimit} words

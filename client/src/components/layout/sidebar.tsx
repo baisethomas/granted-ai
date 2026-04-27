@@ -18,7 +18,7 @@ interface SidebarProps {
   onTabChange: (tab: string) => void;
 }
 
-const mainNavItems = [
+export const mainNavItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "upload", label: "Upload", icon: CloudUpload },
   { id: "forms", label: "Grant Forms", icon: FileText },
@@ -140,4 +140,3 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     </aside>
   );
 }
-

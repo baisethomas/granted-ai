@@ -11,6 +11,7 @@ import { Login } from "@/components/Login";
 import { isMarketingDomain, getAuthUrl, APP_DOMAIN } from "@/lib/domains";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MainHeader } from "@/components/layout/main-header";
+import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 
 // Import landing page components
 import { HeroSection } from "@/components/landing/hero-section";
@@ -195,7 +196,7 @@ function AppContent() {
       <TooltipProvider>
         <ErrorBoundary>
           <LogoutProvider>
-            <div className="h-screen overflow-hidden">
+            <div className="min-h-dvh overflow-x-hidden bg-gray-50 md:h-screen md:overflow-hidden">
               <AppLayoutWithTabs
                 activeTab={activeTab}
                 onTabChange={handleTabChange}
@@ -238,6 +239,8 @@ function AppLayoutWithTabs({
         return "Drafts";
       case "settings":
         return "Settings";
+      case "metrics":
+        return "Metrics";
       default:
         return "Dashboard";
     }
@@ -255,15 +258,19 @@ function AppLayoutWithTabs({
         return "Review and edit your draft responses";
       case "settings":
         return "Manage your account and preferences";
+      case "metrics":
+        return "Track reporting metrics across your grants";
       default:
         return "Welcome to your new project";
     }
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex min-h-dvh bg-gray-50 md:h-screen">
       {/* Sidebar */}
-      <Sidebar activeTab={activeTab} onTabChange={onTabChange} />
+      <div className="hidden md:block">
+        <Sidebar activeTab={activeTab} onTabChange={onTabChange} />
+      </div>
       
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -278,10 +285,12 @@ function AppLayoutWithTabs({
         />
         
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto px-4 py-4 pb-24 md:p-6">
           {children}
         </main>
       </div>
+
+      <MobileBottomNav activeTab={activeTab} onTabChange={onTabChange} />
 
       {/* New Project Dialog - Available from header button */}
       <NewProjectDialog

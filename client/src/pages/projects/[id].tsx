@@ -56,15 +56,15 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
   const deadline = project.deadline ? new Date(project.deadline) : null;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+    <div className="space-y-5 md:space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <Button variant="ghost" size="sm" className="-ml-2 mb-2" onClick={onBack}>
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back
           </Button>
           <div className="flex items-center gap-3 flex-wrap">
-            <h2 className="text-2xl font-bold text-slate-900">{project.title}</h2>
+            <h2 className="text-xl font-bold text-slate-900 md:text-2xl">{project.title}</h2>
             <Badge className={statusColors[project.status] ?? statusColors.draft}>
               {project.status}
             </Badge>
@@ -81,23 +81,25 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
               : ""}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+        <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setEditOpen(true)}>
           <Pencil className="h-4 w-4 mr-2" />
           Edit project
         </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <TabsList className="min-w-max">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="metrics">Metrics</TabsTrigger>
           <TabsTrigger value="questions">Questions</TabsTrigger>
           <TabsTrigger value="drafts">Drafts</TabsTrigger>
         </TabsList>
+        </div>
 
         <TabsContent value="overview" className="mt-4">
           <Card>
-            <CardContent className="p-6 space-y-3">
+            <CardContent className="p-4 space-y-3 md:p-6">
               <div>
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
                   Description
@@ -106,7 +108,7 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
                   {project.description || "No description provided."}
                 </p>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2 border-t border-slate-100">
+              <div className="grid grid-cols-1 gap-4 pt-2 border-t border-slate-100 sm:grid-cols-2 lg:grid-cols-4">
                 <Field
                   label="Funder"
                   value={project.funder}

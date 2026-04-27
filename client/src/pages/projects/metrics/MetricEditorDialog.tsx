@@ -163,7 +163,7 @@ export function MetricEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{mode === "edit" ? "Edit metric" : "Add metric"}</DialogTitle>
           <DialogDescription>
@@ -205,7 +205,7 @@ export function MetricEditorDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label>Type</Label>
               <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v as MetricType }))}>
@@ -237,7 +237,7 @@ export function MetricEditorDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="grid gap-2">
               <Label htmlFor="metric-value">Current value</Label>
               <Input

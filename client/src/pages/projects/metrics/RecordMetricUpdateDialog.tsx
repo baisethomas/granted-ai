@@ -84,7 +84,7 @@ export function RecordMetricUpdateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Record update</DialogTitle>
           <DialogDescription>
@@ -119,7 +119,7 @@ export function RecordMetricUpdateDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="metric-period-start">Period start</Label>
               <Input

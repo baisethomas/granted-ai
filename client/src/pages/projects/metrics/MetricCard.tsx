@@ -117,10 +117,10 @@ export function MetricCard({
           </DropdownMenu>
         </div>
 
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-semibold text-slate-900">{valueLabel}</span>
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+          <span className="min-w-0 break-words text-2xl font-semibold text-slate-900">{valueLabel}</span>
           {targetLabel && (
-            <span className="text-xs text-slate-500">of {targetLabel}</span>
+            <span className="break-words text-xs text-slate-500">of {targetLabel}</span>
           )}
         </div>
 
@@ -141,7 +141,7 @@ export function MetricCard({
         )}
 
         {!isSuggested && (
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             {onRecordUpdate && (
               <Button size="sm" className="h-8" onClick={() => onRecordUpdate(metric)}>
                 <CalendarClock className="mr-1 h-3.5 w-3.5" />
@@ -163,7 +163,7 @@ export function MetricCard({
         )}
 
         {isSuggested && (
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             <Button
               size="sm"
               variant="default"
