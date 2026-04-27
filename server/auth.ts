@@ -131,7 +131,7 @@ export async function setupAuth(app: Express) {
   });
 
   app.post("/api/auth/login", authRateLimiter, (req: Request, res: Response, next: NextFunction) => {
-    passport.authenticate("local", (err, user, info) => {
+    passport.authenticate("local", (err: unknown, user: Express.User | false, info: { message?: string } | undefined) => {
       if (err) return next(err);
       if (!user) return res.status(401).json({ error: info?.message || "unauthorized" });
       req.login(user, (loginErr) => {
@@ -176,4 +176,3 @@ export async function setupAuth(app: Express) {
     res.json({ id: u.id, username: u.username, organizationName: u.organizationName, email: u.email, avatar: u.avatar });
   });
 }
-

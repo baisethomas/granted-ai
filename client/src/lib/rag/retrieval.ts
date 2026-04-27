@@ -1,5 +1,9 @@
 import EmbeddingService from './embeddings';
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export interface RetrievalQuery {
   text: string;
   questionTypes?: string[];
@@ -98,7 +102,7 @@ export class RetrievalService {
 
     } catch (error) {
       console.error('Error in retrieval:', error);
-      throw new Error(`Retrieval failed: ${error.message}`);
+      throw new Error(`Retrieval failed: ${getErrorMessage(error)}`);
     }
   }
 

@@ -42,6 +42,10 @@ export interface GrantMetric {
   updatedAt: string;
 }
 
+export type ProjectInput = Partial<Omit<Project, "deadline">> & {
+  deadline?: string | Date;
+};
+
 export interface GrantMetricEvent {
   id: string;
   metricId: string;
@@ -152,6 +156,7 @@ export interface Document {
   processedAt?: string | null;
   summaryExtractedAt?: string | null;
   embeddingGeneratedAt?: string | null;
+  embeddingStatus?: string | null;
   uploadedAt: Date;
 }
 
@@ -159,10 +164,14 @@ export interface GrantQuestion {
   id: string;
   projectId: string;
   question: string;
+  content?: string;
   wordLimit?: number;
   priority: string;
   response?: string;
   responseStatus: string;
+  status?: string;
+  errorMessage?: string;
+  warning?: string;
   createdAt: Date;
   citations?: Array<{
     documentName: string;
@@ -237,7 +246,7 @@ export const api = {
     return res.json();
   },
 
-  async createProject(data: Partial<Project>): Promise<Project> {
+  async createProject(data: ProjectInput): Promise<Project> {
     const res = await apiRequest("POST", "/api/projects", data);
     return res.json();
   },
@@ -247,7 +256,7 @@ export const api = {
     return res.json();
   },
 
-  async updateProject(id: string, data: Partial<Project>): Promise<Project> {
+  async updateProject(id: string, data: ProjectInput): Promise<Project> {
     const res = await apiRequest("PUT", `/api/projects/${id}`, data);
     return res.json();
   },

@@ -30,12 +30,14 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
 
-  const { data: projects = [], isLoading: projectsLoading } = useQuery({
+  const { data: projects = [], isLoading: projectsLoading } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
+    queryFn: api.getProjects,
   });
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["/api/stats"],
+    queryFn: api.getStats,
   });
 
   const deleteProjectMutation = useMutation({
@@ -64,7 +66,7 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
   };
 
   const handleEditProject = (projectId: string) => {
-    const project = projects.find((p: any) => p.id === projectId);
+    const project = projects.find((p) => p.id === projectId);
     if (project) {
       setEditingProject(project);
       setIsEditDialogOpen(true);
@@ -166,7 +168,7 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
             </div>
           ) : (
             <div className="space-y-4">
-              {projects.map((project: any) => (
+              {projects.map((project) => (
                 <ProjectCard 
                   key={project.id} 
                   project={project}
@@ -217,30 +219,33 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
           </CardHeader>
           <CardContent className="p-6">
             <div className="space-y-4">
-              {projects.filter((p: any) => p.deadline).length === 0 ? (
+              {projects.filter((p) => p.deadline).length === 0 ? (
                 <p className="text-slate-500 text-center py-8">No upcoming deadlines</p>
               ) : (
                 projects
-                  .filter((p: any) => p.deadline)
-                  .map((project: any) => (
-                    <div key={project.id} className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-slate-900">{project.title}</p>
-                        <p className="text-sm text-slate-600">{project.funder}</p>
+                  .filter((p) => p.deadline)
+                  .map((project) => {
+                    const deadline = project.deadline!;
+                    return (
+                      <div key={project.id} className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-slate-900">{project.title}</p>
+                          <p className="text-sm text-slate-600">{project.funder}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium text-orange-600">
+                            {new Date(deadline).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric"
+                            })}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} days left
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-orange-600">
-                          {new Date(project.deadline).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric"
-                          })}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {Math.ceil((new Date(project.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} days left
-                        </p>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
               )}
             </div>
           </CardContent>

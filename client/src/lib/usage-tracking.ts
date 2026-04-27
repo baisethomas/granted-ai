@@ -132,7 +132,7 @@ export class UsageTracker {
    * Calculate estimated cost for tokens
    */
   static calculateCost(provider: string, model: string, tokensInput: number, tokensOutput: number): number {
-    const pricing = {
+    const pricing: Record<string, Record<string, { input: number; output: number }>> = {
       openai: {
         'gpt-4': { input: 0.00003, output: 0.00006 }, // $0.03/$0.06 per 1K tokens
         'gpt-4o': { input: 0.00001, output: 0.00003 }, // $0.01/$0.03 per 1K tokens  
@@ -144,10 +144,10 @@ export class UsageTracker {
       }
     };
 
-    const providerPricing = pricing[provider as keyof typeof pricing];
+    const providerPricing = pricing[provider];
     if (!providerPricing) return 0;
 
-    const modelPricing = providerPricing[model as keyof typeof providerPricing];
+    const modelPricing = providerPricing[model];
     if (!modelPricing) return 0;
 
     return (tokensInput * modelPricing.input) + (tokensOutput * modelPricing.output);

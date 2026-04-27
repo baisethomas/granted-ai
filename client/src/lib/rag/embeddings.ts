@@ -2,6 +2,10 @@ import OpenAI from 'openai';
 import { createHash } from 'crypto';
 import { getAuthHeaders } from '../queryClient';
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
@@ -69,7 +73,7 @@ export class EmbeddingService {
       };
     } catch (error) {
       console.error('Error generating embedding:', error);
-      throw new Error(`Failed to generate embedding: ${error.message}`);
+      throw new Error(`Failed to generate embedding: ${getErrorMessage(error)}`);
     }
   }
 
@@ -158,6 +162,7 @@ export class EmbeddingService {
         }
       } catch (error) {
         console.error('Error in batch embedding generation:', error);
+        const message = getErrorMessage(error);
         
         // Add error results for failed items
         for (const item of uncachedItems) {
@@ -166,7 +171,7 @@ export class EmbeddingService {
             embedding: [],
             tokenCount: 0,
             cached: false,
-            error: error.message
+            error: message
           });
         }
       }

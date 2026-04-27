@@ -734,7 +734,7 @@ IMPORTANT: Provide your response as plain text without markdown formatting. Do n
   private getMockSummary(filename: string, content: string): string {
     const docType = this.getDocumentType(filename, content);
     
-    const mockSummaries = {
+    const mockSummaries: Record<string, string> = {
       organizationProfile: `Organization profile document containing mission statement, organizational structure, and key capabilities. The organization focuses on community development and has experience in program implementation with measurable outcomes.`,
       
       budget: `Budget document outlining project costs, personnel expenses, and resource allocation. Contains detailed financial projections and cost-effectiveness analysis for grant implementation.`,

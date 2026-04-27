@@ -141,7 +141,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId,
         database: {
           configured: hasDatabaseUrl,
-          url: hasDatabaseUrl ? `${process.env.DATABASE_URL.substring(0, 20)}...` : null,
+          url: hasDatabaseUrl ? `${process.env.DATABASE_URL!.substring(0, 20)}...` : null,
           type: hasDatabaseUrl ? "postgres" : "in-memory"
         },
         projects: {
@@ -911,7 +911,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: questionId,
         content: content,
         lastModified: new Date(),
-        status: updatedQuestion.responseStatus,
+        status: updatedQuestion?.responseStatus ?? question.responseStatus,
         wordCount: wordCount
       });
 

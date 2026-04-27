@@ -313,7 +313,7 @@ export class DocumentChunker {
     const relevantTypes: string[] = [];
     const lowerContent = content.toLowerCase();
     
-    const typeKeywords = {
+    const typeKeywords: Record<string, string[]> = {
       mission: ['mission', 'vision', 'purpose', 'goal', 'objective'],
       methodology: ['method', 'approach', 'process', 'procedure', 'technique', 'strategy'],
       budget: ['budget', 'cost', 'funding', 'financial', 'expense', 'revenue', '$'],

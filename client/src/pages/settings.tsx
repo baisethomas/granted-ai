@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
-import { api } from "@/lib/api";
+import { api, type UserSettings } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { 
@@ -28,8 +28,9 @@ export default function Settings() {
   const queryClient = useQueryClient();
   const handleLogout = useLogout();
 
-  const { data: settings, isLoading } = useQuery({
+  const { data: settings, isLoading } = useQuery<UserSettings>({
     queryKey: ["/api/settings"],
+    queryFn: api.getSettings,
   });
 
   const [organizationForm, setOrganizationForm] = useState({

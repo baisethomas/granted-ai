@@ -1184,7 +1184,7 @@ export default function Drafts() {
               </div>
 
               {/* Export Options */}
-              {completedQuestions.length > 0 && (
+              {completedQuestions.length > 0 && selectedProjectData && (
                 <div className="mt-8 pt-6 border-t border-slate-200">
                   <div className="flex items-center justify-between">
                     <div>

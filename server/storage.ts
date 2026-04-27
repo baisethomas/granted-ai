@@ -24,7 +24,7 @@ import {
 } from "../shared/schema.js";
 import { randomUUID } from "crypto";
 import { db, schema, sql as rawSql } from "./db.js";
-import { eq, and, asc, desc, inArray, ne } from "drizzle-orm";
+import { eq, and, asc, desc, inArray, ne, type SQL } from "drizzle-orm";
 import { parseAmountToNumber, formatCurrencyCompact } from "../shared/currency.js";
 
 function computeStatsFromProjects(projects: Project[]): {
@@ -1007,9 +1007,9 @@ export class DbStorage implements IStorage {
   }): Promise<DocumentProcessingJob[]> {
     if (!db) return [];
     const { jobType, status, limit = 10 } = options;
-    let whereClause = eq(schema.documentProcessingJobs.jobType, jobType);
+    let whereClause: SQL = eq(schema.documentProcessingJobs.jobType, jobType);
     if (status) {
-      whereClause = and(whereClause, eq(schema.documentProcessingJobs.status, status));
+      whereClause = and(whereClause, eq(schema.documentProcessingJobs.status, status)) ?? whereClause;
     }
     const rows = await db
       .select()
@@ -1077,9 +1077,9 @@ export class DbStorage implements IStorage {
 
   async getAssumptionLabels(projectId: string, draftId?: string): Promise<AssumptionLabel[]> {
     if (!db) return [];
-    let condition = eq(schema.assumptionLabels.projectId, projectId);
+    let condition: SQL = eq(schema.assumptionLabels.projectId, projectId);
     if (draftId) {
-      condition = and(condition, eq(schema.assumptionLabels.draftId, draftId));
+      condition = and(condition, eq(schema.assumptionLabels.draftId, draftId)) ?? condition;
     }
     const rows = await db
       .select()
@@ -1090,9 +1090,9 @@ export class DbStorage implements IStorage {
 
   async deleteAssumptionLabels(projectId: string, draftId?: string): Promise<void> {
     if (!db) return;
-    let condition = eq(schema.assumptionLabels.projectId, projectId);
+    let condition: SQL = eq(schema.assumptionLabels.projectId, projectId);
     if (draftId) {
-      condition = and(condition, eq(schema.assumptionLabels.draftId, draftId));
+      condition = and(condition, eq(schema.assumptionLabels.draftId, draftId)) ?? condition;
     }
     await db
       .delete(schema.assumptionLabels)

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import type { ExportData } from "@/lib/export";
 import { exportToClipboard, exportToPDF, exportToWord, validateExportData } from "@/lib/export";
 
 /**
@@ -11,12 +12,28 @@ export function useDraftExport() {
   const [exportingWord, setExportingWord] = useState<boolean>(false);
   const [exportingClipboard, setExportingClipboard] = useState<boolean>(false);
 
+  const createExportData = (projectTitle: string, questions: any[]): ExportData => ({
+    project: {
+      id: "",
+      title: projectTitle,
+      funder: "",
+      status: "draft",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    questions,
+    metadata: {
+      exportDate: new Date(),
+    },
+  });
+
   const handleExportToPDF = async (projectTitle: string, questions: any[]) => {
-    const validationError = validateExportData(questions);
-    if (validationError) {
+    const exportData = createExportData(projectTitle, questions);
+    const validation = validateExportData(exportData);
+    if (!validation.valid) {
       toast({
         title: "Cannot export",
-        description: validationError,
+        description: validation.errors.join(" "),
         variant: "destructive",
       });
       return;
@@ -24,7 +41,7 @@ export function useDraftExport() {
 
     try {
       setExportingPDF(true);
-      await exportToPDF(projectTitle, questions);
+      await exportToPDF(exportData);
       toast({
         title: "Export successful",
         description: "Your grant responses have been exported to PDF.",
@@ -42,11 +59,12 @@ export function useDraftExport() {
   };
 
   const handleExportToWord = async (projectTitle: string, questions: any[]) => {
-    const validationError = validateExportData(questions);
-    if (validationError) {
+    const exportData = createExportData(projectTitle, questions);
+    const validation = validateExportData(exportData);
+    if (!validation.valid) {
       toast({
         title: "Cannot export",
-        description: validationError,
+        description: validation.errors.join(" "),
         variant: "destructive",
       });
       return;
@@ -54,7 +72,7 @@ export function useDraftExport() {
 
     try {
       setExportingWord(true);
-      await exportToWord(projectTitle, questions);
+      await exportToWord(exportData);
       toast({
         title: "Export successful",
         description: "Your grant responses have been exported to Word.",
@@ -72,11 +90,12 @@ export function useDraftExport() {
   };
 
   const handleCopyToClipboard = async (projectTitle: string, questions: any[]) => {
-    const validationError = validateExportData(questions);
-    if (validationError) {
+    const exportData = createExportData(projectTitle, questions);
+    const validation = validateExportData(exportData);
+    if (!validation.valid) {
       toast({
         title: "Cannot copy",
-        description: validationError,
+        description: validation.errors.join(" "),
         variant: "destructive",
       });
       return;
@@ -84,7 +103,7 @@ export function useDraftExport() {
 
     try {
       setExportingClipboard(true);
-      await exportToClipboard(projectTitle, questions);
+      await exportToClipboard(exportData);
       toast({
         title: "Copied to clipboard",
         description: "Your grant responses have been copied to the clipboard.",

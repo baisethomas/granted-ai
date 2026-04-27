@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FileUpload } from "@/components/ui/file-upload";
-import { api } from "@/lib/api";
+import { api, type Document } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Building, 
@@ -139,8 +139,9 @@ export default function Upload() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: documents = [], isLoading, error } = useQuery({
+  const { data: documents = [], isLoading, error } = useQuery<Document[]>({
     queryKey: ["/api/documents"],
+    queryFn: api.getDocuments,
     meta: {
       onSuccess: (data: any) => {
       },
@@ -297,7 +298,7 @@ export default function Upload() {
             </div>
           ) : (
             <div className="divide-y divide-slate-200">
-              {documents.map((document: any) => (
+              {documents.map((document) => (
                 <div key={document.id} className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors">
                   <div className="flex items-center space-x-4">
                     <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">

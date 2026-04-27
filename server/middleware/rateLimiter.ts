@@ -1,6 +1,18 @@
 import rateLimit from "express-rate-limit";
 import type { Request, Response } from "express";
 
+type RateLimitedRequest = Request & {
+  rateLimit?: {
+    resetTime?: Date;
+  };
+};
+
+function getRetryAfter(req: Request, fallbackMs: number): number {
+  const resetTime = (req as RateLimitedRequest).rateLimit?.resetTime?.getTime();
+  const retryAt = resetTime ?? Date.now() + fallbackMs;
+  return Math.ceil((retryAt - Date.now()) / 1000);
+}
+
 /**
  * Rate limiting middleware to prevent API abuse
  * Configurable via environment variables:
@@ -18,7 +30,7 @@ export const apiRateLimiter = rateLimit({
   handler: (req: Request, res: Response) => {
     res.status(429).json({
       error: "Too many requests from this IP, please try again later.",
-      retryAfter: Math.ceil((req.rateLimit?.resetTime || Date.now() + 900000 - Date.now()) / 1000),
+      retryAfter: getRetryAfter(req, 900000),
     });
   },
 });
@@ -38,7 +50,7 @@ export const authRateLimiter = rateLimit({
   handler: (req: Request, res: Response) => {
     res.status(429).json({
       error: "Too many authentication attempts, please try again later.",
-      retryAfter: Math.ceil((req.rateLimit?.resetTime || Date.now() + 900000 - Date.now()) / 1000),
+      retryAfter: getRetryAfter(req, 900000),
     });
   },
 });
@@ -57,8 +69,7 @@ export const uploadRateLimiter = rateLimit({
   handler: (req: Request, res: Response) => {
     res.status(429).json({
       error: "Too many file uploads, please try again later.",
-      retryAfter: Math.ceil((req.rateLimit?.resetTime || Date.now() + 3600000 - Date.now()) / 1000),
+      retryAfter: getRetryAfter(req, 3600000),
     });
   },
 });
-
