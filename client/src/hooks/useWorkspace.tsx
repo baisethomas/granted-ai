@@ -40,6 +40,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const createMutation = useMutation({
     mutationFn: api.createOrganization,
     onSuccess: (organization) => {
+      queryClient.setQueryData<Organization[]>(["/api/organizations"], (current = []) => {
+        const exists = current.some((item) => item.id === organization.id);
+        return exists ? current : [...current, organization];
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
       setActiveOrganizationIdState(organization.id);
       window.localStorage.setItem(STORAGE_KEY, organization.id);
@@ -61,7 +65,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       value={{
         organizations,
         activeOrganization,
-        activeOrganizationId: activeOrganization?.id ?? null,
+        activeOrganizationId,
         isLoading,
         createOrganization: (input) => createMutation.mutateAsync(input),
         setActiveOrganizationId,
@@ -79,4 +83,3 @@ export function useWorkspace() {
   }
   return context;
 }
-

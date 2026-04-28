@@ -8,12 +8,18 @@ import {
   Video,
   HelpCircle,
   LogOut,
-  BarChart3
+  BarChart3,
+  Plus,
 } from "lucide-react";
+import { FormEvent, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLogout } from "@/hooks/useLogout";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface SidebarProps {
   activeTab: string;
@@ -38,6 +44,10 @@ const resourceNavItems = [
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   const { user } = useAuth();
   const handleLogout = useLogout();
+  const [isCreateWorkspaceOpen, setIsCreateWorkspaceOpen] = useState(false);
+  const [workspaceName, setWorkspaceName] = useState("");
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
   const {
     organizations,
     activeOrganizationId,
@@ -56,6 +66,27 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     return user?.email || "";
   };
 
+  const handleCreateWorkspace = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = workspaceName.trim();
+    if (!name) {
+      setWorkspaceError("Enter a client organization name.");
+      return;
+    }
+
+    try {
+      setIsCreatingWorkspace(true);
+      setWorkspaceError(null);
+      await createOrganization({ name });
+      setWorkspaceName("");
+      setIsCreateWorkspaceOpen(false);
+    } catch (error: any) {
+      setWorkspaceError(error?.message || "Could not create workspace.");
+    } finally {
+      setIsCreatingWorkspace(false);
+    }
+  };
+
   return (
     <aside className="w-64 bg-white border-r border-gray-100 flex flex-col h-screen">
       {/* Logo Section */}
@@ -66,16 +97,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         <div className="mt-4">
           <Select
             value={activeOrganizationId ?? undefined}
-            onValueChange={async (value) => {
-              if (value === "__new__") {
-                const name = window.prompt("Client organization name");
-                if (name?.trim()) {
-                  await createOrganization({ name: name.trim() });
-                }
-                return;
-              }
-              setActiveOrganizationId(value);
-            }}
+            onValueChange={(value) => setActiveOrganizationId(value)}
           >
             <SelectTrigger className="h-9 w-full text-left">
               <SelectValue placeholder="Select workspace" />
@@ -86,11 +108,69 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                   {organization.name}
                 </SelectItem>
               ))}
-              <SelectItem value="__new__">Create client workspace</SelectItem>
             </SelectContent>
           </Select>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-2 h-8 w-full justify-start text-xs"
+            onClick={() => {
+              setWorkspaceError(null);
+              setIsCreateWorkspaceOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-3.5 w-3.5" />
+            Create client workspace
+          </Button>
         </div>
       </div>
+
+      <Dialog open={isCreateWorkspaceOpen} onOpenChange={setIsCreateWorkspaceOpen}>
+        <DialogContent>
+          <form onSubmit={handleCreateWorkspace} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>Create client workspace</DialogTitle>
+              <DialogDescription>
+                Add a separate workspace for a client, subsidiary, or applicant organization.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="workspaceName">Organization name</Label>
+              <Input
+                id="workspaceName"
+                value={workspaceName}
+                onChange={(event) => {
+                  setWorkspaceName(event.target.value);
+                  if (workspaceError) setWorkspaceError(null);
+                }}
+                placeholder="Acme Community Foundation"
+                autoFocus
+              />
+              {workspaceError && (
+                <p className="text-sm text-red-600">{workspaceError}</p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateWorkspaceOpen(false)}
+                disabled={isCreatingWorkspace}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isCreatingWorkspace || !workspaceName.trim()}
+                className="bg-primary-600 hover:bg-primary-700"
+              >
+                {isCreatingWorkspace ? "Creating..." : "Create workspace"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
       
       {/* Navigation */}
       <nav className="flex-1 p-4 overflow-y-auto">
