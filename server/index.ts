@@ -9,8 +9,17 @@ import { setupAuth } from "./auth.js";
 import { validateEnvironment } from "./config.js";
 import { corsMiddleware } from "./middleware/cors.js";
 import { apiRateLimiter, authRateLimiter, uploadRateLimiter } from "./middleware/rateLimiter.js";
+import { setupSecurityHeaders } from "./securityHeaders.js";
 
 const app = express();
+
+// Trust the first hop (Vercel / nginx / etc.) so `req.ip` reflects the
+// client's address from `x-forwarded-for` instead of the proxy's. Required
+// for `express-rate-limit` to actually rate-limit per client. Override the
+// hop count via TRUST_PROXY_HOPS if you front the app with multiple proxies.
+app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS) || 1);
+
+setupSecurityHeaders(app);
 
 // CORS middleware - must come early to handle preflight requests
 app.use(corsMiddleware);

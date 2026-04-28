@@ -1,4 +1,4 @@
-// Simple test to verify export functionality
+import { describe, expect, it } from 'vitest';
 import { validateExportData } from './export';
 import type { ExportData } from './export';
 
@@ -43,28 +43,13 @@ const mockExportData: ExportData = {
   }
 };
 
-// Test validation function
-export function testExportValidation(): boolean {
-  try {
+describe('export validation', () => {
+  it('accepts complete export data', () => {
     const result = validateExportData(mockExportData);
-    console.log('Validation result:', result);
-    
-    if (!result.valid) {
-      console.error('Validation failed:', result.errors);
-      return false;
-    }
-    
-    console.log('✅ Export data validation passed');
-    return true;
-  } catch (error) {
-    console.error('❌ Export validation test failed:', error);
-    return false;
-  }
-}
+    expect(result).toEqual({ valid: true, errors: [] });
+  });
 
-// Test invalid data
-export function testExportValidationWithInvalidData(): boolean {
-  try {
+  it('rejects missing project and question data', () => {
     const invalidData = {
       ...mockExportData,
       project: {
@@ -76,31 +61,11 @@ export function testExportValidationWithInvalidData(): boolean {
     };
     
     const result = validateExportData(invalidData);
-    
-    if (result.valid) {
-      console.error('❌ Validation should have failed for invalid data');
-      return false;
-    }
-    
-    console.log('✅ Validation correctly rejected invalid data:', result.errors);
-    return true;
-  } catch (error) {
-    console.error('❌ Invalid data validation test failed:', error);
-    return false;
-  }
-}
-
-// Run tests
-if (typeof window !== 'undefined') {
-  // Browser environment - we can run these tests
-  console.log('🧪 Running export functionality tests...');
-  
-  const test1 = testExportValidation();
-  const test2 = testExportValidationWithInvalidData();
-  
-  if (test1 && test2) {
-    console.log('✅ All export tests passed!');
-  } else {
-    console.log('❌ Some export tests failed');
-  }
-}
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual([
+      'Project title is required',
+      'Project funder is required',
+      'At least one completed question is required for export'
+    ]);
+  });
+});

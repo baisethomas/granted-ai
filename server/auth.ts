@@ -2,6 +2,8 @@ import type { Express, Request, Response, NextFunction } from "express";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
+import connectPgSimpleFactory from "connect-pg-simple";
+import pg from "pg";
 // Lazy import memorystore - it's slow to load and blocks startup
 let MemoryStoreFactory: any = null;
 async function getMemoryStoreFactory() {
@@ -37,22 +39,66 @@ function verifyPassword(password: string, storedHash: string, salt: string) {
   return crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(storedHash, "hex"));
 }
 
+// One week. Long enough to keep "remember me" UX, short enough that a stolen
+// cookie has a finite blast radius. Override via SESSION_MAX_AGE_MS if needed.
+const DEFAULT_SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
 export async function setupAuth(app: Express) {
-  const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
+  const sessionSecret = process.env.SESSION_SECRET;
+  if (!sessionSecret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "SESSION_SECRET must be set in production. Refusing to start with a generated secret " +
+          "because it would invalidate every session on cold-start.",
+      );
+    }
+    console.warn(
+      "[auth] SESSION_SECRET not set; generating an ephemeral one for development. " +
+        "Sessions will be invalidated whenever the server restarts.",
+    );
+  }
+  const resolvedSecret = sessionSecret || crypto.randomBytes(32).toString("hex");
+
+  const isProduction = process.env.NODE_ENV === "production";
+  const maxAgeMs = Number(process.env.SESSION_MAX_AGE_MS) || DEFAULT_SESSION_MAX_AGE_MS;
 
   const MemoryStoreClass = await getMemoryStore();
-  
+
+  let sessionStore: session.Store;
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  const usePgSession =
+    !!databaseUrl &&
+    process.env.DISABLE_PG_SESSION_STORE !== "1" &&
+    /^postgres(ql)?:\/\//i.test(databaseUrl);
+
+  if (usePgSession) {
+    const PgSessionStore = connectPgSimpleFactory(session);
+    const pool = new pg.Pool({
+      connectionString: databaseUrl,
+      max: Number(process.env.SESSION_PG_POOL_MAX || 4),
+      connectionTimeoutMillis: 10_000,
+    });
+    sessionStore = new PgSessionStore({
+      pool,
+      tableName: "session",
+      createTableIfMissing: true,
+    });
+  } else {
+    sessionStore = new MemoryStoreClass({ checkPeriod: 86400000 }) as session.Store;
+  }
+
   app.use(
     session({
-      secret: sessionSecret,
+      secret: resolvedSecret,
       resave: false,
       saveUninitialized: false,
       cookie: {
         httpOnly: true,
         sameSite: "lax",
-        secure: false,
+        secure: isProduction,
+        maxAge: maxAgeMs,
       },
-      store: new MemoryStoreClass({ checkPeriod: 86400000 }),
+      store: sessionStore,
     })
   );
 

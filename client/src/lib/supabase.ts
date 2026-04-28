@@ -1,11 +1,26 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ieicdrcpckcjgcgfylaj.supabase.co'
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImllaWNkcmNwY2tjamdjZ2Z5bGFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4MDAzODQsImV4cCI6MjA3MDM3NjM4NH0.5mgWjDuVk4-udmSC23TocxZjlXooF4ciWRRTAIdF2mo'
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  // Fail-closed: previous fallbacks pointed dev/preview builds at the
+  // production Supabase project and committed the anon key as a literal,
+  // which both leaked the project ref and hid env-var misconfigurations.
+  throw new Error(
+    'Missing Supabase env vars. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY ' +
+      '(or the legacy NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY) ' +
+      'in the deployment environment before building.',
+  )
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
+    // Tokens live in localStorage while persistSession is true — any XSS can
+    // exfiltrate the JWT. Moving to `@supabase/ssr` cookie sessions would fix
+    // that class of theft but requires API routes / middleware wiring; tracked
+    // under security backlog if product prioritizes defense-in-depth here.
     persistSession: true,
     detectSessionInUrl: true
   }
@@ -29,15 +44,27 @@ export const signIn = async (email: string, password: string) => {
   })
 }
 
+/**
+ * OAuth redirect target: explicit `VITE_APP_DOMAIN` (no trailing slash), or the
+ * current browser origin so preview deployments never fall through to prod.
+ */
 export const signInWithGoogle = async () => {
-  const appDomain = import.meta.env.VITE_APP_DOMAIN || 'https://grantedai.app';
+  const explicit = (import.meta.env.VITE_APP_DOMAIN as string | undefined)?.replace(/\/$/, "");
+  const origin =
+    typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+  const base = explicit || origin;
+  if (!base) {
+    throw new Error(
+      "OAuth redirect cannot be determined: set VITE_APP_DOMAIN for non-browser contexts, or sign in from the web app.",
+    );
+  }
   return await supabase.auth.signInWithOAuth({
-    provider: 'google',
+    provider: "google",
     options: {
-      redirectTo: `${appDomain}/app`
-    }
-  })
-}
+      redirectTo: `${base}/app`,
+    },
+  });
+};
 
 export const signOut = async () => {
   return await supabase.auth.signOut()

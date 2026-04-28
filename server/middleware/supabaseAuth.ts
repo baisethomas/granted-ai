@@ -27,12 +27,15 @@ export interface AuthenticatedRequest extends Request {
 }
 
 function extractBearerToken(req: Request): string | null {
+  // Only accept the token from the Authorization header. The previous
+  // ?access_token=… query-string fallback was removed because tokens in
+  // URLs leak through server logs, browser history, the Referer header,
+  // CDN/proxy access logs, and bookmark sync.
   const header = req.headers.authorization;
   if (header && header.startsWith("Bearer ")) {
     return header.slice(7).trim();
   }
-  const tokenFromQuery = typeof req.query.access_token === "string" ? req.query.access_token : null;
-  return tokenFromQuery;
+  return null;
 }
 
 export async function requireSupabaseUser(

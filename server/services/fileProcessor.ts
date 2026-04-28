@@ -1,5 +1,6 @@
 import mammoth from "mammoth";
 import type { Document } from "../../shared/schema.js";
+import { extractPdfText } from "../pdfExtract.js";
 import { storage } from "../storage.js";
 import { aiService, type MetricSuggestion } from "./ai.js";
 
@@ -16,7 +17,7 @@ export class FileProcessor {
     mimeType: string,
     document?: Document | null
   ): Promise<ProcessedFile> {
-    let extractedText = "";
+    let extractedText: string;
 
     try {
       if (mimeType.startsWith("text/")) {
@@ -24,9 +25,7 @@ export class FileProcessor {
       } else if (mimeType === "application/pdf") {
         console.log(`Processing PDF: ${filename}`);
         try {
-          const pdf = await import("pdf-parse");
-          const pdfData = await pdf.default(buffer);
-          extractedText = pdfData.text;
+          extractedText = await extractPdfText(buffer);
           console.log(`Extracted ${extractedText.length} characters from PDF`);
         } catch (pdfError) {
           console.error("PDF processing error:", pdfError);
@@ -82,7 +81,7 @@ export class FileProcessor {
     filename: string,
     mimeType: string,
     document?: Document | null
-  ): Promise<string[]> {
+  ): Promise<{ questions: string[]; demo: boolean }> {
     const { extractedText } = await this.processFile(
       buffer,
       filename,

@@ -63,6 +63,7 @@ const _insertDocumentSchema = createInsertSchema(documents).pick({
   // routes and storage both read `insertDocument.organizationId`, so it has
   // to be part of the insert payload type.
   organizationId: true,
+  projectId: true,
   // Storage fields that live on the simple schema but were missing from the
   // old shared/schema.ts definition of documents.
   storageBucket: true,

@@ -19,7 +19,7 @@ export function corsMiddleware(req: Request, res: Response, next: NextFunction) 
   const isDevelopment = process.env.NODE_ENV === "development";
 
   // Parse allowed origins from environment variable
-  let allowedOrigins: string[] = [];
+  let allowedOrigins: string[];
 
   if (allowedOriginsEnv) {
     allowedOrigins = allowedOriginsEnv.split(",").map((origin) => origin.trim()).filter(Boolean);

@@ -79,6 +79,12 @@ export interface GeneratedGroundedResponse {
     quote?: string;
   }>;
   assumptions: string[];
+  usage?: {
+    provider: "openai";
+    model: string;
+    tokensIn: number;
+    tokensOut: number;
+  };
 }
 
 export interface GenerateGroundedResponseOptions {
@@ -446,8 +452,9 @@ Stay within the word limit if one is given. The review committee values specific
       .join("\n");
 
     try {
+      const model = process.env.GRANTED_DEFAULT_MODEL || 'gpt-4o-mini';
       const response = await openai.chat.completions.create({
-        model: process.env.GRANTED_DEFAULT_MODEL || 'gpt-4o-mini',
+        model,
         response_format: { type: 'json_object' },
         temperature: 0.2,
         max_tokens: wordLimit ? Math.min(wordLimit * 3, 1500) : 1500,
@@ -510,6 +517,12 @@ Stay within the word limit if one is given. The review committee values specific
         text: this.stripMarkdown(parsed.text || parsed.answer || ''),
         citations: normalizedCitations,
         assumptions,
+        usage: {
+          provider: "openai",
+          model,
+          tokensIn: response.usage?.prompt_tokens ?? Math.ceil((instructions.length + userPrompt.length) / 4),
+          tokensOut: response.usage?.completion_tokens ?? 0,
+        },
       };
     } catch (error) {
       console.error('generateGroundedResponse failed:', error);
@@ -764,10 +777,10 @@ IMPORTANT: Provide your response as plain text without markdown formatting. Do n
     return 'default';
   }
 
-  async extractQuestions(content: string): Promise<string[]> {
+  async extractQuestions(content: string): Promise<{ questions: string[]; demo: boolean }> {
     if (!hasValidApiKey) {
       console.log("No valid API key found, using mock questions for development...");
-      return this.getMockQuestions();
+      return { questions: this.getMockQuestions(), demo: true };
     }
 
     try {
@@ -791,13 +804,14 @@ IMPORTANT: Provide your response as plain text without markdown formatting. Do n
         .filter(line => line.trim().length > 0 && line.includes('?'))
         .map(q => q.trim()) || [];
 
-      return questions.length > 0 ? questions : this.getMockQuestions();
+      if (questions.length > 0) {
+        return { questions, demo: false };
+      }
+      return { questions: this.getMockQuestions(), demo: true };
     } catch (error) {
       console.error("Question extraction error:", error);
       console.log("Falling back to mock questions for development...");
-      
-      // Fallback to mock questions when API fails
-      return this.getMockQuestions();
+      return { questions: this.getMockQuestions(), demo: true };
     }
   }
 

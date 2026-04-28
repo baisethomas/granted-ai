@@ -25,6 +25,13 @@ export const users = pgTable("users", {
 export const organizations = pgTable("organizations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
+  organizationType: text("organization_type"),
+  ein: text("ein"),
+  foundedYear: integer("founded_year"),
+  primaryContact: text("primary_contact"),
+  contactEmail: text("contact_email"),
+  mission: text("mission"),
+  focusAreas: text("focus_areas").array(),
   plan: text("plan").default("starter"), // starter, pro, team, enterprise
   billingCustomerId: text("billing_customer_id"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -37,6 +44,20 @@ export const memberships = pgTable("memberships", {
   userId: varchar("user_id").references(() => users.id).notNull(),
   organizationId: varchar("organization_id").references(() => organizations.id).notNull(),
   role: text("role").notNull().default("writer"), // admin, writer, reviewer
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const subscriptions = pgTable("subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").references(() => organizations.id).notNull(),
+  plan: text("plan").notNull().default("starter"),
+  status: text("status").notNull().default("active"),
+  currentPeriodStart: timestamp("current_period_start").defaultNow(),
+  currentPeriodEnd: timestamp("current_period_end").notNull(),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  stripeCustomerId: text("stripe_customer_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -63,6 +84,7 @@ export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
   organizationId: varchar("organization_id").references(() => organizations.id).notNull(),
+  projectId: varchar("project_id").references(() => projects.id, { onDelete: "set null" }),
   filename: text("filename").notNull(),
   originalName: text("original_name").notNull(),
   fileType: text("file_type").notNull(),
@@ -154,6 +176,36 @@ export const embeddingCache = pgTable("embedding_cache", {
   usageCount: integer("usage_count").default(1),
 });
 
+export const usageEvents = pgTable("usage_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").references(() => organizations.id).notNull(),
+  userId: varchar("user_id").references(() => users.id),
+  projectId: varchar("project_id").references(() => projects.id),
+  type: text("type").notNull(),
+  provider: text("provider").notNull().default("internal"),
+  model: text("model"),
+  tokensIn: integer("tokens_in").default(0),
+  tokensOut: integer("tokens_out").default(0),
+  costCents: integer("cost_cents").default(0),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const organizationProfileSuggestions = pgTable("organization_profile_suggestions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: "cascade" }).notNull(),
+  documentId: varchar("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
+  field: text("field").notNull(),
+  suggestedValue: text("suggested_value").notNull(),
+  confidence: integer("confidence"),
+  sourceQuote: text("source_quote"),
+  status: text("status").notNull().default("pending"), // pending, accepted, rejected
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const grantQuestions = pgTable("questions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").references(() => projects.id).notNull(),
@@ -235,6 +287,7 @@ export const userSettings = pgTable("user_settings", {
 // Zod schemas for validation
 export const UserInsertSchema = createInsertSchema(users);
 export const OrganizationInsertSchema = createInsertSchema(organizations);
+export const SubscriptionInsertSchema = createInsertSchema(subscriptions);
 export const ProjectInsertSchema = createInsertSchema(projects);
 export const DocumentInsertSchema = createInsertSchema(documents);
 export const DocumentExtractionInsertSchema = createInsertSchema(documentExtractions);
@@ -249,6 +302,7 @@ export const insertGrantQuestionSchema = createInsertSchema(grantQuestions).pick
 export const QuestionInsertSchema = createInsertSchema(grantQuestions);
 export const DraftCitationInsertSchema = createInsertSchema(draftCitations);
 export const AssumptionLabelInsertSchema = createInsertSchema(assumptionLabels);
+export const UsageEventInsertSchema = createInsertSchema(usageEvents);
 
 export const insertUserSettingsSchema = createInsertSchema(userSettings).pick({
   defaultTone: true,
@@ -262,6 +316,17 @@ export const insertUserSettingsSchema = createInsertSchema(userSettings).pick({
   autoSave: true,
   analytics: true,
   autoDetection: true,
+});
+
+export const insertOrganizationSchema = createInsertSchema(organizations).pick({
+  name: true,
+  organizationType: true,
+  ein: true,
+  foundedYear: true,
+  primaryContact: true,
+  contactEmail: true,
+  mission: true,
+  focusAreas: true,
 });
 
 export const insertProjectSchema = createInsertSchema(projects).pick({
@@ -308,6 +373,8 @@ export const insertGrantMetricEventSchema = createInsertSchema(grantMetricEvents
 
 export type User = typeof users.$inferSelect;
 export type Organization = typeof organizations.$inferSelect;
+export type Membership = typeof memberships.$inferSelect;
+export type Subscription = typeof subscriptions.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type DocumentExtraction = typeof documentExtractions.$inferSelect;
@@ -322,10 +389,14 @@ export type DraftCitation = typeof draftCitations.$inferSelect;
 export type InsertDraftCitation = typeof draftCitations.$inferInsert;
 export type AssumptionLabel = typeof assumptionLabels.$inferSelect;
 export type InsertAssumptionLabel = typeof assumptionLabels.$inferInsert;
+export type UsageEvent = typeof usageEvents.$inferSelect;
+export type InsertUsageEvent = typeof usageEvents.$inferInsert;
 export type ResponseVersion = typeof responseVersions.$inferSelect;
 export type UserSettings = typeof userSettings.$inferSelect;
 export type InsertUserSettings = z.infer<typeof insertUserSettingsSchema>;
+export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
 export type InsertProject = z.infer<typeof insertProjectSchema>;
+export type OrganizationProfileSuggestion = typeof organizationProfileSuggestions.$inferSelect;
 export type GrantMetric = typeof grantMetrics.$inferSelect;
 export type InsertGrantMetric = z.infer<typeof insertGrantMetricSchema>;
 export type GrantMetricEvent = typeof grantMetricEvents.$inferSelect;

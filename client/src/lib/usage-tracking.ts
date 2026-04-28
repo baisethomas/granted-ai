@@ -1,9 +1,9 @@
 import { getAuthHeaders } from "./queryClient";
 
 export interface UsageEvent {
-  organizationId: number;
-  userId?: number;
-  projectId?: number;
+  organizationId: string;
+  userId?: string;
+  projectId?: string;
   eventType: 'generation' | 'embedding' | 'clarification' | 'export' | 'upload';
   provider: 'openai' | 'anthropic' | 'internal';
   model?: string;
@@ -80,7 +80,7 @@ export class UsageTracker {
    * Check if organization can perform an action within plan limits
    */
   static async checkLimits(
-    organizationId: number, 
+    organizationId: string,
     limitType: 'projects' | 'documents' | 'ai_credits' | 'team_members',
     requestedAmount: number = 1
   ): Promise<{ allowed: boolean; reason?: string; usage?: any }> {
@@ -110,10 +110,10 @@ export class UsageTracker {
   /**
    * Get current usage statistics
    */
-  static async getUsageStats(organizationId: number): Promise<UsageStats | null> {
+  static async getUsageStats(organizationId: string): Promise<UsageStats | null> {
     try {
       const authHeaders = await getAuthHeaders();
-      const response = await fetch(`${this.API_BASE}/usage?organizationId=${organizationId}`, {
+      const response = await fetch(`/api/organizations/${organizationId}/billing/usage`, {
         headers: authHeaders,
       });
       
@@ -157,7 +157,7 @@ export class UsageTracker {
    * Track AI generation usage
    */
   static async trackGeneration(
-    organizationId: number,
+    organizationId: string,
     questionId: string,
     provider: string,
     model: string,
@@ -188,8 +188,8 @@ export class UsageTracker {
    * Track embedding generation usage
    */
   static async trackEmbedding(
-    organizationId: number,
-    documentId: number,
+    organizationId: string,
+    documentId: string,
     provider: string,
     tokensUsed: number,
     success: boolean
@@ -213,8 +213,8 @@ export class UsageTracker {
    * Track export usage (no tokens, but track activity)
    */
   static async trackExport(
-    organizationId: number,
-    projectId: number,
+    organizationId: string,
+    projectId: string,
     exportFormat: string,
     success: boolean
   ): Promise<void> {
@@ -234,7 +234,7 @@ export class UsageTracker {
   /**
    * Get usage optimization recommendations
    */
-  static async getOptimizationRecommendations(organizationId: number): Promise<Array<{
+  static async getOptimizationRecommendations(organizationId: string): Promise<Array<{
     type: string;
     title: string;
     description: string;

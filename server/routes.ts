@@ -1,16 +1,47 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage.js";
 import { aiService } from "./services/ai.js";
 import { fileProcessor } from "./services/fileProcessor.js";
 import { retrieveRelevantChunks } from "./services/retrieval.js";
 import { processDocumentJobs } from "./workers/documentProcessor.js";
+import {
+  billingService,
+  calculateCostCents,
+  estimateTokensFromText,
+  type LimitDenial,
+} from "./services/billing.js";
 import multer from "multer";
-import fs from "fs";
+import path from "node:path";
+import crypto from "crypto";
 // Test: Use relative import instead of path alias to see if that's the issue
-import { insertProjectSchema, insertGrantQuestionSchema, insertUserSettingsSchema, type Document } from "../shared/schema.js";
+import {
+  insertOrganizationSchema,
+  insertProjectSchema,
+  insertGrantQuestionSchema,
+  insertUserSettingsSchema,
+  type Document,
+} from "../shared/schema.js";
 import { requireSupabaseUser, supabaseAdminClient, type AuthenticatedRequest } from "./middleware/supabaseAuth.js";
-import { uploadRateLimiter } from "./middleware/rateLimiter.js";
+import { uploadRateLimiter, workerRateLimiter } from "./middleware/rateLimiter.js";
+import { mergeDevDetails, mergeDevErrorDetails } from "./httpExtras.js";
+import { redactForLog, verboseHttpLogs } from "./logRedact.js";
+
+/**
+ * Constant-time string equality. Length-mismatch short-circuits before the
+ * Buffer compare so we don't crash on differing-length inputs, and the
+ * length check itself does not leak more than the length of the secret
+ * (which an attacker would learn after one valid request anyway).
+ */
+function safeStringEqual(a: unknown, b: unknown): boolean {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  if (a.length !== b.length) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  } catch {
+    return false;
+  }
+}
 
 // Helper function to get authenticated user ID
 function getUserId(req: AuthenticatedRequest): string {
@@ -18,6 +49,81 @@ function getUserId(req: AuthenticatedRequest): string {
     throw new Error("User not authenticated");
   }
   return req.supabaseUser.id;
+}
+
+/**
+ * Resolve a grant question and verify the requester has organization-level
+ * access to its parent project. Returns the question + project on success.
+ *
+ * On any failure (missing question, missing project, no membership) the
+ * response is sent and `null` is returned so the caller can early-exit.
+ *
+ * Always returns 404 — never 403 — when the requester lacks access, so we
+ * don't leak existence of cross-tenant question IDs.
+ */
+async function assertQuestionAccess(
+  req: AuthenticatedRequest,
+  res: any,
+  questionId: string,
+) {
+  const question = await storage.getGrantQuestion(questionId);
+  if (!question) {
+    res.status(404).json({ error: "Question not found" });
+    return null;
+  }
+  const projectId =
+    (question as any).project_id || (question as any).projectId;
+  const project = projectId ? await storage.getProject(projectId) : undefined;
+  if (!project) {
+    res.status(404).json({ error: "Question not found" });
+    return null;
+  }
+  const userId = getUserId(req);
+  if (!(await storage.userHasOrganizationAccess(userId, project.organizationId))) {
+    res.status(404).json({ error: "Question not found" });
+    return null;
+  }
+  return { question, project, userId };
+}
+
+function sendLimitDenial(res: any, denial: LimitDenial) {
+  return res.status(402).json(denial);
+}
+
+const WORKER_BATCH_MAX = Number(process.env.DOCUMENT_WORKER_BATCH_MAX || "50");
+
+/** Caps attacker-controlled `?batchSize=` on worker/cron endpoints (default cap 50). */
+function clampWorkerBatchSize(raw: unknown): number {
+  const fallback = Number(process.env.DOCUMENT_WORKER_BATCH_SIZE || "5");
+  const max = WORKER_BATCH_MAX;
+  const n = typeof raw === "string" || typeof raw === "number" ? Number(raw) : NaN;
+  const requested = Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+  return Math.min(Math.max(requested, 1), max);
+}
+
+async function getDefaultOrganizationId(userId: string): Promise<string> {
+  const organization = await storage.ensureDefaultOrganizationForUser(userId);
+  return organization.id;
+}
+
+function estimateGenerationTokens(input: {
+  question: string;
+  tone: string;
+  wordLimit?: number | null;
+  emphasisAreas?: string[];
+}) {
+  const maxTokens = input.wordLimit ? Math.min(input.wordLimit * 3, 1500) : 1500;
+  const estimatedPrompt = [
+    input.question,
+    input.tone,
+    input.wordLimit ? String(input.wordLimit) : "",
+    input.emphasisAreas?.join(", ") ?? "",
+    // Matches the retrieval route cap: eight context chunks plus system
+    // instructions. This intentionally errs high so we block before the
+    // expensive generation call if an account is close to the cap.
+    "x".repeat(12_000),
+  ].join("\n");
+  return estimateTokensFromText(estimatedPrompt) + maxTokens;
 }
 
 /**
@@ -110,48 +216,181 @@ function sanitizeProjectUpdate(body: Record<string, unknown>): Record<string, un
   return updates;
 }
 
+// Fields a tenant member is allowed to mutate on `organizations` via the
+// PATCH endpoint. `plan`, `billingCustomerId`, `id`, and timestamps are
+// intentionally excluded — billing fields belong to the billing service
+// and tampering with `plan` would let any member self-upgrade their tier.
+const ORG_UPDATABLE_FIELDS = new Set([
+  "name",
+  "organizationType",
+  "ein",
+  "foundedYear",
+  "primaryContact",
+  "contactEmail",
+  "mission",
+  "focusAreas",
+]);
+
+function sanitizeOrganizationUpdate(body: Record<string, unknown>): Record<string, unknown> {
+  const updates: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(body ?? {})) {
+    if (!ORG_UPDATABLE_FIELDS.has(key)) continue;
+    if (value === undefined) continue;
+    updates[key] = value;
+  }
+  return updates;
+}
+
+const ALLOWED_UPLOAD_EXT = new Set([".pdf", ".txt", ".doc", ".docx"]);
+const ALLOWED_UPLOAD_MIME = new Set([
+  "application/pdf",
+  "text/plain",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
+function uploadFileFilter(_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) {
+  const ext = path.extname(file.originalname || "").toLowerCase();
+  const mimeOk = ALLOWED_UPLOAD_MIME.has(file.mimetype);
+  const extOk = ALLOWED_UPLOAD_EXT.has(ext);
+  if (mimeOk || extOk) return cb(null, true);
+  cb(
+    new Error(
+      "Unsupported file type. Allowed uploads: PDF, plain text (.txt), Word (.doc, .docx).",
+    ),
+  );
+}
+
 // Configure multer for file uploads.
 // Use memory storage so uploads work in serverless environments (Vercel) where
 // only /tmp is writable. File buffers are read directly from req.file.buffer.
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: uploadFileFilter,
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Ensure uploads directory exists (best-effort; not required when using
-  // multer memoryStorage, and read-only filesystems like Vercel will skip it).
-  try {
-    if (!fs.existsSync('uploads')) {
-      fs.mkdirSync('uploads');
-    }
-  } catch {
-    // noop - memory storage is used for uploads
-  }
-
-  // Diagnostic endpoint
+  // Diagnostic endpoint. Disabled in production to avoid leaking
+  // tenancy metadata (project list, ids, titles) and connection-string
+  // prefixes to any logged-in user. In non-production environments it
+  // returns a minimal health payload only.
   app.get("/api/debug/status", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    if (process.env.NODE_ENV === "production") {
+      return res.status(404).json({ error: "Not found" });
+    }
     try {
       const userId = getUserId(req);
-      const hasDatabaseUrl = !!process.env.DATABASE_URL;
       const projects = await storage.getProjects(userId);
-      
+
       res.json({
         status: "ok",
         userId,
         database: {
-          configured: hasDatabaseUrl,
-          url: hasDatabaseUrl ? `${process.env.DATABASE_URL!.substring(0, 20)}...` : null,
-          type: hasDatabaseUrl ? "postgres" : "in-memory"
+          configured: !!process.env.DATABASE_URL,
+          type: process.env.DATABASE_URL ? "postgres" : "in-memory",
         },
         projects: {
           count: projects.length,
-          ids: projects.map(p => ({ id: p.id, title: p.title, userId: p.userId }))
-        }
+        },
       });
     } catch (error) {
       console.error("Debug status error:", error);
-      res.status(500).json({ error: "Failed to get status", message: error instanceof Error ? error.message : "Unknown error" });
+      res.status(500).json({ error: "Failed to get status" });
+    }
+  });
+
+  app.get("/api/billing/usage", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const organizationId = await getDefaultOrganizationId(userId);
+      const summary = await billingService.getUsageSummary(userId, organizationId);
+      res.json(billingService.formatLimits(summary));
+    } catch (error) {
+      console.error("Failed to fetch billing usage:", error);
+      res.status(500).json({ error: "Failed to fetch billing usage" });
+    }
+  });
+
+  app.get("/api/billing/limits", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const organizationId = await getDefaultOrganizationId(userId);
+      const summary = await billingService.getUsageSummary(userId, organizationId);
+      res.json(billingService.formatLimits(summary));
+    } catch (error) {
+      console.error("Failed to fetch billing limits:", error);
+      res.status(500).json({ error: "Failed to fetch billing limits" });
+    }
+  });
+
+  app.get("/api/organizations/:organizationId/billing/usage", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const { organizationId } = req.params;
+      const summary = await billingService.getUsageSummary(userId, organizationId);
+      res.json(billingService.formatLimits(summary));
+    } catch (error) {
+      console.error("Failed to fetch organization billing usage:", error);
+      res.status(500).json({ error: "Failed to fetch billing usage" });
+    }
+  });
+
+  app.get("/api/organizations", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const organizations = await storage.getOrganizationsForUser(userId);
+      res.json(organizations);
+    } catch (error) {
+      console.error("Failed to fetch organizations:", error);
+      res.status(500).json({ error: "Failed to fetch organizations" });
+    }
+  });
+
+  app.post("/api/organizations", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const validatedData = insertOrganizationSchema.parse(req.body);
+      const organization = await storage.createOrganization(userId, validatedData);
+      await billingService.ensureSubscription(userId, organization.name, organization.id);
+      res.status(201).json(organization);
+    } catch (error: any) {
+      console.error("Failed to create organization:", error);
+      res.status(400).json(mergeDevErrorDetails({ error: "Invalid organization data" }, error));
+    }
+  });
+
+  app.get("/api/organizations/:organizationId", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const { organizationId } = req.params;
+      if (!(await storage.userHasOrganizationAccess(userId, organizationId))) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
+      const organization = await storage.getOrganization(organizationId);
+      res.json(organization);
+    } catch (error) {
+      console.error("Failed to fetch organization:", error);
+      res.status(500).json({ error: "Failed to fetch organization" });
+    }
+  });
+
+  app.patch("/api/organizations/:organizationId", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const { organizationId } = req.params;
+      if (!(await storage.userHasOrganizationAccess(userId, organizationId))) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
+      // Two-layer filter: explicit allowlist first (so future schema changes
+      // don't accidentally widen the surface), then Zod validation for shape.
+      const filtered = sanitizeOrganizationUpdate(req.body ?? {});
+      const validatedData = insertOrganizationSchema.partial().parse(filtered);
+      const organization = await storage.updateOrganization(organizationId, validatedData as any);
+      res.json(organization);
+    } catch (error: any) {
+      console.error("Failed to update organization:", error);
+      res.status(400).json(mergeDevErrorDetails({ error: "Invalid organization data" }, error));
     }
   });
 
@@ -159,9 +398,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/projects", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = getUserId(req);
-      console.log(`[GET /api/projects] Fetching projects for user: ${userId}`);
-      const projects = await storage.getProjects(userId);
-      console.log(`[GET /api/projects] Found ${projects.length} projects for user ${userId}`);
+      const organizationId = await getDefaultOrganizationId(userId);
+      if (verboseHttpLogs()) {
+        console.log(`[GET /api/projects] Fetching projects for default org: ${organizationId}`);
+      }
+      const projects = await storage.getProjectsForOrganization(userId, organizationId);
+      if (verboseHttpLogs()) {
+        console.log(`[GET /api/projects] Found ${projects.length} projects for org ${organizationId}`);
+      }
       res.json(projects);
     } catch (error) {
       console.error("Failed to fetch projects:", error);
@@ -169,26 +413,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/organizations/:organizationId/projects", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const { organizationId } = req.params;
+      if (!(await storage.userHasOrganizationAccess(userId, organizationId))) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
+      const projects = await storage.getProjectsForOrganization(userId, organizationId);
+      res.json(projects);
+    } catch (error) {
+      console.error("Failed to fetch organization projects:", error);
+      res.status(500).json({ error: "Failed to fetch projects" });
+    }
+  });
+
   app.post("/api/projects", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = getUserId(req);
-      console.log("Received project data:", JSON.stringify(req.body, null, 2));
-      
+      if (verboseHttpLogs()) {
+        console.log("Received project data:", redactForLog(JSON.stringify(req.body)));
+      }
+
       // Convert deadline string to Date object if it's a string
       if (req.body.deadline && typeof req.body.deadline === 'string') {
         req.body.deadline = new Date(req.body.deadline);
       }
-      
+
       const validatedData = insertProjectSchema.parse(req.body);
-      console.log("Validated data:", JSON.stringify(validatedData, null, 2));
-      const project = await storage.createProject(userId, validatedData);
+      if (verboseHttpLogs()) {
+        console.log("Validated data:", redactForLog(JSON.stringify(validatedData)));
+      }
+      const organizationId = await getDefaultOrganizationId(userId);
+      const limitCheck = await billingService.checkLimit(userId, "projects", 1, organizationId);
+      if (!limitCheck.allowed) {
+        return sendLimitDenial(res, limitCheck.denial);
+      }
+      const project = await storage.createProjectForOrganization(userId, organizationId, validatedData);
+      await billingService.recordUsage({
+        organizationId,
+        userId,
+        projectId: project.id,
+        type: "project_created",
+        provider: "internal",
+        metadata: {
+          title: project.title,
+          funder: project.funder,
+        },
+      });
       res.json(project);
     } catch (error) {
       console.error("Project creation error:", error);
-      if (error instanceof Error) {
-        console.error("Error message:", error.message);
+      res.status(400).json(mergeDevErrorDetails({ error: "Invalid project data" }, error));
+    }
+  });
+
+  app.post("/api/organizations/:organizationId/projects", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const { organizationId } = req.params;
+      if (!(await storage.userHasOrganizationAccess(userId, organizationId))) {
+        return res.status(404).json({ error: "Organization not found" });
       }
-      res.status(400).json({ error: "Invalid project data" });
+
+      if (req.body.deadline && typeof req.body.deadline === 'string') {
+        req.body.deadline = new Date(req.body.deadline);
+      }
+
+      const validatedData = insertProjectSchema.parse(req.body);
+      const limitCheck = await billingService.checkLimit(userId, "projects", 1, organizationId);
+      if (!limitCheck.allowed) {
+        return sendLimitDenial(res, limitCheck.denial);
+      }
+      const project = await storage.createProjectForOrganization(userId, organizationId, validatedData);
+      await billingService.recordUsage({
+        organizationId,
+        userId,
+        projectId: project.id,
+        type: "project_created",
+        provider: "internal",
+        metadata: {
+          title: project.title,
+          funder: project.funder,
+        },
+      });
+      res.json(project);
+    } catch (error: any) {
+      console.error("Organization project creation error:", error);
+      res.status(400).json(mergeDevErrorDetails({ error: "Invalid project data" }, error));
     }
   });
 
@@ -201,6 +513,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!project) {
         console.log(`[GET /api/projects/${projectId}] Project not found in database`);
         return res.status(404).json({ error: "Project not found" });
+      }
+      if (!(await storage.userHasOrganizationAccess(userId, project.organizationId))) {
+        return res.status(403).json({ error: "Forbidden" });
       }
       console.log(`[GET /api/projects/${projectId}] Found project owned by: ${project.userId}`);
       res.json(project);
@@ -231,10 +546,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(project);
     } catch (error) {
       console.error(`[PUT /api/projects/${req.params.id}] Error:`, error);
-      res.status(500).json({
-        error: "Failed to update project",
-        message: error instanceof Error ? error.message : "Unexpected error",
-      });
+      res.status(500).json(
+        mergeDevErrorDetails(
+          {
+            error: "Failed to update project",
+            message: "Unexpected error",
+          },
+          error,
+        ),
+      );
     }
   });
 
@@ -245,6 +565,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
+      }
+      if (!(await storage.userHasOrganizationAccess(userId, project.organizationId))) {
+        return res.status(403).json({ error: "Unauthorized to finalize this project" });
       }
 
       // Update project status to 'final'
@@ -296,18 +619,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "Project deleted successfully" });
     } catch (error) {
       console.error(`[DELETE /api/projects/${projectId}] exception:`, error);
-      res.status(500).json({
-        error: "Failed to delete project",
-        message: error instanceof Error ? error.message : "An unexpected error occurred",
-      });
+      res.status(500).json(
+        mergeDevErrorDetails(
+          {
+            error: "Failed to delete project",
+            message: "An unexpected error occurred while deleting the project.",
+          },
+          error,
+        ),
+      );
     }
   });
 
   // Documents routes
-  app.get("/api/documents", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+  app.get(["/api/documents", "/api/organizations/:organizationId/documents"], requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = getUserId(req);
-      const documents = await storage.getDocuments(userId);
+      const organizationId = req.params.organizationId || await getDefaultOrganizationId(userId);
+      const projectId = typeof req.query.projectId === "string" ? req.query.projectId : undefined;
+      if (!(await storage.userHasOrganizationAccess(userId, organizationId))) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
+      const documents = await storage.getDocumentsForOrganization(userId, organizationId, projectId);
 
       const enriched = await Promise.all(
         documents.map(async (doc) => {
@@ -331,7 +664,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/documents/upload", uploadRateLimiter, requireSupabaseUser, upload.single('file'), async (req: AuthenticatedRequest, res) => {
+  app.post(["/api/documents/upload", "/api/organizations/:organizationId/documents/upload"], uploadRateLimiter, requireSupabaseUser, upload.single('file'), async (req: AuthenticatedRequest, res) => {
     let documentRecord: Document | undefined;
     try {
       if (!req.file) {
@@ -343,12 +676,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const userId = getUserId(req);
+      const organizationId = req.params.organizationId || await getDefaultOrganizationId(userId);
+      if (!(await storage.userHasOrganizationAccess(userId, organizationId))) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
       const { originalname, mimetype, size, buffer } = req.file;
       const category = req.body.category || "organization-info";
+      const projectId = typeof req.body.projectId === "string" && req.body.projectId ? req.body.projectId : null;
+
+      const limitCheck = await billingService.checkLimit(userId, "documents", 1, organizationId);
+      if (!limitCheck.allowed) {
+        return sendLimitDenial(res, limitCheck.denial);
+      }
 
       const bucket = process.env.DOCUMENTS_BUCKET || "documents";
       const sanitizedName = originalname.replace(/[^a-zA-Z0-9.\-_]/g, "_");
-      const storagePath = `${userId}/${Date.now()}-${sanitizedName}`;
+      const storagePath = `${organizationId}/${Date.now()}-${sanitizedName}`;
 
       // Upload to Supabase Storage
       const { error: uploadError } = await supabaseAdminClient.storage
@@ -364,13 +707,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create document record
-      documentRecord = await storage.createDocument(userId, {
+      documentRecord = await storage.createDocumentForOrganization(userId, organizationId, {
         filename: sanitizedName,
         originalName: originalname,
         fileType: mimetype,
         fileSize: size,
         category,
-        organizationId: userId,
+        organizationId,
+        projectId,
         storageBucket: bucket,
         storagePath,
         processingStatus: "processing",
@@ -418,6 +762,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const freshDocument = await storage.getDocument(documentRecord.id);
 
+      await billingService.recordUsage({
+        organizationId,
+        userId,
+        projectId,
+        type: "document_upload",
+        provider: "internal",
+        metadata: {
+          documentId: documentRecord.id,
+          fileSize: size,
+          category,
+          fileType: mimetype,
+        },
+      });
+
       res.json({
         ...(freshDocument ?? updatedDocument),
         summary: processed.summary,
@@ -443,9 +801,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/documents/:id", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
+      const userId = getUserId(req);
       const document = await storage.getDocument(req.params.id);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
+      }
+      if (!(await storage.userHasOrganizationAccess(userId, document.organizationId))) {
+        return res.status(403).json({ error: "Unauthorized to delete this document" });
       }
 
       if (document.storageBucket && document.storagePath && supabaseAdminClient) {
@@ -467,7 +829,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/workers/process-documents", async (req, res) => {
+  app.post("/api/workers/process-documents", workerRateLimiter, async (req, res) => {
     try {
       const expectedKey = process.env.DOCUMENT_WORKER_API_KEY;
       if (!expectedKey) {
@@ -480,11 +842,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         providedKey = providedKey.slice(7).trim();
       }
 
-      if (typeof providedKey !== "string" || providedKey !== expectedKey) {
+      if (!safeStringEqual(providedKey, expectedKey)) {
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const batchSize = Number(req.query.batchSize) || Number(process.env.DOCUMENT_WORKER_BATCH_SIZE || "5");
+      const batchSize = clampWorkerBatchSize(req.query.batchSize);
       const summary = await processDocumentJobs({ batchSize });
 
       res.json({
@@ -493,7 +855,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Document worker endpoint failed:", error);
-      res.status(500).json({ error: "Worker execution failed", details: error.message });
+      res.status(500).json(mergeDevErrorDetails({ error: "Worker execution failed" }, error));
     }
   });
 
@@ -502,7 +864,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // configured in vercel.json, so we verify that here. This lets us run
   // the embedding pipeline on a schedule without exposing the manual
   // DOCUMENT_WORKER_API_KEY.
-  app.get("/api/cron/process-documents", async (req, res) => {
+  app.get("/api/cron/process-documents", workerRateLimiter, async (req, res) => {
     try {
       const cronSecret = process.env.CRON_SECRET;
       if (!cronSecret) {
@@ -511,24 +873,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const auth = req.headers["authorization"];
       const authValue = Array.isArray(auth) ? auth[0] : auth;
-      if (authValue !== `Bearer ${cronSecret}`) {
+      const providedSecret =
+        typeof authValue === "string" && authValue.startsWith("Bearer ")
+          ? authValue.slice(7).trim()
+          : null;
+      if (!safeStringEqual(providedSecret, cronSecret)) {
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const batchSize = Number(req.query.batchSize) || Number(process.env.DOCUMENT_WORKER_BATCH_SIZE || "5");
+      const batchSize = clampWorkerBatchSize(req.query.batchSize);
       const summary = await processDocumentJobs({ batchSize });
 
       console.log("[cron] process-documents summary:", summary);
       res.json({ ok: true, summary });
     } catch (error: any) {
       console.error("Cron process-documents failed:", error);
-      res.status(500).json({ error: "Cron execution failed", details: error.message });
+      res.status(500).json(mergeDevErrorDetails({ error: "Cron execution failed" }, error));
     }
   });
 
   // Grant questions routes
   app.get("/api/projects/:projectId/questions", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
+      const userId = getUserId(req);
+      const project = await storage.getProject(req.params.projectId);
+      if (!project) return res.status(404).json({ error: "Project not found" });
+      if (!(await storage.userHasOrganizationAccess(userId, project.organizationId))) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
       const questions = await storage.getGrantQuestions(req.params.projectId);
       const enriched = await Promise.all(
         questions.map(async (question: any) => {
@@ -551,6 +923,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/projects/:projectId/questions", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
+      const userId = getUserId(req);
+      const project = await storage.getProject(req.params.projectId);
+      if (!project) return res.status(404).json({ error: "Project not found" });
+      if (!(await storage.userHasOrganizationAccess(userId, project.organizationId))) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
       const validatedData = insertGrantQuestionSchema.parse(req.body);
       const question = await storage.createGrantQuestion(req.params.projectId, validatedData);
       res.json(question);
@@ -559,7 +937,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Check for specific error types
       if (error.name === 'ZodError') {
-        return res.status(400).json({ error: "Invalid question data", details: error.errors });
+        return res.status(400).json(mergeDevDetails({ error: "Invalid question data" }, error.errors));
       }
       
       // Database constraint errors (e.g., foreign key violation)
@@ -568,17 +946,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Return 500 for unexpected server errors
-      res.status(500).json({ error: "Failed to create question", details: error.message });
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to create question" }, error));
     }
   });
 
   app.post("/api/questions/:id/generate", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
-    let questionId = req.params.id;
+    const questionId = req.params.id;
     
     try {
       const question = await storage.getGrantQuestion(questionId);
       if (!question) {
         return res.status(404).json({ error: "Question not found" });
+      }
+
+      const userId = getUserId(req);
+      const projectId = (question as any).project_id || (question as any).projectId;
+      const project = projectId ? await storage.getProject(projectId) : undefined;
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (!(await storage.userHasOrganizationAccess(userId, project.organizationId))) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      const { tone = "professional", emphasisAreas = [] } = req.body;
+      const estimatedTokens = estimateGenerationTokens({
+        question: question.question,
+        tone,
+        wordLimit: question.wordLimit,
+        emphasisAreas,
+      });
+      const limitCheck = await billingService.checkLimit(userId, "ai_tokens", estimatedTokens, project.organizationId);
+      if (!limitCheck.allowed) {
+        return sendLimitDenial(res, limitCheck.denial);
       }
 
       // Update status to generating
@@ -589,13 +988,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.warn(`[generate] Could not mark question ${questionId} as generating:`, statusErr);
       }
 
-      const userId = getUserId(req);
-      const { tone = "professional", emphasisAreas = [] } = req.body;
-
       // Get user context from documents
-      const documents = await storage.getDocuments(userId).catch((err) => {
+      const documents = await storage.getDocumentsForOrganization(userId, project.organizationId, project.id).catch((err) => {
         console.warn(`[generate] getDocuments failed:`, err);
-        return [] as Awaited<ReturnType<typeof storage.getDocuments>>;
+        return [] as Awaited<ReturnType<typeof storage.getDocumentsForOrganization>>;
       });
 
       const processedDocs = documents.filter((doc) => doc.processed && doc.summary);
@@ -614,6 +1010,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         retrievalResult = await retrieveRelevantChunks({
           userId,
+          organizationId: project.organizationId,
+          projectId: project.id,
           query: question.question,
           limit: 8,
           semanticLimit: 8,
@@ -634,17 +1032,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       const user = await storage.getUser(userId).catch(() => undefined);
+      const organization = await storage.getOrganization(project.organizationId).catch(() => undefined);
 
       try {
         const startTime = Date.now();
         
+        // Explicit allowlist of fields handed to the LLM. The previous
+        // `...user` spread leaked the entire user row (including
+        // password hash columns, supabase auth metadata, and
+        // unrelated profile fields) into the prompt JSON. Keep this
+        // narrow — anything else the prompt needs should be added
+        // here intentionally.
         const grounded = await aiService.generateGroundedResponse({
           question: question.question,
           tone,
           wordLimit: question.wordLimit || undefined,
           emphasisAreas,
           organizationInfo: {
-            ...user,
+            organizationName: organization?.name ?? user?.organizationName ?? null,
+            organizationType: organization?.organizationType ?? user?.organizationType ?? null,
+            mission: organization?.mission ?? user?.mission ?? null,
+            focusAreas: organization?.focusAreas ?? user?.focusAreas ?? null,
+            primaryContact: organization?.primaryContact ?? user?.primaryContact ?? null,
+            email: organization?.contactEmail ?? user?.email ?? null,
             contextSummary: organizationContext,
           },
           retrievedChunks: retrievalResult.chunks.map((chunk) => ({
@@ -656,7 +1066,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           })),
         });
 
-        const projectId = (question as any).project_id || (question as any).projectId;
+        const usage = grounded.usage ?? {
+          provider: "openai" as const,
+          model: process.env.GRANTED_DEFAULT_MODEL || "gpt-4o-mini",
+          tokensIn: estimatedTokens,
+          tokensOut: 0,
+        };
 
         // Persist citations/assumptions best-effort. These tables are not
         // strictly required for the user to see a generated response; a
@@ -708,6 +1123,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const responseText = (grounded.text || '').trim();
+        await billingService.recordUsage({
+          organizationId: project.organizationId,
+          userId,
+          projectId,
+          type: "generation",
+          provider: usage.provider,
+          model: usage.model,
+          tokensIn: usage.tokensIn,
+          tokensOut: usage.tokensOut,
+          costCents: calculateCostCents(usage.model, usage.tokensIn, usage.tokensOut),
+          metadata: {
+            questionId,
+            responseStatus: "attempted",
+          },
+        });
         
         const duration = Date.now() - startTime;
         console.log(`AI generation completed in ${duration}ms for question ${questionId}`);
@@ -794,7 +1224,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         
         // This shouldn't happen with our new fallback system, but just in case
-        throw new Error(`AI generation failed: ${errorMessage}`);
+        throw new Error(`AI generation failed: ${errorMessage}`, { cause: aiError });
       }
     } catch (error: any) {
       console.error(`Generation endpoint error for question ${questionId}:`, error);
@@ -809,11 +1239,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Failed to update question status after error:", updateError);
       }
       
-      res.status(500).json({ 
-        error: "Failed to generate response",
-        details: error.message,
-        canRetry: true
-      });
+      res.status(500).json(
+        mergeDevErrorDetails(
+          {
+            error: "Failed to generate response",
+            canRetry: true,
+          },
+          error,
+        ),
+      );
     }
   });
 
@@ -822,10 +1256,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const questionId = req.params.id;
     
     try {
-      const question = await storage.getGrantQuestion(questionId);
-      if (!question) {
-        return res.status(404).json({ error: "Question not found" });
-      }
+      const access = await assertQuestionAccess(req, res, questionId);
+      if (!access) return;
+      const { question } = access;
 
       // Check if question is in a retryable state
       const retryableStatuses = ["failed", "timeout", "needs_context"];
@@ -859,10 +1292,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error: any) {
       console.error(`Retry endpoint error for question ${questionId}:`, error);
-      res.status(500).json({ 
-        error: "Failed to initiate retry",
-        details: error.message
-      });
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to initiate retry" }, error));
     }
   });
 
@@ -876,10 +1306,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Valid content is required" });
       }
 
-      const question = await storage.getGrantQuestion(questionId);
-      if (!question) {
-        return res.status(404).json({ error: "Question not found" });
-      }
+      const access = await assertQuestionAccess(req, res, questionId);
+      if (!access) return;
+      const { question } = access;
 
       // Calculate word count
       const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
@@ -924,6 +1353,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Response versions routes
   app.get("/api/questions/:questionId/versions", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
+      const access = await assertQuestionAccess(req, res, req.params.questionId);
+      if (!access) return;
       const versions = await storage.getResponseVersions(req.params.questionId);
       res.json(versions);
     } catch (error) {
@@ -933,6 +1364,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/questions/:questionId/versions/:versionId/current", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
+      const access = await assertQuestionAccess(req, res, req.params.questionId);
+      if (!access) return;
       const success = await storage.setCurrentVersion(req.params.questionId, req.params.versionId);
       res.json({ success });
     } catch (error) {
@@ -989,7 +1422,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/stats", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = getUserId(req);
-      const stats = await storage.getUserStats(userId);
+      const organizationId = await getDefaultOrganizationId(userId);
+      const stats = await storage.getOrganizationStats(userId, organizationId);
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch stats" });
+    }
+  });
+
+  app.get("/api/organizations/:organizationId/stats", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const { organizationId } = req.params;
+      if (!(await storage.userHasOrganizationAccess(userId, organizationId))) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
+      const stats = await storage.getOrganizationStats(userId, organizationId);
       res.json(stats);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch stats" });
@@ -1002,7 +1450,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const userId = getUserId(req);
     const project = await storage.getProject(projectId);
     if (!project) return { ok: false as const, status: 404, error: "Project not found" };
-    if (project.userId !== userId) {
+    if (!(await storage.userHasOrganizationAccess(userId, project.organizationId))) {
       return { ok: false as const, status: 403, error: "Forbidden" };
     }
     return { ok: true as const, project, userId };
@@ -1161,7 +1609,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json({ text, metricsCount: activeMetrics.length });
       } catch (error: any) {
         console.error("Failed to build metrics report summary:", error);
-        res.status(500).json({ error: "Failed to build metrics report summary", details: error?.message });
+        res.status(500).json(mergeDevErrorDetails({ error: "Failed to build metrics report summary" }, error));
       }
     },
   );
@@ -1204,7 +1652,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json(metric);
       } catch (error: any) {
         console.error("Failed to create metric:", error);
-        res.status(500).json({ error: "Failed to create metric", details: error?.message });
+        res.status(500).json(mergeDevErrorDetails({ error: "Failed to create metric" }, error));
       }
     },
   );
@@ -1249,7 +1697,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json(updated);
       } catch (error: any) {
         console.error("Failed to update metric:", error);
-        res.status(500).json({ error: "Failed to update metric", details: error?.message });
+        res.status(500).json(mergeDevErrorDetails({ error: "Failed to update metric" }, error));
       }
     },
   );
@@ -1373,21 +1821,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json({ metric: updated, event });
       } catch (error: any) {
         console.error("Failed to record metric update:", error);
-        res.status(500).json({ error: "Failed to record metric update", details: error?.message });
+        res.status(500).json(mergeDevErrorDetails({ error: "Failed to record metric update" }, error));
       }
     },
   );
 
   app.get(
-    "/api/metrics/portfolio",
+    ["/api/metrics/portfolio", "/api/organizations/:organizationId/metrics/portfolio"],
     requireSupabaseUser,
     async (req: AuthenticatedRequest, res) => {
       try {
         const userId = getUserId(req);
-        const projects = await storage.getProjects(userId);
+        const organizationId = req.params.organizationId || await getDefaultOrganizationId(userId);
+        if (!(await storage.userHasOrganizationAccess(userId, organizationId))) {
+          return res.status(404).json({ error: "Organization not found" });
+        }
+        const projects = await storage.getProjectsForOrganization(userId, organizationId);
         const projectIds = projects.map(p => p.id);
         const metrics = await storage.getMetricsForProjects(projectIds);
-        const stats = await storage.getUserStats(userId);
+        const stats = await storage.getOrganizationStats(userId, organizationId);
         const periodStart = parseOptionalDate(req.query.periodStart, "periodStart");
         const periodEnd = parseOptionalDate(req.query.periodEnd, "periodEnd");
         if (periodStart && periodEnd && periodStart.getTime() > periodEnd.getTime()) {
@@ -1491,7 +1943,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json({ suggestions });
       } catch (error: any) {
         console.error("Metric extraction failed:", error);
-        res.status(500).json({ error: "Failed to extract metrics", details: error?.message });
+        res.status(500).json(mergeDevErrorDetails({ error: "Failed to extract metrics" }, error));
       }
     },
   );
@@ -1528,7 +1980,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json({ created });
       } catch (error: any) {
         console.error("Bulk metric create failed:", error);
-        res.status(500).json({ error: "Failed to create metrics", details: error?.message });
+        res.status(500).json(mergeDevErrorDetails({ error: "Failed to create metrics" }, error));
       }
     },
   );
@@ -1540,13 +1992,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const questions = await fileProcessor.extractQuestionsFromFile(
+      const { questions, demo } = await fileProcessor.extractQuestionsFromFile(
         req.file.buffer,
         req.file.originalname,
         req.file.mimetype,
       );
 
-      res.json({ questions });
+      res.json({ questions, demo });
     } catch (error) {
       console.error("Question extraction error:", error);
       res.status(500).json({ error: "Failed to extract questions" });

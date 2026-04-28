@@ -9,6 +9,8 @@ vite.config.ts.*
 uploads/
 .vercel
 
+*.log
+
 client_secret_*.json
 *.pem
 *.key

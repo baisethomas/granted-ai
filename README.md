@@ -27,7 +27,7 @@ Granted helps nonprofits streamline their grant application process by intellige
 **Backend**
 - Express.js + TypeScript
 - Drizzle ORM with PostgreSQL
-- Passport authentication (local + Google OAuth)
+- Supabase JWT validation on API routes; optional Passport local sessions (`/api/auth/*`)
 - pgvector for embeddings storage
 
 **AI & ML**
@@ -63,26 +63,32 @@ Granted helps nonprofits streamline their grant application process by intellige
 
 3. **Set up environment variables**
 
-   Create a `.env` file in the root directory:
+   Copy `.env.example` to `.env` and fill in values (server accepts `SUPABASE_URL`, `VITE_SUPABASE_URL`, or legacy `NEXT_PUBLIC_SUPABASE_URL` for JWT verification):
+
    ```bash
-   # Supabase
-   SUPABASE_URL=https://your-project.supabase.co
+   # Client (Vite) — anon key + URL for browser Supabase client
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+
+   # Server — required for validating Supabase JWTs on API routes
    SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-   # Database
+   # Database — strongly recommended (otherwise in-memory storage; data resets on restart)
    DATABASE_URL=postgresql://user:password@localhost:5432/granted
 
-   # OpenAI
    OPENAI_API_KEY=sk-your-openai-api-key
 
-   # Optional
-   SESSION_SECRET=your-random-secret
+   # Production: required for persistent Express sessions + Passport local auth (see .env.example)
+   SESSION_SECRET=your-long-random-secret
+
    DOCUMENTS_BUCKET=documents
    DOCUMENT_WORKER_API_KEY=your-worker-api-key
+
+   # OAuth redirect base for Google sign-in (production/staging); falls back to window.location.origin in dev
+   # VITE_APP_DOMAIN=https://your-app.example.com
    ```
 
-   > Google sign-in is configured in the Supabase dashboard (Authentication →
-   > Providers → Google), not via server env vars.
+   Google sign-in is configured in the Supabase dashboard (Authentication → Providers → Google); redirect URLs must match your deployed origin or `VITE_APP_DOMAIN`.
 
 4. **Set up the database**
    ```bash
@@ -103,16 +109,21 @@ Granted helps nonprofits streamline their grant application process by intellige
 
 | Variable | Purpose | Required |
 |----------|---------|----------|
-| `SUPABASE_URL` | Supabase project REST endpoint for JWT verification | ✅ Yes |
+| `SUPABASE_URL` / `VITE_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL for server JWT verification | ✅ Yes |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key for validating authenticated requests | ✅ Yes |
+| `NEXT_PUBLIC_SUPABASE_*` | Browser Supabase client (URL + anon key) | ✅ Yes (frontend auth) |
 | `OPENAI_API_KEY` | OpenAI API key for GPT-4 and embeddings | ✅ Yes |
 | `DATABASE_URL` | PostgreSQL connection string | ⚠️ Recommended* |
-| `SESSION_SECRET` | Express session secret (auto-generated if omitted) | ❌ Optional |
+| `SESSION_SECRET` | Express session signing secret | ✅ Required when `NODE_ENV=production`** |
+| `ALLOWED_ORIGINS` | Comma-separated browser origins allowed by CORS (same-origin always allowed) | ❌ Optional |
 | `DOCUMENTS_BUCKET` | Supabase storage bucket name (defaults to `documents`) | ❌ Optional |
-| `DOCUMENT_WORKER_API_KEY` | API key for background processing endpoint | ❌ Optional |
+| `DOCUMENT_WORKER_API_KEY` | API key for `POST /api/workers/process-documents` (and cron) | ❌ Optional |
+| `DOCUMENT_WORKER_BATCH_MAX` | Upper bound for worker `batchSize` query param (default `50`) | ❌ Optional |
+| `VITE_APP_DOMAIN` | Public app origin for OAuth redirects (no trailing slash); dev can use browser origin | ❌ Optional |
 | `PORT` | Server port (defaults to `5000`) | ❌ Optional |
 
-*Falls back to in-memory storage if omitted (data resets on server restart)
+\* Without `DATABASE_URL`, the server uses in-memory storage; data resets on restart.  
+\** See `.env.example`. Local Passport login and durable sessions need a stable `SESSION_SECRET` in production.
 
 ## Project Structure
 
@@ -152,7 +163,8 @@ granted-ai/
 │       └── rateLimiter.ts       # Rate limiting
 │
 ├── shared/                    # Shared code
-│   └── schema.ts             # Drizzle ORM schema (14 tables)
+│   ├── schema-simple.ts      # Drizzle ORM schema (primary for server/db.ts)
+│   └── schema.ts             # Alternate / legacy schema definitions
 │
 ├── migrations/               # Database migrations
 ├── scripts/                  # Utility scripts
@@ -166,7 +178,7 @@ granted-ai/
 ```
 User uploads PDF/DOCX
     ↓
-Extract text (pdf-parse / mammoth)
+Extract text (PDF.js via unpdf / mammoth)
     ↓
 Generate AI summary (GPT-4)
     ↓
@@ -381,17 +393,19 @@ Combines two search strategies:
 
 ### Document Processing
 - Supported formats: PDF, DOCX, TXT
-- Extraction: pdf-parse (PDFs), mammoth (Word docs)
+- Extraction: unpdf / PDF.js worker for PDFs (timeout configurable via `PDF_PARSE_TIMEOUT_MS`), mammoth for Word docs
 - Chunking: 1200 characters with 200-character overlap
 - Embeddings: OpenAI text-embedding-3-small (1536 dimensions)
 - Background processing prevents blocking the main thread
 
 ### Security
-- Passwords hashed with scrypt (Node.js crypto)
-- Timing-safe comparison to prevent timing attacks
-- JWT validation via Supabase admin client
-- Rate limiting on API endpoints
-- User data isolation (users can only access their own data)
+- Passwords hashed with scrypt (Node.js crypto); timing-safe comparisons for secrets
+- Supabase JWT validation on protected API routes (`Authorization: Bearer …`); `/api/auth/me` resolves the user without logging token material
+- Optional CORS allowlist via `ALLOWED_ORIGINS`; same-deployment origins always allowed
+- Security headers (Helmet), rate limiting on sensitive routes, Multer MIME allowlist on uploads
+- Production API errors omit internal `details`; verbose HTTP body logging only when `DEBUG_VERBOSE_HTTP=1`
+- Worker/cron batch sizes capped (`DOCUMENT_WORKER_BATCH_MAX`, default 50)
+- Organization-scoped access checks on projects and billing-sensitive actions
 
 ---
 
@@ -405,7 +419,7 @@ Combines two search strategies:
 - Greater flexibility for WebSocket support (future real-time collaboration)
 - Easier to scale backend independently from frontend
 - More control over middleware chain and server lifecycle
-- Better fit for complex authentication flows (Passport + Supabase hybrid)
+- Straightforward layering for Supabase JWT auth plus optional Passport local `/api/auth/*` routes
 
 **Tradeoff**: Lost Next.js benefits (SSR, file-based API routes, automatic optimization)
 
@@ -448,14 +462,13 @@ Combines two search strategies:
 
 ### Why Both Passport AND Supabase Auth?
 
-**Decision**: Dual authentication system
+**Decision**: Supabase Auth for primary sign-in (Google OAuth + managed JWTs); Passport **local** routes optional for `/api/auth/login` and cookie sessions.
 
 **Rationale**:
-- **Supabase Auth**: Primary system for production (scalable, managed JWTs)
-- **Passport Local**: Fallback for self-hosted deployments or local dev
-- **Hybrid Strategy**: `server/hybrid-auth.ts` detects which to use based on environment
+- **Supabase**: Client-driven OAuth and Bearer tokens on API requests
+- **Passport**: Same-origin cookie sessions for local username/password flows where enabled
 
-**Migration Path**: Planning to deprecate Passport in favor of Supabase-only auth (Q2 2026)
+Google OAuth runs entirely through Supabase on the client (see API Structure → Authentication).
 
 ### Why 1200-Character Chunks with 200-Character Overlap?
 
@@ -524,7 +537,7 @@ CREATE INDEX ON doc_chunks USING hnsw (embedding vector_cosine_ops);
 
 ### Horizontal Scaling Strategy
 
-**Stateless Design**: Server instances are stateless (session stored in DB/Redis)
+**Sessions**: With `DATABASE_URL` set, Express sessions use PostgreSQL via `connect-pg-simple` unless disabled (`DISABLE_PG_SESSION_STORE`). Without Postgres-backed sessions, cookies are not durable across restarts.
 
 **Scaling Plan**:
 1. **Web Tier**: Auto-scale Express instances behind load balancer
@@ -695,8 +708,8 @@ CREATE INDEX ON doc_chunks USING hnsw (embedding vector_cosine_ops);
 ### Code Quality Tools
 
 **Current**:
-- ✅ ESLint (configured in `.eslintrc`)
-- ✅ TypeScript strict mode
+- ✅ ESLint (`eslint.config.mjs`) — `client/src`, `server`, `api`, `shared`, `scripts`
+- ✅ TypeScript strict mode (`npm run check`)
 - ❌ Prettier (not configured)
 - ❌ Husky pre-commit hooks
 - ❌ SonarQube or CodeClimate
@@ -775,17 +788,13 @@ logger.info({ userId, documentId, duration }, 'Document processed');
 
 ### Health Checks
 
-**Endpoint**: `GET /api/debug/status` (exists in `server/routes.ts`)
+**Endpoint**: `GET /api/debug/status` (defined in `server/routes.ts`)
 
-**Returns**:
-```json
-{
-  "status": "healthy",
-  "database": "connected",
-  "openai": "reachable",
-  "uptime": 86400
-}
-```
+- Requires a valid Supabase JWT (`Authorization: Bearer …`), like other `/api/*` routes.
+- Returns **404** when `NODE_ENV=production` (avoid exposing internals).
+- In development, returns JSON such as `{ "status": "ok", "userId", "database": { … }, "projects": { "count" } }`.
+
+For production uptime checks, use a route you explicitly expose (or a platform health probe that does not rely on debug handlers).
 
 **Recommended Monitoring**:
 - Uptime Robot or Better Uptime (external monitoring)

@@ -1,5 +1,6 @@
 import { storage } from "../storage.js";
 import { generateEmbedding } from "../services/embedding.js";
+import { billingService, calculateCostCents } from "../services/billing.js";
 
 interface ProcessOptions {
   batchSize?: number;
@@ -117,6 +118,7 @@ export async function processDocumentJobs(options: ProcessOptions = {}): Promise
 
       let embeddingModel: string | null = null;
       let failedChunks = 0;
+      let embeddedTokens = 0;
 
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
@@ -126,6 +128,7 @@ export async function processDocumentJobs(options: ProcessOptions = {}): Promise
           const result = await generateEmbedding(chunk.content);
           embedding = result.embedding;
           embeddingModel = result.model;
+          embeddedTokens += chunk.tokenCount;
         } catch (embeddingError) {
           console.error(
             `[worker] Embedding failed for document ${job.documentId}, chunk ${i}:`,
@@ -155,6 +158,28 @@ export async function processDocumentJobs(options: ProcessOptions = {}): Promise
         finishedAt: new Date(),
         lastError: null,
       });
+
+      if (embeddingModel && embeddedTokens > 0) {
+        try {
+          await billingService.recordUsage({
+            organizationId: document.organizationId,
+            userId: document.userId,
+            projectId: null,
+            type: "embedding",
+            provider: "openai",
+            model: embeddingModel,
+            tokensIn: embeddedTokens,
+            tokensOut: 0,
+            costCents: calculateCostCents(embeddingModel, embeddedTokens, 0),
+            metadata: {
+              documentId: document.id,
+              chunkCount: chunks.length,
+            },
+          });
+        } catch (usageError) {
+          console.warn(`[worker] Failed to record embedding usage for ${document.id}:`, usageError);
+        }
+      }
 
       console.log(
         `[worker] Processed document ${job.documentId} with ${chunks.length} chunks.`

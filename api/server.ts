@@ -15,12 +15,20 @@ import { registerRoutes } from "../server/routes.js";
 import { setupAuth } from "../server/auth.js";
 import { corsMiddleware } from "../server/middleware/cors.js";
 import { apiRateLimiter } from "../server/middleware/rateLimiter.js";
+import { setupSecurityHeaders } from "../server/securityHeaders.js";
 
 let cachedApp: Express | null = null;
 let initPromise: Promise<Express> | null = null;
 
 async function createApp(): Promise<Express> {
   const app = express();
+
+  // Trust Vercel's edge proxy so `req.ip` is the real client address.
+  // Without this, `express-rate-limit` keys every request to the proxy IP
+  // and effectively does nothing in production.
+  app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS) || 1);
+
+  setupSecurityHeaders(app);
 
   app.use(corsMiddleware);
 

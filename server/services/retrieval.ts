@@ -3,6 +3,8 @@ import { generateEmbedding } from "./embedding.js";
 
 interface RetrieveOptions {
   userId: string;
+  organizationId?: string;
+  projectId?: string | null;
   query: string;
   limit?: number;
   semanticLimit?: number;
@@ -39,6 +41,8 @@ export interface RetrievalResult {
 export async function retrieveRelevantChunks(options: RetrieveOptions): Promise<RetrievalResult> {
   const {
     userId,
+    organizationId,
+    projectId,
     query,
     limit = 8,
     semanticLimit = 8,
@@ -56,11 +60,19 @@ export async function retrieveRelevantChunks(options: RetrieveOptions): Promise<
   const embeddingGenerated = !!embeddingResult.embedding;
 
   if (embeddingResult.embedding) {
-    const semanticChunks = await storage.searchDocChunksByEmbedding(
-      userId,
-      embeddingResult.embedding,
-      semanticLimit
-    );
+    const semanticChunks = organizationId
+      ? await storage.searchDocChunksByEmbeddingForOrganization(
+          userId,
+          organizationId,
+          embeddingResult.embedding,
+          semanticLimit,
+          projectId
+        )
+      : await storage.searchDocChunksByEmbedding(
+          userId,
+          embeddingResult.embedding,
+          semanticLimit
+        );
 
     for (const record of semanticChunks) {
       const key = record.chunk.id;
@@ -86,7 +98,15 @@ export async function retrieveRelevantChunks(options: RetrieveOptions): Promise<
   }
 
   if (keywordLimit > 0) {
-    const keywordChunks = await storage.searchDocChunksByKeyword(userId, query, keywordLimit);
+    const keywordChunks = organizationId
+      ? await storage.searchDocChunksByKeywordForOrganization(
+          userId,
+          organizationId,
+          query,
+          keywordLimit,
+          projectId
+        )
+      : await storage.searchDocChunksByKeyword(userId, query, keywordLimit);
     for (const record of keywordChunks) {
       const key = record.chunk.id;
       const existing = chunksMap.get(key);

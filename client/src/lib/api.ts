@@ -2,6 +2,7 @@ import { apiRequest, API_BASE_URL } from "./queryClient";
 
 export interface Project {
   id: string;
+  organizationId?: string;
   title: string;
   funder: string;
   amount?: string;
@@ -15,6 +16,25 @@ export interface Project {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface Organization {
+  id: string;
+  name: string;
+  organizationType?: string | null;
+  ein?: string | null;
+  foundedYear?: number | null;
+  primaryContact?: string | null;
+  contactEmail?: string | null;
+  mission?: string | null;
+  focusAreas?: string[] | null;
+  plan?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type OrganizationInput = Partial<Omit<Organization, "id" | "createdAt" | "updatedAt">> & {
+  name: string;
+};
 
 export type MetricType = "number" | "currency" | "percent" | "text" | "date";
 export type MetricCategory = "impact" | "financial" | "timeline" | "reporting" | "custom";
@@ -141,6 +161,8 @@ export interface PortfolioMetricsResponse {
 
 export interface Document {
   id: string;
+  organizationId?: string;
+  projectId?: string | null;
   filename: string;
   originalName: string;
   fileType: string;
@@ -240,6 +262,22 @@ export interface ApiErrorResponse {
 }
 
 export const api = {
+  // Organizations / client workspaces
+  async getOrganizations(): Promise<Organization[]> {
+    const res = await apiRequest("GET", "/api/organizations");
+    return res.json();
+  },
+
+  async createOrganization(data: OrganizationInput): Promise<Organization> {
+    const res = await apiRequest("POST", "/api/organizations", data);
+    return res.json();
+  },
+
+  async updateOrganization(id: string, data: Partial<OrganizationInput>): Promise<Organization> {
+    const res = await apiRequest("PATCH", `/api/organizations/${id}`, data);
+    return res.json();
+  },
+
   // Projects
   async getProjects(): Promise<Project[]> {
     const res = await apiRequest("GET", "/api/projects");
@@ -248,6 +286,16 @@ export const api = {
 
   async createProject(data: ProjectInput): Promise<Project> {
     const res = await apiRequest("POST", "/api/projects", data);
+    return res.json();
+  },
+
+  async getOrganizationProjects(organizationId: string): Promise<Project[]> {
+    const res = await apiRequest("GET", `/api/organizations/${organizationId}/projects`);
+    return res.json();
+  },
+
+  async createOrganizationProject(organizationId: string, data: ProjectInput): Promise<Project> {
+    const res = await apiRequest("POST", `/api/organizations/${organizationId}/projects`, data);
     return res.json();
   },
 
@@ -276,10 +324,17 @@ export const api = {
     return res.json();
   },
 
-  async uploadDocument(file: File, category?: string): Promise<Document> {
+  async getOrganizationDocuments(organizationId: string, projectId?: string | null): Promise<Document[]> {
+    const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+    const res = await apiRequest("GET", `/api/organizations/${organizationId}/documents${qs}`);
+    return res.json();
+  },
+
+  async uploadDocument(file: File, category?: string, opts?: { organizationId?: string; projectId?: string | null }): Promise<Document> {
     const formData = new FormData();
     formData.append('file', file);
     if (category) formData.append('category', category);
+    if (opts?.projectId) formData.append('projectId', opts.projectId);
 
     // Get Supabase auth token
     const { supabase } = await import("./supabase");
@@ -290,7 +345,10 @@ export const api = {
       headers.Authorization = `Bearer ${session.access_token}`;
     }
 
-    const url = API_BASE_URL ? `${API_BASE_URL}/api/documents/upload` : "/api/documents/upload";
+    const path = opts?.organizationId
+      ? `/api/organizations/${opts.organizationId}/documents/upload`
+      : "/api/documents/upload";
+    const url = API_BASE_URL ? `${API_BASE_URL}${path}` : path;
     const res = await fetch(url, {
       method: "POST",
       headers,
@@ -391,8 +449,13 @@ export const api = {
     return res.json();
   },
 
+  async getOrganizationStats(organizationId: string): Promise<Stats> {
+    const res = await apiRequest("GET", `/api/organizations/${organizationId}/stats`);
+    return res.json();
+  },
+
   // File extraction
-  async extractQuestions(file: File): Promise<{ questions: string[] }> {
+  async extractQuestions(file: File): Promise<{ questions: string[]; demo?: boolean }> {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -504,12 +567,16 @@ export const api = {
   async getPortfolioMetrics(opts?: {
     periodStart?: string | null;
     periodEnd?: string | null;
+    organizationId?: string | null;
   }): Promise<PortfolioMetricsResponse> {
     const params = new URLSearchParams();
     if (opts?.periodStart) params.set("periodStart", opts.periodStart);
     if (opts?.periodEnd) params.set("periodEnd", opts.periodEnd);
     const qs = params.toString();
-    const res = await apiRequest("GET", `/api/metrics/portfolio${qs ? `?${qs}` : ""}`);
+    const path = opts?.organizationId
+      ? `/api/organizations/${opts.organizationId}/metrics/portfolio`
+      : "/api/metrics/portfolio";
+    const res = await apiRequest("GET", `${path}${qs ? `?${qs}` : ""}`);
     return res.json();
   },
 

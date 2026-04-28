@@ -14,6 +14,7 @@ import { parseAmountToNumber } from "@/lib/currency";
 import { api } from "@/lib/api";
 import { getAuthHeaders } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { 
   Keyboard, 
   FileUp, 
@@ -29,6 +30,7 @@ import ClarificationPanel, { ClarificationQuestion } from "@/components/Clarific
 export default function Forms() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { activeOrganizationId } = useWorkspace();
 
   const [projectForm, setProjectForm] = useState({
     title: "",
@@ -57,8 +59,9 @@ export default function Forms() {
   const [clarificationQuestions, setClarificationQuestions] = useState<ClarificationQuestion[]>([]);
 
   const { data: projects = [] } = useQuery({
-    queryKey: ["/api/projects"],
-    queryFn: api.getProjects,
+    queryKey: ["organizations", activeOrganizationId, "projects"],
+    queryFn: () => activeOrganizationId ? api.getOrganizationProjects(activeOrganizationId) : Promise.resolve([]),
+    enabled: !!activeOrganizationId,
   });
 
   const { data: settings } = useQuery({
@@ -115,9 +118,13 @@ export default function Forms() {
   };
 
   const createProjectMutation = useMutation({
-    mutationFn: api.createProject,
+    mutationFn: (data: any) =>
+      activeOrganizationId ? api.createOrganizationProject(activeOrganizationId, data) : api.createProject(data),
     onSuccess: (project) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      if (activeOrganizationId) {
+        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "projects"] });
+      }
       setCurrentProject(project.id);
       toast({
         title: "Project created",
@@ -140,7 +147,9 @@ export default function Forms() {
       // Create project first if needed
       let pid = currentProject;
       if (!pid) {
-        const project = await api.createProject(projectData);
+      const project = activeOrganizationId
+        ? await api.createOrganizationProject(activeOrganizationId, projectData)
+        : await api.createProject(projectData);
         pid = project.id;
         setCurrentProject(pid);
       } else {
@@ -163,6 +172,12 @@ export default function Forms() {
     },
     onSuccess: (projectId) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      if (activeOrganizationId) {
+        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "projects"] });
+      }
+      if (activeOrganizationId) {
+        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "projects"] });
+      }
       toast({
         title: "Draft saved",
         description: "Your grant application draft has been saved successfully.",
@@ -207,7 +222,9 @@ export default function Forms() {
       // Create project first if needed
       let pid = projectId;
       if (!pid) {
-        const project = await api.createProject(projectData);
+        const project = activeOrganizationId
+          ? await api.createOrganizationProject(activeOrganizationId, projectData)
+          : await api.createProject(projectData);
         pid = project.id;
         setCurrentProject(pid);
       } else {
@@ -487,7 +504,9 @@ export default function Forms() {
       
       toast({
         title: "Questions extracted successfully",
-        description: `Found ${result.questions.length} questions in the document.`,
+        description: result.demo
+          ? `Loaded ${result.questions.length} placeholder questions (demo — add OPENAI_API_KEY server-side for real extraction).`
+          : `Found ${result.questions.length} questions in the document.`,
       });
       
       setShowUploadModal(false);

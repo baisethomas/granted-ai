@@ -21,11 +21,21 @@ import {
   type InsertGrantMetric,
   type GrantMetricEvent,
   type InsertGrantMetricEvent,
+  type Subscription,
+  type InsertUsageEvent,
+  type UsageEvent,
+  type Organization,
+  type InsertOrganization,
 } from "../shared/schema.js";
 import { randomUUID } from "crypto";
 import { db, schema, sql as rawSql } from "./db.js";
-import { eq, and, asc, desc, inArray, ne, type SQL } from "drizzle-orm";
+import { eq, and, asc, desc, inArray, ne, sql as drizzleSql, type SQL } from "drizzle-orm";
 import { parseAmountToNumber, formatCurrencyCompact } from "../shared/currency.js";
+
+/** Escape `%`, `_`, and `\` for use inside a PostgreSQL LIKE pattern literal. */
+function escapeLikePattern(input: string): string {
+  return input.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
 
 function computeStatsFromProjects(projects: Project[]): {
   activeProjects: number;
@@ -77,17 +87,43 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
 
+  // Organization/workspace methods
+  getOrganizationsForUser(userId: string): Promise<Organization[]>;
+  getOrganization(id: string): Promise<Organization | undefined>;
+  ensureDefaultOrganizationForUser(userId: string, displayName?: string): Promise<Organization>;
+  createOrganization(userId: string, organization: InsertOrganization): Promise<Organization>;
+  updateOrganization(id: string, updates: Partial<Organization>): Promise<Organization | undefined>;
+  userHasOrganizationAccess(userId: string, organizationId: string): Promise<boolean>;
+
   // Project methods
   getProjects(userId: string): Promise<Project[]>;
+  getProjectsForOrganization(userId: string, organizationId: string): Promise<Project[]>;
   getProject(id: string): Promise<Project | undefined>;
   createProject(userId: string, project: InsertProject): Promise<Project>;
+  createProjectForOrganization(userId: string, organizationId: string, project: InsertProject): Promise<Project>;
   updateProject(id: string, updates: Partial<Project>): Promise<Project | undefined>;
   deleteProject(id: string): Promise<boolean>;
 
+  // Billing methods
+  ensureOrganization(organizationId: string, name?: string): Promise<void>;
+  getSubscription(organizationId: string): Promise<Subscription | undefined>;
+  createSubscription(data: {
+    organizationId: string;
+    plan: string;
+    status: string;
+    currentPeriodStart: Date;
+    currentPeriodEnd: Date;
+  }): Promise<Subscription>;
+  updateSubscription(id: string, updates: Partial<Subscription>): Promise<Subscription | undefined>;
+  createUsageEvent(event: InsertUsageEvent): Promise<UsageEvent>;
+  getUsageEventsForPeriod(organizationId: string, start: Date, end: Date): Promise<UsageEvent[]>;
+
   // Document methods
   getDocuments(userId: string): Promise<Document[]>;
+  getDocumentsForOrganization(userId: string, organizationId: string, projectId?: string | null): Promise<Document[]>;
   getDocument(id: string): Promise<Document | undefined>;
   createDocument(userId: string, document: InsertDocument): Promise<Document>;
+  createDocumentForOrganization(userId: string, organizationId: string, document: InsertDocument): Promise<Document>;
   updateDocument(id: string, updates: Partial<Document>): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
   setDocumentExtraction(
@@ -130,10 +166,24 @@ export interface IStorage {
     embedding: number[],
     limit: number
   ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>>;
+  searchDocChunksByEmbeddingForOrganization(
+    userId: string,
+    organizationId: string,
+    embedding: number[],
+    limit: number,
+    projectId?: string | null
+  ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>>;
   searchDocChunksByKeyword(
     userId: string,
     keywords: string,
     limit: number
+  ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>>;
+  searchDocChunksByKeywordForOrganization(
+    userId: string,
+    organizationId: string,
+    keywords: string,
+    limit: number,
+    projectId?: string | null
   ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>>;
   createDraftCitation(citation: InsertDraftCitation): Promise<DraftCitation>;
   getDraftCitations(draftId: string): Promise<DraftCitation[]>;
@@ -182,6 +232,12 @@ export interface IStorage {
     totalAwarded: string;
     dueThisWeek: number;
   }>;
+  getOrganizationStats(userId: string, organizationId: string): Promise<{
+    activeProjects: number;
+    successRate: string;
+    totalAwarded: string;
+    dueThisWeek: number;
+  }>;
 
   // Grant metrics methods
   getGrantMetrics(projectId: string, opts?: { includeDismissed?: boolean }): Promise<GrantMetric[]>;
@@ -197,11 +253,15 @@ export interface IStorage {
 
 export class MemStorage implements IStorage {
   private users: Map<string, User> = new Map();
+  private organizations: Map<string, Organization> = new Map();
+  private memberships: Map<string, { id: string; userId: string; organizationId: string; role: string; createdAt: Date; updatedAt: Date }> = new Map();
   private projects: Map<string, Project> = new Map();
   private documents: Map<string, Document> = new Map();
   private grantQuestions: Map<string, GrantQuestion> = new Map();
   private responseVersions: Map<string, ResponseVersion> = new Map();
   private userSettings: Map<string, UserSettings> = new Map();
+  private subscriptions: Map<string, Subscription> = new Map();
+  private usageEvents: Map<string, UsageEvent> = new Map();
   private documentExtractions: Map<string, DocumentExtraction> = new Map();
   private documentProcessingJobs: Map<string, DocumentProcessingJob> = new Map();
   private documentChunks: Map<string, DocChunk[]> = new Map();
@@ -257,8 +317,109 @@ export class MemStorage implements IStorage {
     return updatedUser;
   }
 
+  async getOrganizationsForUser(userId: string): Promise<Organization[]> {
+    return Array.from(this.memberships.values())
+      .filter((membership) => membership.userId === userId)
+      .map((membership) => this.organizations.get(membership.organizationId))
+      .filter((org): org is Organization => !!org);
+  }
+
+  async getOrganization(id: string): Promise<Organization | undefined> {
+    return this.organizations.get(id);
+  }
+
+  async ensureDefaultOrganizationForUser(userId: string, displayName?: string): Promise<Organization> {
+    let organization = this.organizations.get(userId);
+    if (!organization) {
+      const user = this.users.get(userId);
+      const now = new Date();
+      organization = {
+        id: userId,
+        name: displayName || user?.organizationName || "My Organization",
+        organizationType: user?.organizationType ?? null,
+        ein: user?.ein ?? null,
+        foundedYear: user?.foundedYear ?? null,
+        primaryContact: user?.primaryContact ?? null,
+        contactEmail: user?.email ?? null,
+        mission: user?.mission ?? null,
+        focusAreas: user?.focusAreas ?? null,
+        plan: "starter",
+        billingCustomerId: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.organizations.set(userId, organization);
+    }
+    const existingMembership = Array.from(this.memberships.values()).find(
+      (membership) => membership.userId === userId && membership.organizationId === organization!.id
+    );
+    if (!existingMembership) {
+      const now = new Date();
+      this.memberships.set(randomUUID(), {
+        id: randomUUID(),
+        userId,
+        organizationId: organization.id,
+        role: "owner",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    return organization;
+  }
+
+  async createOrganization(userId: string, insertOrganization: InsertOrganization): Promise<Organization> {
+    const id = randomUUID();
+    const now = new Date();
+    const organization: Organization = {
+      id,
+      name: insertOrganization.name,
+      organizationType: insertOrganization.organizationType ?? null,
+      ein: insertOrganization.ein ?? null,
+      foundedYear: insertOrganization.foundedYear ?? null,
+      primaryContact: insertOrganization.primaryContact ?? null,
+      contactEmail: insertOrganization.contactEmail ?? null,
+      mission: insertOrganization.mission ?? null,
+      focusAreas: insertOrganization.focusAreas ?? null,
+      plan: "starter",
+      billingCustomerId: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.organizations.set(id, organization);
+    const membershipId = randomUUID();
+    this.memberships.set(membershipId, {
+      id: membershipId,
+      userId,
+      organizationId: id,
+      role: "owner",
+      createdAt: now,
+      updatedAt: now,
+    });
+    return organization;
+  }
+
+  async updateOrganization(id: string, updates: Partial<Organization>): Promise<Organization | undefined> {
+    const organization = this.organizations.get(id);
+    if (!organization) return undefined;
+    const updatedOrganization = { ...organization, ...updates, updatedAt: new Date() };
+    this.organizations.set(id, updatedOrganization);
+    return updatedOrganization;
+  }
+
+  async userHasOrganizationAccess(userId: string, organizationId: string): Promise<boolean> {
+    await this.ensureDefaultOrganizationForUser(userId);
+    return Array.from(this.memberships.values()).some(
+      (membership) => membership.userId === userId && membership.organizationId === organizationId
+    );
+  }
+
   async getProjects(userId: string): Promise<Project[]> {
     return Array.from(this.projects.values()).filter(p => p.userId === userId);
+  }
+
+  async getProjectsForOrganization(userId: string, organizationId: string): Promise<Project[]> {
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) return [];
+    return Array.from(this.projects.values()).filter(p => p.organizationId === organizationId);
   }
 
   async getProject(id: string): Promise<Project | undefined> {
@@ -266,13 +427,19 @@ export class MemStorage implements IStorage {
   }
 
   async createProject(userId: string, insertProject: InsertProject): Promise<Project> {
+    const organization = await this.ensureDefaultOrganizationForUser(userId);
+    return this.createProjectForOrganization(userId, organization.id, insertProject);
+  }
+
+  async createProjectForOrganization(userId: string, organizationId: string, insertProject: InsertProject): Promise<Project> {
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) {
+      throw new Error("Forbidden");
+    }
     const id = randomUUID();
     const project: Project = {
       id,
       userId,
-      // MemStorage is dev-only fallback; use userId as the org when one isn't
-      // explicitly supplied (single-tenant semantics).
-      organizationId: userId,
+      organizationId,
       title: insertProject.title,
       funder: insertProject.funder,
       amount: insertProject.amount ?? null,
@@ -303,8 +470,94 @@ export class MemStorage implements IStorage {
     return this.projects.delete(id);
   }
 
+  async getSubscription(organizationId: string): Promise<Subscription | undefined> {
+    return Array.from(this.subscriptions.values()).find(
+      (subscription) => subscription.organizationId === organizationId
+    );
+  }
+
+  async ensureOrganization(_organizationId: string, _name?: string): Promise<void> {
+    // MemStorage does not maintain a separate organization collection; userId
+    // and organizationId are the same in the current single-user model.
+  }
+
+  async createSubscription(data: {
+    organizationId: string;
+    plan: string;
+    status: string;
+    currentPeriodStart: Date;
+    currentPeriodEnd: Date;
+  }): Promise<Subscription> {
+    const id = randomUUID();
+    const now = new Date();
+    const subscription: Subscription = {
+      id,
+      organizationId: data.organizationId,
+      plan: data.plan,
+      status: data.status,
+      currentPeriodStart: data.currentPeriodStart,
+      currentPeriodEnd: data.currentPeriodEnd,
+      cancelAtPeriodEnd: false,
+      stripeSubscriptionId: null,
+      stripeCustomerId: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.subscriptions.set(id, subscription);
+    return subscription;
+  }
+
+  async updateSubscription(id: string, updates: Partial<Subscription>): Promise<Subscription | undefined> {
+    const subscription = this.subscriptions.get(id);
+    if (!subscription) return undefined;
+    const updatedSubscription = { ...subscription, ...updates, updatedAt: new Date() };
+    this.subscriptions.set(id, updatedSubscription);
+    return updatedSubscription;
+  }
+
+  async createUsageEvent(event: InsertUsageEvent): Promise<UsageEvent> {
+    const id = randomUUID();
+    const usageEvent: UsageEvent = {
+      id,
+      organizationId: event.organizationId!,
+      userId: event.userId ?? null,
+      projectId: event.projectId ?? null,
+      type: event.type!,
+      provider: event.provider ?? "internal",
+      model: event.model ?? null,
+      tokensIn: event.tokensIn ?? 0,
+      tokensOut: event.tokensOut ?? 0,
+      costCents: event.costCents ?? 0,
+      metadata: event.metadata ?? {},
+      createdAt: new Date(),
+    };
+    this.usageEvents.set(id, usageEvent);
+    return usageEvent;
+  }
+
+  async getUsageEventsForPeriod(organizationId: string, start: Date, end: Date): Promise<UsageEvent[]> {
+    return Array.from(this.usageEvents.values()).filter((event) => {
+      const createdAt = event.createdAt ? new Date(event.createdAt) : null;
+      return (
+        event.organizationId === organizationId &&
+        !!createdAt &&
+        createdAt >= start &&
+        createdAt < end
+      );
+    });
+  }
+
   async getDocuments(userId: string): Promise<Document[]> {
     return Array.from(this.documents.values()).filter(d => d.userId === userId);
+  }
+
+  async getDocumentsForOrganization(userId: string, organizationId: string, projectId?: string | null): Promise<Document[]> {
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) return [];
+    return Array.from(this.documents.values()).filter((document) => {
+      if (document.organizationId !== organizationId) return false;
+      if (projectId === undefined) return true;
+      return document.projectId === null || document.projectId === projectId;
+    });
   }
 
   async getDocument(id: string): Promise<Document | undefined> {
@@ -312,12 +565,21 @@ export class MemStorage implements IStorage {
   }
 
   async createDocument(userId: string, insertDocument: InsertDocument): Promise<Document> {
+    const organization = await this.ensureDefaultOrganizationForUser(userId);
+    return this.createDocumentForOrganization(userId, insertDocument.organizationId || organization.id, insertDocument);
+  }
+
+  async createDocumentForOrganization(userId: string, organizationId: string, insertDocument: InsertDocument): Promise<Document> {
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) {
+      throw new Error("Forbidden");
+    }
     const id = randomUUID();
     const now = new Date();
     const document: Document = {
       id,
       userId,
-      organizationId: insertDocument.organizationId || userId,
+      organizationId,
+      projectId: insertDocument.projectId ?? null,
       filename: insertDocument.filename,
       originalName: insertDocument.originalName,
       fileType: insertDocument.fileType,
@@ -526,8 +788,21 @@ export class MemStorage implements IStorage {
     embedding: number[],
     limit: number
   ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>> {
-    const docMap = Array.from(this.documents.values()).filter((d) => d.userId === userId);
-    const docLookup = new Map(docMap.map((doc) => [doc.id, doc]));
+    return this.searchDocChunksByEmbeddingForOrganization(userId, userId, embedding, limit);
+  }
+
+  async searchDocChunksByEmbeddingForOrganization(
+    userId: string,
+    organizationId: string,
+    embedding: number[],
+    limit: number,
+    projectId?: string | null
+  ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>> {
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) return [];
+    const docMap = Array.from(this.documents.values()).filter((d) => {
+      if (d.organizationId !== organizationId) return false;
+      return projectId === undefined || d.projectId === null || d.projectId === projectId;
+    });
     const allChunks: Array<{ chunk: DocChunk; document: Document; similarity?: number }> = [];
 
     for (const doc of docMap) {
@@ -555,8 +830,22 @@ export class MemStorage implements IStorage {
     keywords: string,
     limit: number
   ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>> {
+    return this.searchDocChunksByKeywordForOrganization(userId, userId, keywords, limit);
+  }
+
+  async searchDocChunksByKeywordForOrganization(
+    userId: string,
+    organizationId: string,
+    keywords: string,
+    limit: number,
+    projectId?: string | null
+  ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>> {
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) return [];
     const lower = keywords.toLowerCase();
-    const docMap = Array.from(this.documents.values()).filter((d) => d.userId === userId);
+    const docMap = Array.from(this.documents.values()).filter((d) => {
+      if (d.organizationId !== organizationId) return false;
+      return projectId === undefined || d.projectId === null || d.projectId === projectId;
+    });
     const results: Array<{ chunk: DocChunk; document: Document; similarity?: number }> = [];
 
     for (const doc of docMap) {
@@ -698,6 +987,16 @@ export class MemStorage implements IStorage {
     return computeStatsFromProjects(projects);
   }
 
+  async getOrganizationStats(userId: string, organizationId: string): Promise<{
+    activeProjects: number;
+    successRate: string;
+    totalAwarded: string;
+    dueThisWeek: number;
+  }> {
+    const projects = await this.getProjectsForOrganization(userId, organizationId);
+    return computeStatsFromProjects(projects);
+  }
+
   async getGrantMetrics(
     projectId: string,
     opts?: { includeDismissed?: boolean }
@@ -822,8 +1121,92 @@ export class DbStorage implements IStorage {
     return rows?.[0];
   }
 
+  async getOrganizationsForUser(userId: string): Promise<Organization[]> {
+    await this.ensureDefaultOrganizationForUser(userId);
+    const rows = await db
+      ?.select({ organization: schema.organizations })
+      .from(schema.memberships)
+      .innerJoin(schema.organizations, eq(schema.memberships.organizationId, schema.organizations.id))
+      .where(eq(schema.memberships.userId, userId))
+      .orderBy(asc(schema.organizations.name));
+    return rows?.map((row: { organization: Organization }) => row.organization) ?? [];
+  }
+
+  async getOrganization(id: string): Promise<Organization | undefined> {
+    const rows = await db?.select().from(schema.organizations).where(eq(schema.organizations.id, id));
+    return rows?.[0];
+  }
+
+  async ensureDefaultOrganizationForUser(userId: string, displayName?: string): Promise<Organization> {
+    const existing = await this.getOrganization(userId);
+    if (existing) {
+      const membership = await db
+        ?.select({ id: schema.memberships.id })
+        .from(schema.memberships)
+        .where(and(eq(schema.memberships.userId, userId), eq(schema.memberships.organizationId, userId)));
+      if (!membership?.length) {
+        await db?.insert(schema.memberships).values({ userId, organizationId: userId, role: "owner" } as any);
+      }
+      return existing;
+    }
+
+    const user = await this.getUser(userId);
+    const rows = await db?.insert(schema.organizations).values({
+      id: userId,
+      name: displayName || user?.organizationName || "My Organization",
+      organizationType: user?.organizationType ?? null,
+      ein: user?.ein ?? null,
+      foundedYear: user?.foundedYear ?? null,
+      primaryContact: user?.primaryContact ?? null,
+      contactEmail: user?.email ?? null,
+      mission: user?.mission ?? null,
+      focusAreas: user?.focusAreas ?? null,
+      plan: "starter",
+    } as any).returning();
+    await db?.insert(schema.memberships).values({ userId, organizationId: userId, role: "owner" } as any);
+    return rows![0];
+  }
+
+  async createOrganization(userId: string, insertOrganization: InsertOrganization): Promise<Organization> {
+    const rows = await db?.insert(schema.organizations).values({
+      ...(insertOrganization as any),
+      plan: "starter",
+    }).returning();
+    const organization = rows![0];
+    await db?.insert(schema.memberships).values({
+      userId,
+      organizationId: organization.id,
+      role: "owner",
+    } as any);
+    return organization;
+  }
+
+  async updateOrganization(id: string, updates: Partial<Organization>): Promise<Organization | undefined> {
+    const rows = await db
+      ?.update(schema.organizations)
+      .set({ ...(updates as any), updatedAt: new Date() })
+      .where(eq(schema.organizations.id, id))
+      .returning();
+    return rows?.[0];
+  }
+
+  async userHasOrganizationAccess(userId: string, organizationId: string): Promise<boolean> {
+    await this.ensureDefaultOrganizationForUser(userId);
+    const rows = await db
+      ?.select({ id: schema.memberships.id })
+      .from(schema.memberships)
+      .where(and(eq(schema.memberships.userId, userId), eq(schema.memberships.organizationId, organizationId)));
+    return (rows?.length ?? 0) > 0;
+  }
+
   async getProjects(userId: string): Promise<Project[]> {
     const rows = await db?.select().from(schema.projects).where(eq(schema.projects.userId, userId));
+    return rows || [];
+  }
+
+  async getProjectsForOrganization(userId: string, organizationId: string): Promise<Project[]> {
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) return [];
+    const rows = await db?.select().from(schema.projects).where(eq(schema.projects.organizationId, organizationId));
     return rows || [];
   }
 
@@ -833,11 +1216,18 @@ export class DbStorage implements IStorage {
   }
 
   async createProject(userId: string, insertProject: InsertProject): Promise<Project> {
-    // Use userId as organizationId for now (until proper multi-tenancy is implemented)
+    const organization = await this.ensureDefaultOrganizationForUser(userId);
+    return this.createProjectForOrganization(userId, organization.id, insertProject);
+  }
+
+  async createProjectForOrganization(userId: string, organizationId: string, insertProject: InsertProject): Promise<Project> {
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) {
+      throw new Error("Forbidden");
+    }
     const rows = await db?.insert(schema.projects).values({ 
       ...(insertProject as any), 
       userId,
-      organizationId: userId 
+      organizationId,
     }).returning();
     return rows![0];
   }
@@ -893,8 +1283,89 @@ export class DbStorage implements IStorage {
     });
   }
 
+  async getSubscription(organizationId: string): Promise<Subscription | undefined> {
+    const rows = await db
+      ?.select()
+      .from(schema.subscriptions)
+      .where(eq(schema.subscriptions.organizationId, organizationId));
+    return rows?.[0];
+  }
+
+  async ensureOrganization(organizationId: string, name?: string): Promise<void> {
+    if (!db) return;
+    const existing = await db
+      .select({ id: schema.organizations.id })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, organizationId));
+    if (existing?.length) return;
+    await db.insert(schema.organizations).values({
+      id: organizationId,
+      name: name || "My Organization",
+      plan: "starter",
+    } as any);
+  }
+
+  async createSubscription(data: {
+    organizationId: string;
+    plan: string;
+    status: string;
+    currentPeriodStart: Date;
+    currentPeriodEnd: Date;
+  }): Promise<Subscription> {
+    const rows = await db
+      ?.insert(schema.subscriptions)
+      .values(data as any)
+      .returning();
+    return rows![0];
+  }
+
+  async updateSubscription(id: string, updates: Partial<Subscription>): Promise<Subscription | undefined> {
+    const rows = await db
+      ?.update(schema.subscriptions)
+      .set({ ...(updates as any), updatedAt: new Date() })
+      .where(eq(schema.subscriptions.id, id))
+      .returning();
+    return rows?.[0];
+  }
+
+  async createUsageEvent(event: InsertUsageEvent): Promise<UsageEvent> {
+    const rows = await db
+      ?.insert(schema.usageEvents)
+      .values(event as any)
+      .returning();
+    return rows![0];
+  }
+
+  async getUsageEventsForPeriod(organizationId: string, start: Date, end: Date): Promise<UsageEvent[]> {
+    if (!db) return [];
+    const rows = await db
+      .select()
+      .from(schema.usageEvents)
+      .where(
+        and(
+          eq(schema.usageEvents.organizationId, organizationId),
+          drizzleSql`${schema.usageEvents.createdAt} >= ${start}`,
+          drizzleSql`${schema.usageEvents.createdAt} < ${end}`,
+        )
+      );
+    return rows || [];
+  }
+
   async getDocuments(userId: string): Promise<Document[]> {
     const rows = await db?.select().from(schema.documents).where(eq(schema.documents.userId, userId));
+    return rows || [];
+  }
+
+  async getDocumentsForOrganization(userId: string, organizationId: string, projectId?: string | null): Promise<Document[]> {
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) return [];
+    const projectFilter =
+      projectId === undefined
+        ? eq(schema.documents.organizationId, organizationId)
+        : and(
+            eq(schema.documents.organizationId, organizationId),
+            drizzleSql`(${schema.documents.projectId} IS NULL OR ${schema.documents.projectId} = ${projectId})`
+          );
+    const rows = await db?.select().from(schema.documents).where(projectFilter);
     return rows || [];
   }
 
@@ -904,9 +1375,17 @@ export class DbStorage implements IStorage {
   }
 
   async createDocument(userId: string, insertDocument: InsertDocument): Promise<Document> {
+    const organization = await this.ensureDefaultOrganizationForUser(userId);
+    return this.createDocumentForOrganization(userId, insertDocument.organizationId || organization.id, insertDocument);
+  }
+
+  async createDocumentForOrganization(userId: string, organizationId: string, insertDocument: InsertDocument): Promise<Document> {
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) {
+      throw new Error("Forbidden");
+    }
     const values: InsertDocument & { organizationId?: string } = {
       ...insertDocument,
-      organizationId: insertDocument.organizationId || userId,
+      organizationId,
     };
     const rows = await db?.insert(schema.documents).values({ ...(values as any), userId }).returning();
     return rows![0];
@@ -1104,7 +1583,18 @@ export class DbStorage implements IStorage {
     embedding: number[],
     limit: number
   ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>> {
+    return this.searchDocChunksByEmbeddingForOrganization(userId, userId, embedding, limit);
+  }
+
+  async searchDocChunksByEmbeddingForOrganization(
+    userId: string,
+    organizationId: string,
+    embedding: number[],
+    limit: number,
+    projectId?: string | null
+  ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>> {
     if (!rawSql) return [];
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) return [];
     const vectorLiteral = `[${embedding.join(",")}]`;
     const query = `
       SELECT
@@ -1119,6 +1609,7 @@ export class DbStorage implements IStorage {
         d.id AS document_id,
         d.user_id AS document_user_id,
         d.organization_id,
+        d.project_id,
         d.original_name,
         d.filename,
         d.filename,
@@ -1139,16 +1630,20 @@ export class DbStorage implements IStorage {
         d.storage_path,
         d.storage_url,
         d.uploaded_at,
-        1 - (dc.embedding <=> '${vectorLiteral}'::vector) AS similarity
+        1 - (dc.embedding <=> $4::vector) AS similarity
       FROM doc_chunks dc
       INNER JOIN documents d ON d.id = dc.document_id
-      WHERE d.user_id = $1
-      ORDER BY dc.embedding <=> '${vectorLiteral}'::vector
+      WHERE d.organization_id = $1
+        AND ($3::varchar IS NULL OR d.project_id IS NULL OR d.project_id = $3::varchar)
+      ORDER BY dc.embedding <=> $4::vector
       LIMIT $2;
     `;
-    // postgres.js requires sql.unsafe for parameterized raw SQL; the result
-    // is already iterable as rows (no .rows wrapper like node-postgres).
-    const rows = (await rawSql.unsafe(query, [userId, limit])) as any[];
+    const rows = (await rawSql.unsafe(query, [
+      organizationId,
+      limit,
+      projectId ?? null,
+      vectorLiteral,
+    ])) as any[];
     return (rows || []).map((row: any) => ({
       chunk: {
         id: row.chunk_id,
@@ -1165,6 +1660,7 @@ export class DbStorage implements IStorage {
         id: row.document_id,
         userId: row.document_user_id,
         organizationId: row.organization_id,
+        projectId: row.project_id,
         filename: row.filename,
         originalName: row.original_name,
         summary: row.summary,
@@ -1194,7 +1690,20 @@ export class DbStorage implements IStorage {
     keywords: string,
     limit: number
   ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>> {
+    return this.searchDocChunksByKeywordForOrganization(userId, userId, keywords, limit);
+  }
+
+  async searchDocChunksByKeywordForOrganization(
+    userId: string,
+    organizationId: string,
+    keywords: string,
+    limit: number,
+    projectId?: string | null
+  ): Promise<Array<{ chunk: DocChunk; document: Document; similarity?: number }>> {
     if (!rawSql) return [];
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) return [];
+    if (!keywords.trim()) return [];
+    const pattern = `%${escapeLikePattern(keywords)}%`;
     const rows = (await rawSql.unsafe(
       `
       SELECT
@@ -1209,7 +1718,9 @@ export class DbStorage implements IStorage {
         d.id AS document_id,
         d.user_id AS document_user_id,
         d.organization_id,
+        d.project_id,
         d.original_name,
+        d.filename,
         d.summary,
         d.file_type,
         d.file_size,
@@ -1229,12 +1740,13 @@ export class DbStorage implements IStorage {
         d.uploaded_at
       FROM doc_chunks dc
       INNER JOIN documents d ON d.id = dc.document_id
-      WHERE d.user_id = $1
+      WHERE d.organization_id = $1
+        AND ($4::varchar IS NULL OR d.project_id IS NULL OR d.project_id = $4::varchar)
         AND dc.content ILIKE $2
       ORDER BY dc.updated_at DESC
       LIMIT $3;
     `,
-      [userId, `%${keywords}%`, limit]
+      [organizationId, pattern, limit, projectId ?? null]
     )) as any[];
 
     return (rows || []).map((row: any) => ({
@@ -1253,6 +1765,7 @@ export class DbStorage implements IStorage {
         id: row.document_id,
         userId: row.document_user_id,
         organizationId: row.organization_id,
+        projectId: row.project_id,
         filename: row.filename,
         originalName: row.original_name,
         summary: row.summary,
@@ -1344,6 +1857,16 @@ export class DbStorage implements IStorage {
     dueThisWeek: number;
   }> {
     const projects = await this.getProjects(userId);
+    return computeStatsFromProjects(projects);
+  }
+
+  async getOrganizationStats(userId: string, organizationId: string): Promise<{
+    activeProjects: number;
+    successRate: string;
+    totalAwarded: string;
+    dueThisWeek: number;
+  }> {
+    const projects = await this.getProjectsForOrganization(userId, organizationId);
     return computeStatsFromProjects(projects);
   }
 

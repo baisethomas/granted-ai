@@ -33,4 +33,21 @@ export default tseslint.config(
       "preserve-caught-error": "off",
     },
   },
+  {
+    files: [
+      "server/**/*.{ts,tsx}",
+      "api/**/*.{ts,tsx}",
+      "shared/**/*.{ts,tsx}",
+      "scripts/**/*.{ts,tsx}",
+    ],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.node,
+    },
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": "warn",
+      "no-unused-vars": "off",
+    },
+  },
 );
