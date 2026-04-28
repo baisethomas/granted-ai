@@ -115,7 +115,7 @@ export default function Drafts() {
   const [showEvidenceMap, setShowEvidenceMap] = useState<boolean>(false);
   const [evidenceMapData, setEvidenceMapData] = useState<EvidenceMapData[]>([]);
   const [generatingQuestionId, setGeneratingQuestionId] = useState<string | null>(null);
-  const { activeOrganizationId } = useWorkspace();
+  const { activeOrganization, activeOrganizationId } = useWorkspace();
 
   const { data: projects = [] } = useQuery({
     queryKey: ["organizations", activeOrganizationId, "projects"],
@@ -154,11 +154,6 @@ export default function Drafts() {
   const { data: userSettings } = useQuery({
     queryKey: ["/api/settings"],
     queryFn: api.getSettings,
-  });
-
-  const { data: user } = useQuery({
-    queryKey: ["/api/auth/me"],
-    queryFn: api.me,
   });
 
   const generateResponseMutation = useMutation({
@@ -489,7 +484,7 @@ export default function Drafts() {
       questions: questions,
       metadata: {
         exportDate: new Date(),
-        organizationName: user?.organizationName
+        organizationName: activeOrganization?.name ?? undefined,
       }
     };
   };
