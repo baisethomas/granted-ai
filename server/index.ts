@@ -1,6 +1,6 @@
 // Load environment variables FIRST, before any other imports
 import { config } from "dotenv";
-config(); // This must run before any other code that reads process.env
+config({ path: [".env.local", ".env"] }); // This must run before any other code that reads process.env
 
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes.js";

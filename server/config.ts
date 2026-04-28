@@ -1,8 +1,8 @@
 // Load environment variables as early as possible
 import { config } from "dotenv";
 
-// Configure dotenv to load .env file
-config();
+// Configure dotenv to load local overrides before the shared .env file.
+config({ path: [".env.local", ".env"] });
 
 // Export a simple flag to ensure this module is loaded
 export const envLoaded = true;
