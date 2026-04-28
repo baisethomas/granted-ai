@@ -241,6 +241,112 @@ function sanitizeOrganizationUpdate(body: Record<string, unknown>): Record<strin
   return updates;
 }
 
+const PROFILE_SUGGESTION_FIELDS = new Set([
+  "name",
+  "organizationType",
+  "ein",
+  "foundedYear",
+  "primaryContact",
+  "contactEmail",
+  "mission",
+  "focusAreas",
+]);
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function firstRegexMatch(text: string, patterns: RegExp[]): string | null {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return normalizeWhitespace(match[1]);
+  }
+  return null;
+}
+
+function firstSentenceContaining(text: string, terms: string[]): string | null {
+  const sentences = text
+    .split(/(?<=[.!?])\s+/)
+    .map(normalizeWhitespace)
+    .filter(Boolean);
+  return sentences.find((sentence) =>
+    terms.some((term) => sentence.toLowerCase().includes(term))
+  ) ?? null;
+}
+
+function organizationHasField(organization: any, field: string): boolean {
+  const value = organization?.[field];
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "number") return Number.isFinite(value);
+  return typeof value === "string" ? value.trim().length > 0 : value != null;
+}
+
+function buildOrganizationProfileSuggestions(params: {
+  organization: any;
+  documentId: string;
+  rawText: string;
+  summary: string;
+}) {
+  const source = normalizeWhitespace(`${params.rawText}\n\n${params.summary}`).slice(0, 50_000);
+  const suggestions: Array<{
+    field: string;
+    suggestedValue: string;
+    confidence?: number | null;
+    sourceQuote?: string | null;
+  }> = [];
+  const addSuggestion = (field: string, value: string | number | string[] | null, sourceQuote?: string | null, confidence = 70) => {
+    if (!value || !PROFILE_SUGGESTION_FIELDS.has(field) || organizationHasField(params.organization, field)) return;
+    const suggestedValue = Array.isArray(value) ? value.join(", ") : String(value);
+    if (!suggestedValue.trim()) return;
+    suggestions.push({
+      field,
+      suggestedValue: suggestedValue.trim(),
+      confidence,
+      sourceQuote: sourceQuote ? sourceQuote.slice(0, 500) : null,
+    });
+  };
+
+  const ein = firstRegexMatch(source, [
+    /\bEIN(?:\s|\u00a0|:|-)*(?:number|#)?(?:\s|\u00a0|:|-)*(\d{2}-\d{7})\b/i,
+    /\bFederal Tax ID(?:\s|\u00a0|:|-)*(\d{2}-\d{7})\b/i,
+  ]);
+  addSuggestion("ein", ein, ein ? firstSentenceContaining(source, [ein]) : null, 90);
+
+  const year = firstRegexMatch(source, [
+    /\b(?:founded|established|incorporated)(?:\s|\u00a0|in|:|-)*(19\d{2}|20\d{2})\b/i,
+  ]);
+  addSuggestion("foundedYear", year ? Number(year) : null, year ? firstSentenceContaining(source, [year, "founded", "established"]) : null, 75);
+
+  const email = firstRegexMatch(source, [
+    /\b([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b/i,
+  ]);
+  addSuggestion("contactEmail", email, email ? firstSentenceContaining(source, [email]) : null, 80);
+
+  const mission = firstRegexMatch(source, [
+    /\bmission(?:\s|\u00a0|statement)?(?:\s|\u00a0|:|-)+(.{40,500}?)(?:\n|\. [A-Z]|$)/i,
+  ]);
+  addSuggestion("mission", mission, mission, 70);
+
+  const type = firstRegexMatch(source, [
+    /\b(501\(c\)\(3\)\s+nonprofit|501\(c\)3\s+nonprofit|nonprofit organization|educational institution|government agency|research institution)\b/i,
+  ]);
+  addSuggestion("organizationType", type, type ? firstSentenceContaining(source, [type]) : null, 65);
+
+  const focusLine = firstRegexMatch(source, [
+    /\b(?:focus areas|program areas|service areas|priority areas)(?:\s|\u00a0|:|-)+(.{10,180}?)(?:\n|\.|$)/i,
+  ]);
+  if (focusLine) {
+    const focusAreas = focusLine
+      .split(/,|;|\band\b/i)
+      .map(normalizeWhitespace)
+      .filter((area) => area.length >= 3)
+      .slice(0, 8);
+    addSuggestion("focusAreas", focusAreas, focusLine, 60);
+  }
+
+  return suggestions.slice(0, 8);
+}
+
 const ALLOWED_UPLOAD_EXT = new Set([".pdf", ".txt", ".doc", ".docx"]);
 const ALLOWED_UPLOAD_MIME = new Set([
   "application/pdf",
@@ -296,7 +402,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Debug status error:", error);
-      res.status(500).json({ error: "Failed to get status" });
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to get status" }, error));
     }
   });
 
@@ -308,7 +414,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(billingService.formatLimits(summary));
     } catch (error) {
       console.error("Failed to fetch billing usage:", error);
-      res.status(500).json({ error: "Failed to fetch billing usage" });
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch billing usage" }, error));
     }
   });
 
@@ -320,7 +426,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(billingService.formatLimits(summary));
     } catch (error) {
       console.error("Failed to fetch billing limits:", error);
-      res.status(500).json({ error: "Failed to fetch billing limits" });
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch billing limits" }, error));
     }
   });
 
@@ -332,7 +438,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(billingService.formatLimits(summary));
     } catch (error) {
       console.error("Failed to fetch organization billing usage:", error);
-      res.status(500).json({ error: "Failed to fetch billing usage" });
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch billing usage" }, error));
     }
   });
 
@@ -343,7 +449,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(organizations);
     } catch (error) {
       console.error("Failed to fetch organizations:", error);
-      res.status(500).json({ error: "Failed to fetch organizations" });
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch organizations" }, error));
     }
   });
 
@@ -371,7 +477,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(organization);
     } catch (error) {
       console.error("Failed to fetch organization:", error);
-      res.status(500).json({ error: "Failed to fetch organization" });
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch organization" }, error));
     }
   });
 
@@ -409,7 +515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(projects);
     } catch (error) {
       console.error("Failed to fetch projects:", error);
-      res.status(500).json({ error: "Failed to fetch projects" });
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch projects" }, error));
     }
   });
 
@@ -424,7 +530,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(projects);
     } catch (error) {
       console.error("Failed to fetch organization projects:", error);
-      res.status(500).json({ error: "Failed to fetch projects" });
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch projects" }, error));
     }
   });
 
@@ -521,7 +627,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(project);
     } catch (error) {
       console.error(`[GET /api/projects/${req.params.id}] Error:`, error);
-      res.status(500).json({ error: "Failed to fetch project" });
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch project" }, error));
     }
   });
 
@@ -580,7 +686,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(finalizedProject);
     } catch (error) {
       console.error("Failed to finalize project:", error);
-      res.status(500).json({ error: "Failed to finalize project" });
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to finalize project" }, error));
     }
   });
 
@@ -660,7 +766,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(enriched);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch documents" });
+      console.error("Failed to fetch documents:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch documents" }, error));
     }
   });
 
@@ -784,18 +891,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Upload error:", error);
       if (documentRecord) {
-        await storage.updateDocument(documentRecord.id, {
-          processingStatus: "failed",
-          processingError: error instanceof Error ? error.message : "Unknown error",
-        });
-        await storage.setDocumentExtraction(documentRecord.id, {
-          rawText: "",
-          rawTextBytes: 0,
-          extractionStatus: "failed",
-          extractionError: error instanceof Error ? error.message : "Unknown error",
-        });
+        try {
+          await storage.updateDocument(documentRecord.id, {
+            processingStatus: "failed",
+            processingError: error instanceof Error ? error.message : "Unknown error",
+          });
+          await storage.setDocumentExtraction(documentRecord.id, {
+            rawText: "",
+            rawTextBytes: 0,
+            extractionStatus: "failed",
+            extractionError: error instanceof Error ? error.message : "Unknown error",
+          });
+        } catch (recoveryErr) {
+          console.error("Upload error: failed to persist failed status for document:", documentRecord.id, recoveryErr);
+        }
       }
-      res.status(500).json({ error: "Failed to process upload" });
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to process upload" }, error));
     }
   });
 
@@ -825,7 +936,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: "Failed to delete document" });
+      console.error("Failed to delete document:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to delete document" }, error));
     }
   });
 
@@ -917,7 +1029,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       res.json(enriched);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch questions" });
+      console.error("Failed to fetch questions:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch questions" }, error));
     }
   });
 
@@ -1346,7 +1459,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error) {
       console.error("Response update error:", error);
-      res.status(500).json({ error: "Failed to update response" });
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to update response" }, error));
     }
   });
 
@@ -1358,7 +1471,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const versions = await storage.getResponseVersions(req.params.questionId);
       res.json(versions);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch versions" });
+      console.error("Failed to fetch response versions:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch versions" }, error));
     }
   });
 
@@ -1369,7 +1483,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const success = await storage.setCurrentVersion(req.params.questionId, req.params.versionId);
       res.json({ success });
     } catch (error) {
-      res.status(500).json({ error: "Failed to set current version" });
+      console.error("Failed to set current version:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to set current version" }, error));
     }
   });
 
@@ -1398,7 +1513,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(settings);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch settings" });
+      console.error("Failed to fetch settings:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch settings" }, error));
     }
   });
 
@@ -1413,8 +1529,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.json(settings);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid settings data" });
+    } catch (error: any) {
+      console.error("Failed to update settings:", error);
+      res.status(400).json(mergeDevErrorDetails({ error: "Invalid settings data" }, error));
     }
   });
 
@@ -1426,7 +1543,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const stats = await storage.getOrganizationStats(userId, organizationId);
       res.json(stats);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch stats" });
+      console.error("Failed to fetch stats:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch stats" }, error));
     }
   });
 
@@ -1440,7 +1558,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const stats = await storage.getOrganizationStats(userId, organizationId);
       res.json(stats);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch stats" });
+      console.error("Failed to fetch organization stats:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch stats" }, error));
     }
   });
 
@@ -1562,7 +1681,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } catch (error) {
         console.error("Failed to fetch metrics:", error);
-        res.status(500).json({ error: "Failed to fetch metrics" });
+        res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch metrics" }, error));
       }
     },
   );
@@ -1713,7 +1832,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const updated = await storage.updateGrantMetric(req.params.id, { status: "active" });
         res.json(updated);
       } catch (error) {
-        res.status(500).json({ error: "Failed to accept metric" });
+        console.error("Failed to accept metric:", error);
+        res.status(500).json(mergeDevErrorDetails({ error: "Failed to accept metric" }, error));
       }
     },
   );
@@ -1729,7 +1849,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const updated = await storage.updateGrantMetric(req.params.id, { status: "dismissed" });
         res.json(updated);
       } catch (error) {
-        res.status(500).json({ error: "Failed to dismiss metric" });
+        console.error("Failed to dismiss metric:", error);
+        res.status(500).json(mergeDevErrorDetails({ error: "Failed to dismiss metric" }, error));
       }
     },
   );
@@ -1745,7 +1866,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const ok = await storage.deleteGrantMetric(req.params.id);
         res.json({ ok });
       } catch (error) {
-        res.status(500).json({ error: "Failed to delete metric" });
+        console.error("Failed to delete metric:", error);
+        res.status(500).json(mergeDevErrorDetails({ error: "Failed to delete metric" }, error));
       }
     },
   );
@@ -1761,7 +1883,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const events = await storage.getGrantMetricEvents(req.params.id);
         res.json(events);
       } catch (error) {
-        res.status(500).json({ error: "Failed to fetch metric history" });
+        console.error("Failed to fetch metric history:", error);
+        res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch metric history" }, error));
       }
     },
   );
@@ -1917,7 +2040,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } catch (error) {
         console.error("Failed to fetch portfolio metrics:", error);
-        res.status(500).json({ error: "Failed to fetch portfolio metrics" });
+        res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch portfolio metrics" }, error));
       }
     },
   );
@@ -2001,7 +2124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ questions, demo });
     } catch (error) {
       console.error("Question extraction error:", error);
-      res.status(500).json({ error: "Failed to extract questions" });
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to extract questions" }, error));
     }
   });
 

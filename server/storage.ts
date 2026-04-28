@@ -26,6 +26,7 @@ import {
   type UsageEvent,
   type Organization,
   type InsertOrganization,
+  type OrganizationProfileSuggestion,
 } from "../shared/schema.js";
 import { randomUUID } from "crypto";
 import { db, schema, sql as rawSql } from "./db.js";
@@ -269,6 +270,7 @@ export class MemStorage implements IStorage {
   private assumptionLabels: Map<string, AssumptionLabel[]> = new Map();
   private grantMetrics: Map<string, GrantMetric> = new Map();
   private grantMetricEvents: Map<string, GrantMetricEvent> = new Map();
+  private organizationProfileSuggestions: Map<string, OrganizationProfileSuggestion> = new Map();
 
   async getUser(id: string): Promise<User | undefined> {
     return this.users.get(id);
@@ -411,6 +413,64 @@ export class MemStorage implements IStorage {
     return Array.from(this.memberships.values()).some(
       (membership) => membership.userId === userId && membership.organizationId === organizationId
     );
+  }
+
+  async getOrganizationProfileSuggestions(userId: string, organizationId: string): Promise<OrganizationProfileSuggestion[]> {
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) return [];
+    return Array.from(this.organizationProfileSuggestions.values())
+      .filter((suggestion) => suggestion.organizationId === organizationId)
+      .sort((a, b) => (b.createdAt?.getTime?.() ?? 0) - (a.createdAt?.getTime?.() ?? 0));
+  }
+
+  async createOrganizationProfileSuggestions(
+    userId: string,
+    organizationId: string,
+    documentId: string,
+    suggestions: Array<{
+      field: string;
+      suggestedValue: string;
+      confidence?: number | null;
+      sourceQuote?: string | null;
+    }>
+  ): Promise<OrganizationProfileSuggestion[]> {
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) {
+      throw new Error("Forbidden");
+    }
+    const now = new Date();
+    const created = suggestions.map((suggestion) => {
+      const id = randomUUID();
+      const row: OrganizationProfileSuggestion = {
+        id,
+        organizationId,
+        documentId,
+        field: suggestion.field,
+        suggestedValue: suggestion.suggestedValue,
+        confidence: suggestion.confidence ?? null,
+        sourceQuote: suggestion.sourceQuote ?? null,
+        status: "pending",
+        reviewedBy: null,
+        reviewedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.organizationProfileSuggestions.set(id, row);
+      return row;
+    });
+    return created;
+  }
+
+  async updateOrganizationProfileSuggestion(
+    userId: string,
+    organizationId: string,
+    suggestionId: string,
+    updates: Partial<OrganizationProfileSuggestion>
+  ): Promise<OrganizationProfileSuggestion | undefined> {
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) return undefined;
+    const suggestion = this.organizationProfileSuggestions.get(suggestionId);
+    if (!suggestion || suggestion.organizationId !== organizationId) return undefined;
+    const updated = { ...suggestion, ...updates, updatedAt: new Date() };
+    this.organizationProfileSuggestions.set(suggestionId, updated);
+    return updated;
   }
 
   async getProjects(userId: string): Promise<Project[]> {
@@ -1197,6 +1257,66 @@ export class DbStorage implements IStorage {
       .from(schema.memberships)
       .where(and(eq(schema.memberships.userId, userId), eq(schema.memberships.organizationId, organizationId)));
     return (rows?.length ?? 0) > 0;
+  }
+
+  async getOrganizationProfileSuggestions(userId: string, organizationId: string): Promise<OrganizationProfileSuggestion[]> {
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) return [];
+    const rows = await db
+      ?.select()
+      .from(schema.organizationProfileSuggestions)
+      .where(eq(schema.organizationProfileSuggestions.organizationId, organizationId))
+      .orderBy(desc(schema.organizationProfileSuggestions.createdAt));
+    return rows ?? [];
+  }
+
+  async createOrganizationProfileSuggestions(
+    userId: string,
+    organizationId: string,
+    documentId: string,
+    suggestions: Array<{
+      field: string;
+      suggestedValue: string;
+      confidence?: number | null;
+      sourceQuote?: string | null;
+    }>
+  ): Promise<OrganizationProfileSuggestion[]> {
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) {
+      throw new Error("Forbidden");
+    }
+    if (suggestions.length === 0) return [];
+    const rows = await db
+      ?.insert(schema.organizationProfileSuggestions)
+      .values(
+        suggestions.map((suggestion) => ({
+          organizationId,
+          documentId,
+          field: suggestion.field,
+          suggestedValue: suggestion.suggestedValue,
+          confidence: suggestion.confidence ?? null,
+          sourceQuote: suggestion.sourceQuote ?? null,
+          status: "pending",
+        } as any))
+      )
+      .returning();
+    return rows ?? [];
+  }
+
+  async updateOrganizationProfileSuggestion(
+    userId: string,
+    organizationId: string,
+    suggestionId: string,
+    updates: Partial<OrganizationProfileSuggestion>
+  ): Promise<OrganizationProfileSuggestion | undefined> {
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) return undefined;
+    const rows = await db
+      ?.update(schema.organizationProfileSuggestions)
+      .set({ ...(updates as any), updatedAt: new Date() })
+      .where(and(
+        eq(schema.organizationProfileSuggestions.id, suggestionId),
+        eq(schema.organizationProfileSuggestions.organizationId, organizationId),
+      ))
+      .returning();
+    return rows?.[0];
   }
 
   async getProjects(userId: string): Promise<Project[]> {
