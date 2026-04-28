@@ -11,6 +11,7 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { api, type UserSettings } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { useState, useEffect } from "react";
 import { 
   Save, 
@@ -27,6 +28,7 @@ export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const handleLogout = useLogout();
+  const { activeOrganization, activeOrganizationId } = useWorkspace();
 
   const { data: settings, isLoading } = useQuery<UserSettings>({
     queryKey: ["/api/settings"],
@@ -62,18 +64,22 @@ export default function Settings() {
   });
 
   useEffect(() => {
-    if (settings) {
+    if (activeOrganization) {
       setOrganizationForm({
-        organizationName: "Nonprofit Excellence Foundation",
-        organizationType: "501(c)(3) Nonprofit",
-        ein: "",
-        foundedYear: 2015,
-        primaryContact: "",
-        email: "",
-        mission: "To strengthen communities through innovative health initiatives and educational programs that address systemic inequalities and empower individuals to thrive.",
-        focusAreas: ["Community Health", "Education", "Social Justice"],
+        organizationName: activeOrganization.name || "",
+        organizationType: activeOrganization.organizationType || "501(c)(3) Nonprofit",
+        ein: activeOrganization.ein || "",
+        foundedYear: activeOrganization.foundedYear || 2015,
+        primaryContact: activeOrganization.primaryContact || "",
+        email: activeOrganization.contactEmail || "",
+        mission: activeOrganization.mission || "",
+        focusAreas: activeOrganization.focusAreas || [],
       });
+    }
+  }, [activeOrganization]);
 
+  useEffect(() => {
+    if (settings) {
       setAiSettings({
         defaultTone: settings.defaultTone || "professional",
         lengthPreference: settings.lengthPreference || "balanced",
@@ -92,6 +98,25 @@ export default function Settings() {
       });
     }
   }, [settings]);
+
+  const updateOrganizationMutation = useMutation({
+    mutationFn: () => {
+      if (!activeOrganizationId) throw new Error("No active workspace selected");
+      return api.updateOrganization(activeOrganizationId, {
+        name: organizationForm.organizationName,
+        organizationType: organizationForm.organizationType,
+        ein: organizationForm.ein || null,
+        foundedYear: organizationForm.foundedYear || null,
+        primaryContact: organizationForm.primaryContact || null,
+        contactEmail: organizationForm.email || null,
+        mission: organizationForm.mission || null,
+        focusAreas: organizationForm.focusAreas,
+      } as any);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
+    },
+  });
 
   const updateSettingsMutation = useMutation({
     mutationFn: api.updateSettings,
@@ -112,6 +137,7 @@ export default function Settings() {
   });
 
   const handleSaveSettings = () => {
+    updateOrganizationMutation.mutate();
     updateSettingsMutation.mutate({
       ...aiSettings,
       ...accountSettings,
@@ -195,7 +221,7 @@ export default function Settings() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4 md:p-6">
-          <UsageDashboard organizationId={1} />
+          <UsageDashboard organizationId={activeOrganizationId} />
         </CardContent>
       </Card>
 

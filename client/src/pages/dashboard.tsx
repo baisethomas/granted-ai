@@ -8,6 +8,7 @@ import { EditProjectDialog } from "@/components/edit-project-dialog";
 import { NewProjectDialog } from "@/components/new-project-dialog";
 import { api, type Project } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { 
   FolderOpen, 
   TrendingUp, 
@@ -26,24 +27,31 @@ interface DashboardProps {
 export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { activeOrganization, activeOrganizationId } = useWorkspace();
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
 
   const { data: projects = [], isLoading: projectsLoading } = useQuery<Project[]>({
-    queryKey: ["/api/projects"],
-    queryFn: api.getProjects,
+    queryKey: ["organizations", activeOrganizationId, "projects"],
+    queryFn: () => activeOrganizationId ? api.getOrganizationProjects(activeOrganizationId) : Promise.resolve([]),
+    enabled: !!activeOrganizationId,
   });
 
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["/api/stats"],
-    queryFn: api.getStats,
+    queryKey: ["organizations", activeOrganizationId, "stats"],
+    queryFn: () => activeOrganizationId ? api.getOrganizationStats(activeOrganizationId) : Promise.resolve(null),
+    enabled: !!activeOrganizationId,
   });
 
   const deleteProjectMutation = useMutation({
     mutationFn: (projectId: string) => api.deleteProject(projectId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      if (activeOrganizationId) {
+        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "projects"] });
+        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "stats"] });
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       toast({
         title: "Project deleted",
@@ -96,7 +104,7 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <h2 className="text-xl font-bold text-slate-900 md:text-2xl">
-                Nonprofit Excellence Foundation
+                {activeOrganization?.name || "Select a client workspace"}
               </h2>
               <p className="text-slate-600 mt-1">
                 Welcome back! Here's your grant writing progress.
@@ -256,6 +264,8 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
       <NewProjectDialog
         open={isNewProjectDialogOpen}
         onOpenChange={setIsNewProjectDialogOpen}
+        organizationId={activeOrganizationId}
+        organizationName={activeOrganization?.name}
       />
 
       {/* Edit Project Dialog */}

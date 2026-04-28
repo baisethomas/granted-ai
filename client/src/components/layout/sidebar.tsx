@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLogout } from "@/hooks/useLogout";
+import { useWorkspace } from "@/hooks/useWorkspace";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface SidebarProps {
   activeTab: string;
@@ -36,6 +38,12 @@ const resourceNavItems = [
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   const { user } = useAuth();
   const handleLogout = useLogout();
+  const {
+    organizations,
+    activeOrganizationId,
+    setActiveOrganizationId,
+    createOrganization,
+  } = useWorkspace();
 
   const getUserDisplayName = () => {
     if (user?.email) {
@@ -55,6 +63,33 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         <a href="/" className="inline-flex items-center">
           <img src="/logo.png" alt="Granted AI" className="h-14 w-auto" />
         </a>
+        <div className="mt-4">
+          <Select
+            value={activeOrganizationId ?? undefined}
+            onValueChange={async (value) => {
+              if (value === "__new__") {
+                const name = window.prompt("Client organization name");
+                if (name?.trim()) {
+                  await createOrganization({ name: name.trim() });
+                }
+                return;
+              }
+              setActiveOrganizationId(value);
+            }}
+          >
+            <SelectTrigger className="h-9 w-full text-left">
+              <SelectValue placeholder="Select workspace" />
+            </SelectTrigger>
+            <SelectContent>
+              {organizations.map((organization) => (
+                <SelectItem key={organization.id} value={organization.id}>
+                  {organization.name}
+                </SelectItem>
+              ))}
+              <SelectItem value="__new__">Create client workspace</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       
       {/* Navigation */}

@@ -16,7 +16,7 @@ import {
 import { UsageStats, UsageTracker } from "@/lib/usage-tracking";
 
 interface UsageDashboardProps {
-  organizationId: number;
+  organizationId?: string | null;
   className?: string;
 }
 
@@ -26,6 +26,11 @@ export function UsageDashboard({ organizationId, className = "" }: UsageDashboar
 
   useEffect(() => {
     const fetchUsageStats = async () => {
+      if (!organizationId) {
+        setUsageStats(null);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       const stats = await UsageTracker.getUsageStats(organizationId);
       setUsageStats(stats);

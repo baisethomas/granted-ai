@@ -19,11 +19,15 @@ import { useToast } from "@/hooks/use-toast";
 interface NewProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  organizationId?: string | null;
+  organizationName?: string | null;
 }
 
 export function NewProjectDialog({
   open,
   onOpenChange,
+  organizationId,
+  organizationName,
 }: NewProjectDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -37,9 +41,14 @@ export function NewProjectDialog({
   });
 
   const createProjectMutation = useMutation({
-    mutationFn: (data: typeof formData) => api.createProject(data),
+    mutationFn: (data: typeof formData) =>
+      organizationId ? api.createOrganizationProject(organizationId, data) : api.createProject(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: ["organizations", organizationId, "projects"] });
+        queryClient.invalidateQueries({ queryKey: ["organizations", organizationId, "stats"] });
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       toast({
         title: "Project created",
@@ -79,7 +88,8 @@ export function NewProjectDialog({
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>
           <DialogDescription>
-            Start a new grant application. Fill in the basic information to get started.
+            Start a new grant application{organizationName ? ` for ${organizationName}` : ""}.
+            Fill in the basic information to get started.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>

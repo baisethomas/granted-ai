@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 /**
  * Custom hook for managing document uploads and queries
@@ -8,18 +9,23 @@ import { useToast } from "@/hooks/use-toast";
 export function useUploadData() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { activeOrganizationId } = useWorkspace();
 
   const { data: documents = [], isLoading, error, refetch } = useQuery({
-    queryKey: ["/api/documents"],
-    queryFn: api.getDocuments,
+    queryKey: ["organizations", activeOrganizationId, "documents"],
+    queryFn: () => activeOrganizationId ? api.getOrganizationDocuments(activeOrganizationId) : Promise.resolve([]),
+    enabled: !!activeOrganizationId,
     staleTime: 30000, // 30 seconds
   });
 
   const uploadMutation = useMutation({
     mutationFn: ({ file, category }: { file: File; category: string }) =>
-      api.uploadDocument(file, category),
+      api.uploadDocument(file, category, { organizationId: activeOrganizationId ?? undefined }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      if (activeOrganizationId) {
+        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "documents"] });
+      }
       toast({
         title: "Upload successful",
         description: `${data.filename} has been uploaded and is being processed.`,
@@ -38,6 +44,9 @@ export function useUploadData() {
     mutationFn: (documentId: string) => api.deleteDocument(documentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      if (activeOrganizationId) {
+        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "documents"] });
+      }
       toast({
         title: "Document deleted",
         description: "The document has been removed from your library.",

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { FileUpload } from "@/components/ui/file-upload";
 import { api, type Document } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { 
   Building, 
   Trophy, 
@@ -138,10 +139,12 @@ const getEmbeddingBadge = (document: any) => {
 export default function Upload() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { activeOrganization, activeOrganizationId } = useWorkspace();
 
   const { data: documents = [], isLoading, error } = useQuery<Document[]>({
-    queryKey: ["/api/documents"],
-    queryFn: api.getDocuments,
+    queryKey: ["organizations", activeOrganizationId, "documents"],
+    queryFn: () => activeOrganizationId ? api.getOrganizationDocuments(activeOrganizationId) : Promise.resolve([]),
+    enabled: !!activeOrganizationId,
     meta: {
       onSuccess: (data: any) => {
       },
@@ -154,9 +157,12 @@ export default function Upload() {
 
   const uploadMutation = useMutation({
     mutationFn: ({ file, category }: { file: File; category?: string }) =>
-      api.uploadDocument(file, category),
+      api.uploadDocument(file, category, { organizationId: activeOrganizationId ?? undefined }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      if (activeOrganizationId) {
+        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "documents"] });
+      }
       toast({
         title: "Document uploaded",
         description: `${data.originalName} has been uploaded successfully.`,
@@ -176,6 +182,9 @@ export default function Upload() {
     mutationFn: api.deleteDocument,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      if (activeOrganizationId) {
+        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "documents"] });
+      }
       toast({
         title: "Document deleted",
         description: "The document has been removed.",
@@ -236,7 +245,7 @@ export default function Upload() {
         <CardContent className="p-4 md:p-6">
           <h2 className="text-xl font-bold text-slate-900 mb-2 md:text-2xl">Upload Documents</h2>
           <p className="text-slate-600 mb-8">
-            Add your organization documents to build context for AI-powered grant writing.
+            Add documents for {activeOrganization?.name || "this workspace"} to build context for AI-powered grant writing.
             These files help the AI understand your mission, capabilities, and past successes.
           </p>
           {/* Debug: Force rebuild */}

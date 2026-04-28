@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Route, useLocation } from "wouter";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { LogoutProvider } from "@/hooks/useLogout";
+import { WorkspaceProvider, useWorkspace } from "@/hooks/useWorkspace";
 import { Login } from "@/components/Login";
 import { isMarketingDomain, getAuthUrl, APP_DOMAIN } from "@/lib/domains";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -196,17 +197,19 @@ function AppContent() {
       <TooltipProvider>
         <ErrorBoundary>
           <LogoutProvider>
-            <div className="min-h-dvh overflow-x-hidden bg-gray-50 md:h-screen md:overflow-hidden">
-              <AppLayoutWithTabs
-                activeTab={activeTab}
-                onTabChange={handleTabChange}
-                isNewProjectDialogOpen={isNewProjectDialogOpen}
-                setIsNewProjectDialogOpen={setIsNewProjectDialogOpen}
-              >
-                {renderActiveView()}
-              </AppLayoutWithTabs>
-              <Toaster />
-            </div>
+            <WorkspaceProvider>
+              <div className="min-h-dvh overflow-x-hidden bg-gray-50 md:h-screen md:overflow-hidden">
+                <AppLayoutWithTabs
+                  activeTab={activeTab}
+                  onTabChange={handleTabChange}
+                  isNewProjectDialogOpen={isNewProjectDialogOpen}
+                  setIsNewProjectDialogOpen={setIsNewProjectDialogOpen}
+                >
+                  {renderActiveView()}
+                </AppLayoutWithTabs>
+                <Toaster />
+              </div>
+            </WorkspaceProvider>
           </LogoutProvider>
         </ErrorBoundary>
       </TooltipProvider>
@@ -227,6 +230,7 @@ function AppLayoutWithTabs({
   isNewProjectDialogOpen: boolean;
   setIsNewProjectDialogOpen: (open: boolean) => void;
 }) {
+  const { activeOrganization, activeOrganizationId } = useWorkspace();
   const getHeaderTitle = () => {
     switch (activeTab) {
       case "dashboard":
@@ -296,6 +300,8 @@ function AppLayoutWithTabs({
       <NewProjectDialog
         open={isNewProjectDialogOpen}
         onOpenChange={setIsNewProjectDialogOpen}
+        organizationId={activeOrganizationId}
+        organizationName={activeOrganization?.name}
       />
       <OnboardingDialog onNavigate={onTabChange} />
     </div>

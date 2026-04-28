@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 /**
  * Custom hook for managing drafts data fetching and mutations
@@ -8,10 +9,12 @@ import { useToast } from "@/hooks/use-toast";
 export function useDraftsData(selectedProject: string | null) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { activeOrganizationId } = useWorkspace();
 
   const { data: projects = [] } = useQuery({
-    queryKey: ["/api/projects"],
-    queryFn: api.getProjects,
+    queryKey: ["organizations", activeOrganizationId, "projects"],
+    queryFn: () => activeOrganizationId ? api.getOrganizationProjects(activeOrganizationId) : Promise.resolve([]),
+    enabled: !!activeOrganizationId,
   });
 
   const { data: questions = [] } = useQuery({
@@ -140,6 +143,9 @@ export function useDraftsData(selectedProject: string | null) {
     mutationFn: (projectId: string) => api.finalizeProject(projectId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      if (activeOrganizationId) {
+        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "projects"] });
+      }
       toast({
         title: "Project finalized",
         description: "Your project has been marked as final and is ready for submission.",

@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { 
   exportToClipboard, 
   exportToPDF, 
@@ -114,10 +115,12 @@ export default function Drafts() {
   const [showEvidenceMap, setShowEvidenceMap] = useState<boolean>(false);
   const [evidenceMapData, setEvidenceMapData] = useState<EvidenceMapData[]>([]);
   const [generatingQuestionId, setGeneratingQuestionId] = useState<string | null>(null);
+  const { activeOrganizationId } = useWorkspace();
 
   const { data: projects = [] } = useQuery({
-    queryKey: ["/api/projects"],
-    queryFn: api.getProjects,
+    queryKey: ["organizations", activeOrganizationId, "projects"],
+    queryFn: () => activeOrganizationId ? api.getOrganizationProjects(activeOrganizationId) : Promise.resolve([]),
+    enabled: !!activeOrganizationId,
   });
 
   const { data: questions = [] } = useQuery({
@@ -301,6 +304,9 @@ export default function Drafts() {
     mutationFn: (projectId: string) => api.finalizeProject(projectId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      if (activeOrganizationId) {
+        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "projects"] });
+      }
       toast({
         title: "Project finalized",
         description: "Your project has been marked as final and is ready for submission.",
