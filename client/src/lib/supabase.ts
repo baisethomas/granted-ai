@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { getOAuthRedirectOrigin } from './domains'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -45,14 +46,12 @@ export const signIn = async (email: string, password: string) => {
 }
 
 /**
- * OAuth redirect target: explicit `VITE_APP_DOMAIN` (no trailing slash), or the
- * current browser origin so preview deployments never fall through to prod.
+ * OAuth redirect target: localhost stays local even when Vite injects a
+ * production `VITE_APP_DOMAIN`; deployed builds can still use the configured
+ * app domain.
  */
 export const signInWithGoogle = async () => {
-  const explicit = (import.meta.env.VITE_APP_DOMAIN as string | undefined)?.replace(/\/$/, "");
-  const origin =
-    typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
-  const base = explicit || origin;
+  const base = getOAuthRedirectOrigin();
   if (!base) {
     throw new Error(
       "OAuth redirect cannot be determined: set VITE_APP_DOMAIN for non-browser contexts, or sign in from the web app.",
