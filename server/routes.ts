@@ -500,6 +500,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/organizations/:organizationId/profile-suggestions", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const { organizationId } = req.params;
+      if (!(await storage.userHasOrganizationAccess(userId, organizationId))) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
+      const suggestions = await storage.getOrganizationProfileSuggestions(userId, organizationId);
+      res.json(suggestions);
+    } catch (error) {
+      console.error("Failed to fetch profile suggestions:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch profile suggestions" }, error));
+    }
+  });
+
+  app.post("/api/organizations/:organizationId/profile-suggestions/:suggestionId/review", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const { organizationId, suggestionId } = req.params;
+      const status = req.body?.status;
+      if (status !== "accepted" && status !== "rejected") {
+        return res.status(400).json({ error: "Status must be accepted or rejected" });
+      }
+      if (!(await storage.userHasOrganizationAccess(userId, organizationId))) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
+
+      const suggestions = await storage.getOrganizationProfileSuggestions(userId, organizationId);
+      const suggestion = suggestions.find((item) => item.id === suggestionId);
+      if (!suggestion || suggestion.status !== "pending") {
+        return res.status(404).json({ error: "Suggestion not found" });
+      }
+
+      let organization = await storage.getOrganization(organizationId);
+      if (status === "accepted" && organization) {
+        const updates: Record<string, unknown> = {};
+        if (suggestion.field === "focusAreas") {
+          updates.focusAreas = suggestion.suggestedValue
+            .split(",")
+            .map((area) => area.trim())
+            .filter(Boolean);
+        } else if (suggestion.field === "foundedYear") {
+          const foundedYear = Number.parseInt(suggestion.suggestedValue, 10);
+          if (Number.isFinite(foundedYear)) updates.foundedYear = foundedYear;
+        } else if (PROFILE_SUGGESTION_FIELDS.has(suggestion.field)) {
+          updates[suggestion.field] = suggestion.suggestedValue;
+        }
+        if (Object.keys(updates).length) {
+          organization = await storage.updateOrganization(organizationId, updates as any);
+        }
+      }
+
+      const reviewed = await storage.updateOrganizationProfileSuggestion(userId, organizationId, suggestionId, {
+        status,
+        reviewedBy: userId,
+        reviewedAt: new Date(),
+      } as any);
+      res.json({ suggestion: reviewed, organization });
+    } catch (error) {
+      console.error("Failed to review profile suggestion:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to review profile suggestion" }, error));
+    }
+  });
+
   // Projects routes
   app.get("/api/projects", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
@@ -848,6 +912,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!updatedDocument) {
         throw new Error("Failed to persist document metadata");
+      }
+
+      if (category === "organization-info") {
+        try {
+          const organization = await storage.getOrganization(organizationId);
+          const suggestions = buildOrganizationProfileSuggestions({
+            organization,
+            documentId: documentRecord.id,
+            rawText: processed.extractedText,
+            summary: processed.summary,
+          });
+          if (suggestions.length) {
+            await storage.createOrganizationProfileSuggestions(
+              userId,
+              organizationId,
+              documentRecord.id,
+              suggestions,
+            );
+          }
+        } catch (suggestionErr) {
+          console.warn(`[upload] profile suggestion extraction failed for ${documentRecord.id}:`, suggestionErr);
+        }
       }
 
       await storage.createProcessingJob(documentRecord.id, "embedding", "queued");

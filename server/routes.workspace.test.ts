@@ -153,6 +153,47 @@ describe("workspace route isolation", () => {
     expect(orgADocs.map((doc: any) => doc.originalName)).toEqual(["A Context.txt"]);
     expect(orgBDocs.map((doc: any) => doc.originalName)).toEqual(["B Context.txt"]);
   });
+
+  it("accepts profile suggestions only inside the requested workspace", async () => {
+    const ownerId = "workspace-profile-owner";
+    const outsiderId = "workspace-profile-outsider";
+    const org = await (await postJson("/api/organizations", ownerId, { name: "Profile Client" })).json();
+    const document = await storage.createDocumentForOrganization(ownerId, org.id, {
+      organizationId: org.id,
+      filename: "profile.txt",
+      originalName: "Profile.txt",
+      fileType: "text/plain",
+      fileSize: 10,
+      category: "organization-info",
+    });
+    const [suggestion] = await storage.createOrganizationProfileSuggestions(ownerId, org.id, document.id, [
+      {
+        field: "mission",
+        suggestedValue: "Improve community health through accessible education and care.",
+        confidence: 85,
+        sourceQuote: "Mission: Improve community health through accessible education and care.",
+      },
+    ]);
+
+    const outsiderResponse = await postJson(
+      `/api/organizations/${org.id}/profile-suggestions/${suggestion.id}/review`,
+      outsiderId,
+      { status: "accepted" },
+    );
+    expect(outsiderResponse.status).toBe(404);
+
+    const ownerResponse = await postJson(
+      `/api/organizations/${org.id}/profile-suggestions/${suggestion.id}/review`,
+      ownerId,
+      { status: "accepted" },
+    );
+    const body = await ownerResponse.json();
+    const updatedOrg = await storage.getOrganization(org.id);
+
+    expect(ownerResponse.status).toBe(200);
+    expect(body.suggestion.status).toBe("accepted");
+    expect(updatedOrg?.mission).toBe("Improve community health through accessible education and care.");
+  });
 });
 
 describe("workspace retrieval isolation", () => {

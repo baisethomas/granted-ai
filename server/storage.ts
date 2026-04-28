@@ -95,6 +95,24 @@ export interface IStorage {
   createOrganization(userId: string, organization: InsertOrganization): Promise<Organization>;
   updateOrganization(id: string, updates: Partial<Organization>): Promise<Organization | undefined>;
   userHasOrganizationAccess(userId: string, organizationId: string): Promise<boolean>;
+  getOrganizationProfileSuggestions(userId: string, organizationId: string): Promise<OrganizationProfileSuggestion[]>;
+  createOrganizationProfileSuggestions(
+    userId: string,
+    organizationId: string,
+    documentId: string,
+    suggestions: Array<{
+      field: string;
+      suggestedValue: string;
+      confidence?: number | null;
+      sourceQuote?: string | null;
+    }>
+  ): Promise<OrganizationProfileSuggestion[]>;
+  updateOrganizationProfileSuggestion(
+    userId: string,
+    organizationId: string,
+    suggestionId: string,
+    updates: Partial<OrganizationProfileSuggestion>
+  ): Promise<OrganizationProfileSuggestion | undefined>;
 
   // Project methods
   getProjects(userId: string): Promise<Project[]>;
