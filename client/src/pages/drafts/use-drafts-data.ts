@@ -45,11 +45,6 @@ export function useDraftsData(selectedProject: string | null) {
     queryFn: api.getSettings,
   });
 
-  const { data: user } = useQuery({
-    queryKey: ["/api/auth/me"],
-    queryFn: api.me,
-  });
-
   const generateResponseMutation = useMutation({
     mutationFn: ({ questionId, tone, emphasisAreas }: {
       questionId: string;
@@ -164,7 +159,6 @@ export function useDraftsData(selectedProject: string | null) {
     projects,
     questions,
     userSettings,
-    user,
     generateResponseMutation,
     updateResponseMutation,
     finalizeProjectMutation,
