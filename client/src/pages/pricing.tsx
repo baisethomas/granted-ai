@@ -8,18 +8,18 @@ import { ArrowRight, CheckCircle2 } from "lucide-react";
 const plans = [
   {
     name: "Starter",
-    eyebrow: "For early grant work",
+    eyebrow: "For trying the core workflow",
     price: "Free",
     period: "",
-    description: "Start organizing source material and drafting smaller applications.",
+    description: "Upload a small set of source materials and generate reviewable grant drafts.",
     cta: "Start Free",
     href: getAuthUrl(),
     highlighted: false,
     features: [
-      "5 projects per month",
-      "20 document uploads",
-      "Basic draft generation",
-      "Export-ready review flow",
+      "Single-user workspace",
+      "Limited projects and uploads",
+      "Document-grounded draft generation",
+      "Copy and PDF export workflow",
     ],
   },
   {
@@ -27,70 +27,70 @@ const plans = [
     eyebrow: "Best for active writers",
     price: "$29",
     period: "/mo",
-    description: "For grant writers and consultants turning repeated context into stronger drafts.",
+    description: "For solo grant writers and consultants managing a recurring grant pipeline.",
     cta: "Try Pro",
     href: getAuthUrl(),
     highlighted: true,
     features: [
-      "Unlimited projects",
-      "Unlimited document uploads",
-      "Organization memory across drafts",
-      "Version history and export tools",
+      "Expanded projects and uploads",
+      "More monthly AI drafting capacity",
+      "Version history for responses",
+      "PDF, DOCX, and copy exports",
     ],
   },
   {
     name: "Team",
-    eyebrow: "For growing teams",
-    price: "$49",
-    period: "/mo",
-    description: "Shared grant drafting for small development teams working from the same source material.",
-    cta: "Start Team",
-    href: getAuthUrl(),
+    eyebrow: "Planned for growing teams",
+    price: "Coming soon",
+    period: "",
+    description: "For small development teams that need shared workspaces, seats, and role-based collaboration.",
+    cta: "Join Waitlist",
+    href: "mailto:sales@granted.ai?subject=Team%20Plan%20Waitlist",
     highlighted: false,
     features: [
-      "3 team seats included",
-      "Shared organization memory",
-      "Project-level draft workspace",
-      "Priority support",
+      "Shared organization workspace",
+      "Seat management and roles",
+      "Collaborative review workflows",
+      "Priority support options",
     ],
   },
   {
     name: "Enterprise",
-    eyebrow: "For institutions",
+    eyebrow: "For larger rollouts",
     price: "Custom",
     period: "",
-    description: "For organizations with larger teams, procurement needs, or custom rollout requirements.",
-    cta: "Contact Sales",
-    href: "mailto:sales@granted.ai",
+    description: "For institutions evaluating procurement, security review, or custom onboarding requirements.",
+    cta: "Discuss Fit",
+    href: "mailto:sales@granted.ai?subject=Enterprise%20Plan%20Inquiry",
     highlighted: false,
     features: [
-      "Custom onboarding",
+      "Launch planning conversation",
       "Security and procurement review",
-      "Dedicated support path",
-      "Roadmap and integration planning",
+      "Custom support path",
+      "Integration roadmap planning",
     ],
   },
 ];
 
 const included = [
-  "Private organization knowledge base",
+  "Private single-user workspace",
   "Document-grounded draft generation",
   "Editable response versions",
-  "Clean export workflow",
+  "Grant metrics workspace",
 ];
 
 const faqs = [
   {
     question: "Can we start before we know which plan we need?",
-    answer: "Yes. Start with the free plan, upload a small set of source materials, and test the drafting workflow before upgrading.",
+    answer: "Yes. Start with the free plan, upload a small set of source materials, and test the drafting workflow before choosing a paid plan.",
   },
   {
-    question: "Do plans replace our final grant review process?",
-    answer: "No. Granted speeds up drafting and organization, but your team still owns final strategy, facts, and submission decisions.",
+    question: "Are Team and Enterprise available at launch?",
+    answer: "Not as self-serve plans. Starter and Pro are the launch-ready plans; Team and Enterprise are contact-based while shared workspaces and access controls are built.",
   },
   {
-    question: "What happens as our document library grows?",
-    answer: "Paid plans are designed around reusing organization context across more projects, uploads, and repeated grant workflows.",
+    question: "Do plans replace final grant review?",
+    answer: "No. Granted speeds up drafting and organization, but your team still owns strategy, factual accuracy, and submission decisions.",
   },
 ];
 
@@ -111,8 +111,8 @@ export default function Pricing() {
             </span>
           </h1>
           <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-slate-600">
-            Start small, then scale as your grant pipeline grows. Every plan keeps the focus
-            on reusable organization memory, reviewable drafts, and clean exports.
+            Start with the single-user workflow that is ready today, then scale into shared
+            team access once collaboration controls are available.
           </p>
         </div>
       </section>
@@ -182,8 +182,8 @@ export default function Pricing() {
               Pricing should be easy to evaluate.
             </h2>
             <p className="mt-4 text-lg leading-8 text-slate-600">
-              The plan choice should come down to volume and team needs, not whether you get
-              the core drafting workflow.
+              Starter and Pro both include the core drafting workflow. The paid plan is for
+              solo users who need more volume, export flexibility, and draft history.
             </p>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -228,7 +228,7 @@ export default function Pricing() {
           </h2>
           <p className="mx-auto mt-3 max-w-2xl text-lg leading-8 text-slate-600">
             Start free today, then upgrade when your grant workload needs more projects,
-            uploads, or team capacity.
+            uploads, exports, or draft history.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <a href={getAuthUrl()}>
