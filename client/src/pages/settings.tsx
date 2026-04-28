@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
-import { api, type UserSettings } from "@/lib/api";
+import { api, type OrganizationProfileSuggestion, type UserSettings } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useState, useEffect } from "react";
@@ -17,6 +17,7 @@ import {
   Save, 
   Plus, 
   X,
+  Check,
   Info,
   BarChart3,
   LogOut
@@ -34,6 +35,16 @@ export default function Settings() {
     queryKey: ["/api/settings"],
     queryFn: api.getSettings,
   });
+
+  const { data: profileSuggestions = [] } = useQuery<OrganizationProfileSuggestion[]>({
+    queryKey: ["organizations", activeOrganizationId, "profile-suggestions"],
+    queryFn: () => activeOrganizationId
+      ? api.getOrganizationProfileSuggestions(activeOrganizationId)
+      : Promise.resolve([]),
+    enabled: !!activeOrganizationId,
+  });
+
+  const pendingProfileSuggestions = profileSuggestions.filter((suggestion) => suggestion.status === "pending");
 
   const [organizationForm, setOrganizationForm] = useState({
     organizationName: "",
@@ -136,6 +147,32 @@ export default function Settings() {
     },
   });
 
+  const reviewProfileSuggestionMutation = useMutation({
+    mutationFn: ({ suggestionId, status }: { suggestionId: string; status: "accepted" | "rejected" }) => {
+      if (!activeOrganizationId) throw new Error("No active workspace selected");
+      return api.reviewOrganizationProfileSuggestion(activeOrganizationId, suggestionId, status);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
+      if (activeOrganizationId) {
+        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "profile-suggestions"] });
+      }
+      toast({
+        title: variables.status === "accepted" ? "Profile updated" : "Suggestion dismissed",
+        description: variables.status === "accepted"
+          ? "The suggestion has been added to this workspace profile."
+          : "The suggestion will no longer appear in review.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to review suggestion",
+        description: error.message || "Please try again later.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSaveSettings = () => {
     updateOrganizationMutation.mutate();
     updateSettingsMutation.mutate({
@@ -195,6 +232,20 @@ export default function Settings() {
     });
   };
 
+  const getSuggestionLabel = (field: string) => {
+    switch (field) {
+      case "name": return "Organization Name";
+      case "organizationType": return "Organization Type";
+      case "ein": return "EIN";
+      case "foundedYear": return "Founded Year";
+      case "primaryContact": return "Primary Contact";
+      case "contactEmail": return "Contact Email";
+      case "mission": return "Mission Statement";
+      case "focusAreas": return "Focus Areas";
+      default: return field;
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-8">
@@ -240,6 +291,59 @@ export default function Settings() {
                 This information helps the AI better understand your organization
               </p>
             </div>
+
+            {pendingProfileSuggestions.length > 0 && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
+                <div className="mb-3 flex items-start gap-2">
+                  <Info className="mt-0.5 h-4 w-4 text-amber-700" />
+                  <div>
+                    <h4 className="text-sm font-semibold text-amber-950">Review profile suggestions</h4>
+                    <p className="text-sm text-amber-900">
+                      Granted found possible profile details in uploaded organization documents.
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {pendingProfileSuggestions.map((suggestion) => (
+                    <div key={suggestion.id} className="rounded-md border border-amber-200 bg-white p-3">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                            {getSuggestionLabel(suggestion.field)}
+                          </p>
+                          <p className="mt-1 break-words text-sm text-slate-900">{suggestion.suggestedValue}</p>
+                          {suggestion.sourceQuote && (
+                            <p className="mt-2 line-clamp-2 text-xs text-slate-500">{suggestion.sourceQuote}</p>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="bg-primary-600 hover:bg-primary-700"
+                            disabled={reviewProfileSuggestionMutation.isPending}
+                            onClick={() => reviewProfileSuggestionMutation.mutate({ suggestionId: suggestion.id, status: "accepted" })}
+                          >
+                            <Check className="mr-1 h-3 w-3" />
+                            Accept
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={reviewProfileSuggestionMutation.isPending}
+                            onClick={() => reviewProfileSuggestionMutation.mutate({ suggestionId: suggestion.id, status: "rejected" })}
+                          >
+                            <X className="mr-1 h-3 w-3" />
+                            Dismiss
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">

@@ -241,6 +241,112 @@ function sanitizeOrganizationUpdate(body: Record<string, unknown>): Record<strin
   return updates;
 }
 
+const PROFILE_SUGGESTION_FIELDS = new Set([
+  "name",
+  "organizationType",
+  "ein",
+  "foundedYear",
+  "primaryContact",
+  "contactEmail",
+  "mission",
+  "focusAreas",
+]);
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function firstRegexMatch(text: string, patterns: RegExp[]): string | null {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return normalizeWhitespace(match[1]);
+  }
+  return null;
+}
+
+function firstSentenceContaining(text: string, terms: string[]): string | null {
+  const sentences = text
+    .split(/(?<=[.!?])\s+/)
+    .map(normalizeWhitespace)
+    .filter(Boolean);
+  return sentences.find((sentence) =>
+    terms.some((term) => sentence.toLowerCase().includes(term))
+  ) ?? null;
+}
+
+function organizationHasField(organization: any, field: string): boolean {
+  const value = organization?.[field];
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "number") return Number.isFinite(value);
+  return typeof value === "string" ? value.trim().length > 0 : value != null;
+}
+
+function buildOrganizationProfileSuggestions(params: {
+  organization: any;
+  documentId: string;
+  rawText: string;
+  summary: string;
+}) {
+  const source = normalizeWhitespace(`${params.rawText}\n\n${params.summary}`).slice(0, 50_000);
+  const suggestions: Array<{
+    field: string;
+    suggestedValue: string;
+    confidence?: number | null;
+    sourceQuote?: string | null;
+  }> = [];
+  const addSuggestion = (field: string, value: string | number | string[] | null, sourceQuote?: string | null, confidence = 70) => {
+    if (!value || !PROFILE_SUGGESTION_FIELDS.has(field) || organizationHasField(params.organization, field)) return;
+    const suggestedValue = Array.isArray(value) ? value.join(", ") : String(value);
+    if (!suggestedValue.trim()) return;
+    suggestions.push({
+      field,
+      suggestedValue: suggestedValue.trim(),
+      confidence,
+      sourceQuote: sourceQuote ? sourceQuote.slice(0, 500) : null,
+    });
+  };
+
+  const ein = firstRegexMatch(source, [
+    /\bEIN(?:\s|\u00a0|:|-)*(?:number|#)?(?:\s|\u00a0|:|-)*(\d{2}-\d{7})\b/i,
+    /\bFederal Tax ID(?:\s|\u00a0|:|-)*(\d{2}-\d{7})\b/i,
+  ]);
+  addSuggestion("ein", ein, ein ? firstSentenceContaining(source, [ein]) : null, 90);
+
+  const year = firstRegexMatch(source, [
+    /\b(?:founded|established|incorporated)(?:\s|\u00a0|in|:|-)*(19\d{2}|20\d{2})\b/i,
+  ]);
+  addSuggestion("foundedYear", year ? Number(year) : null, year ? firstSentenceContaining(source, [year, "founded", "established"]) : null, 75);
+
+  const email = firstRegexMatch(source, [
+    /\b([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b/i,
+  ]);
+  addSuggestion("contactEmail", email, email ? firstSentenceContaining(source, [email]) : null, 80);
+
+  const mission = firstRegexMatch(source, [
+    /\bmission(?:\s|\u00a0|statement)?(?:\s|\u00a0|:|-)+(.{40,500}?)(?:\n|\. [A-Z]|$)/i,
+  ]);
+  addSuggestion("mission", mission, mission, 70);
+
+  const type = firstRegexMatch(source, [
+    /\b(501\(c\)\(3\)\s+nonprofit|501\(c\)3\s+nonprofit|nonprofit organization|educational institution|government agency|research institution)\b/i,
+  ]);
+  addSuggestion("organizationType", type, type ? firstSentenceContaining(source, [type]) : null, 65);
+
+  const focusLine = firstRegexMatch(source, [
+    /\b(?:focus areas|program areas|service areas|priority areas)(?:\s|\u00a0|:|-)+(.{10,180}?)(?:\n|\.|$)/i,
+  ]);
+  if (focusLine) {
+    const focusAreas = focusLine
+      .split(/,|;|\band\b/i)
+      .map(normalizeWhitespace)
+      .filter((area: string) => area.length >= 3)
+      .slice(0, 8);
+    addSuggestion("focusAreas", focusAreas, focusLine, 60);
+  }
+
+  return suggestions.slice(0, 8);
+}
+
 const ALLOWED_UPLOAD_EXT = new Set([".pdf", ".txt", ".doc", ".docx"]);
 const ALLOWED_UPLOAD_MIME = new Set([
   "application/pdf",
@@ -391,6 +497,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Failed to update organization:", error);
       res.status(400).json(mergeDevErrorDetails({ error: "Invalid organization data" }, error));
+    }
+  });
+
+  app.get("/api/organizations/:organizationId/profile-suggestions", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const { organizationId } = req.params;
+      if (!(await storage.userHasOrganizationAccess(userId, organizationId))) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
+      const suggestions = await storage.getOrganizationProfileSuggestions(userId, organizationId);
+      res.json(suggestions);
+    } catch (error) {
+      console.error("Failed to fetch profile suggestions:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch profile suggestions" }, error));
+    }
+  });
+
+  app.post("/api/organizations/:organizationId/profile-suggestions/:suggestionId/review", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const { organizationId, suggestionId } = req.params;
+      const status = req.body?.status;
+      if (status !== "accepted" && status !== "rejected") {
+        return res.status(400).json({ error: "Status must be accepted or rejected" });
+      }
+      if (!(await storage.userHasOrganizationAccess(userId, organizationId))) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
+
+      const suggestions = await storage.getOrganizationProfileSuggestions(userId, organizationId);
+      const suggestion = suggestions.find((item) => item.id === suggestionId);
+      if (!suggestion || suggestion.status !== "pending") {
+        return res.status(404).json({ error: "Suggestion not found" });
+      }
+
+      let organization = await storage.getOrganization(organizationId);
+      if (status === "accepted" && organization) {
+        const updates: Record<string, unknown> = {};
+        if (suggestion.field === "focusAreas") {
+          updates.focusAreas = suggestion.suggestedValue
+            .split(",")
+            .map((area) => area.trim())
+            .filter(Boolean);
+        } else if (suggestion.field === "foundedYear") {
+          const foundedYear = Number.parseInt(suggestion.suggestedValue, 10);
+          if (Number.isFinite(foundedYear)) updates.foundedYear = foundedYear;
+        } else if (PROFILE_SUGGESTION_FIELDS.has(suggestion.field)) {
+          updates[suggestion.field] = suggestion.suggestedValue;
+        }
+        if (Object.keys(updates).length) {
+          organization = await storage.updateOrganization(organizationId, updates as any);
+        }
+      }
+
+      const reviewed = await storage.updateOrganizationProfileSuggestion(userId, organizationId, suggestionId, {
+        status,
+        reviewedBy: userId,
+        reviewedAt: new Date(),
+      } as any);
+      res.json({ suggestion: reviewed, organization });
+    } catch (error) {
+      console.error("Failed to review profile suggestion:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to review profile suggestion" }, error));
     }
   });
 
@@ -741,6 +911,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!updatedDocument) {
         throw new Error("Failed to persist document metadata");
+      }
+
+      if (category === "organization-info") {
+        try {
+          const organization = await storage.getOrganization(organizationId);
+          const suggestions = buildOrganizationProfileSuggestions({
+            organization,
+            documentId: documentRecord.id,
+            rawText: processed.extractedText,
+            summary: processed.summary,
+          });
+          if (suggestions.length) {
+            await storage.createOrganizationProfileSuggestions(
+              userId,
+              organizationId,
+              documentRecord.id,
+              suggestions,
+            );
+          }
+        } catch (suggestionErr) {
+          console.warn(`[upload] profile suggestion extraction failed for ${documentRecord.id}:`, suggestionErr);
+        }
       }
 
       await storage.createProcessingJob(documentRecord.id, "embedding", "queued");

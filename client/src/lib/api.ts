@@ -36,6 +36,21 @@ export type OrganizationInput = Partial<Omit<Organization, "id" | "createdAt" | 
   name: string;
 };
 
+export interface OrganizationProfileSuggestion {
+  id: string;
+  organizationId: string;
+  documentId: string;
+  field: string;
+  suggestedValue: string;
+  confidence?: number | null;
+  sourceQuote?: string | null;
+  status: "pending" | "accepted" | "rejected";
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type MetricType = "number" | "currency" | "percent" | "text" | "date";
 export type MetricCategory = "impact" | "financial" | "timeline" | "reporting" | "custom";
 export type MetricSource = "manual" | "ai_suggested" | "preset";
@@ -275,6 +290,20 @@ export const api = {
 
   async updateOrganization(id: string, data: Partial<OrganizationInput>): Promise<Organization> {
     const res = await apiRequest("PATCH", `/api/organizations/${id}`, data);
+    return res.json();
+  },
+
+  async getOrganizationProfileSuggestions(organizationId: string): Promise<OrganizationProfileSuggestion[]> {
+    const res = await apiRequest("GET", `/api/organizations/${organizationId}/profile-suggestions`);
+    return res.json();
+  },
+
+  async reviewOrganizationProfileSuggestion(
+    organizationId: string,
+    suggestionId: string,
+    status: "accepted" | "rejected",
+  ): Promise<{ suggestion: OrganizationProfileSuggestion; organization: Organization | null }> {
+    const res = await apiRequest("POST", `/api/organizations/${organizationId}/profile-suggestions/${suggestionId}/review`, { status });
     return res.json();
   },
 
