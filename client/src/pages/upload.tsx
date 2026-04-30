@@ -162,6 +162,7 @@ export default function Upload() {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
       if (activeOrganizationId) {
         queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "documents"] });
+        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "profile-suggestions"] });
       }
       toast({
         title: "Document uploaded",
@@ -184,6 +185,7 @@ export default function Upload() {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
       if (activeOrganizationId) {
         queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "documents"] });
+        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "profile-suggestions"] });
       }
       toast({
         title: "Document deleted",

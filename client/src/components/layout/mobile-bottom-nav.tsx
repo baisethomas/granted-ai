@@ -5,7 +5,9 @@ interface MobileBottomNavProps {
   onTabChange: (tab: string) => void;
 }
 
-const mobileNavItems = mainNavItems.filter(item => item.id !== "settings");
+const mobileNavItems = mainNavItems.filter(
+  (item) => item.id !== "settings" && item.id !== "organization",
+);
 
 export function MobileBottomNav({ activeTab, onTabChange }: MobileBottomNavProps) {
   return (

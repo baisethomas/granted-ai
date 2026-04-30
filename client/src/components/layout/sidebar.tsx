@@ -10,8 +10,10 @@ import {
   LogOut,
   BarChart3,
   Plus,
+  Building2,
 } from "lucide-react";
 import { FormEvent, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useLogout } from "@/hooks/useLogout";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -20,6 +22,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { api, type OrganizationProfileSuggestion } from "@/lib/api";
 
 interface SidebarProps {
   activeTab: string;
@@ -28,6 +31,7 @@ interface SidebarProps {
 
 export const mainNavItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "organization", label: "Organization", icon: Building2 },
   { id: "upload", label: "Upload", icon: CloudUpload },
   { id: "forms", label: "Grant Forms", icon: FileText },
   { id: "drafts", label: "Drafts", icon: Eye },
@@ -54,6 +58,19 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     setActiveOrganizationId,
     createOrganization,
   } = useWorkspace();
+
+  const { data: profileSuggestions = [] } = useQuery<OrganizationProfileSuggestion[]>({
+    queryKey: ["organizations", activeOrganizationId, "profile-suggestions"],
+    queryFn: () =>
+      activeOrganizationId
+        ? api.getOrganizationProfileSuggestions(activeOrganizationId)
+        : Promise.resolve([]),
+    enabled: !!activeOrganizationId,
+  });
+
+  const pendingProfileSuggestionCount = profileSuggestions.filter(
+    (suggestion) => suggestion.status === "pending",
+  ).length;
 
   const getUserDisplayName = () => {
     if (user?.email) {
@@ -192,7 +209,12 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                     }`}
                   >
                     <Icon className="w-5 h-5 mr-2" />
-                    {item.label}
+                    <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+                    {item.id === "organization" && pendingProfileSuggestionCount > 0 && (
+                      <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                        {pendingProfileSuggestionCount}
+                      </span>
+                    )}
                   </button>
                 </li>
               );

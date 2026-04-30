@@ -194,6 +194,147 @@ describe("workspace route isolation", () => {
     expect(body.suggestion.status).toBe("accepted");
     expect(updatedOrg?.mission).toBe("Improve community health through accessible education and care.");
   });
+
+  it("restores dismissed profile suggestions to the review queue", async () => {
+    const userId = "workspace-profile-restore";
+    const org = await (await postJson("/api/organizations", userId, { name: "Restore Client" })).json();
+    const document = await storage.createDocumentForOrganization(userId, org.id, {
+      organizationId: org.id,
+      filename: "restore-profile.txt",
+      originalName: "Restore Profile.txt",
+      fileType: "text/plain",
+      fileSize: 10,
+      category: "organization-info",
+    });
+    const [suggestion] = await storage.createOrganizationProfileSuggestions(userId, org.id, document.id, [
+      {
+        field: "primaryContact",
+        suggestedValue: "Jordan Lee",
+        confidence: 78,
+        sourceQuote: "Primary contact: Jordan Lee",
+      },
+    ]);
+
+    const dismissResponse = await postJson(
+      `/api/organizations/${org.id}/profile-suggestions/${suggestion.id}/review`,
+      userId,
+      { status: "rejected" },
+    );
+    expect(dismissResponse.status).toBe(200);
+
+    const restoreResponse = await postJson(
+      `/api/organizations/${org.id}/profile-suggestions/${suggestion.id}/review`,
+      userId,
+      { status: "pending" },
+    );
+    const body = await restoreResponse.json();
+
+    expect(restoreResponse.status).toBe(200);
+    expect(body.suggestion.status).toBe("pending");
+    expect(body.suggestion.reviewedBy).toBeNull();
+    expect(body.suggestion.reviewedAt).toBeNull();
+  });
+
+  it("accepts dismissed as an alias when dismissing profile suggestions", async () => {
+    const userId = "workspace-profile-dismissed-alias";
+    const org = await (await postJson("/api/organizations", userId, { name: "Dismissed Alias Client" })).json();
+    const document = await storage.createDocumentForOrganization(userId, org.id, {
+      organizationId: org.id,
+      filename: "dismissed-alias-profile.txt",
+      originalName: "Dismissed Alias Profile.txt",
+      fileType: "text/plain",
+      fileSize: 10,
+      category: "organization-info",
+    });
+    const [suggestion] = await storage.createOrganizationProfileSuggestions(userId, org.id, document.id, [
+      {
+        field: "ein",
+        suggestedValue: "12-3456789",
+        confidence: 80,
+        sourceQuote: "EIN: 12-3456789",
+      },
+    ]);
+
+    const dismissResponse = await postJson(
+      `/api/organizations/${org.id}/profile-suggestions/${suggestion.id}/review`,
+      userId,
+      { status: "dismissed" },
+    );
+    const dismissBody = await dismissResponse.json();
+    expect(dismissResponse.status).toBe(200);
+    expect(dismissBody.suggestion.status).toBe("rejected");
+
+    const restoreResponse = await postJson(
+      `/api/organizations/${org.id}/profile-suggestions/${suggestion.id}/review`,
+      userId,
+      { status: "pending" },
+    );
+    const restoreBody = await restoreResponse.json();
+    expect(restoreResponse.status).toBe(200);
+    expect(restoreBody.suggestion.status).toBe("pending");
+  });
+
+  it("accepts a dismissed profile suggestion without requiring restore first", async () => {
+    const userId = "workspace-profile-accept-dismissed";
+    const org = await (await postJson("/api/organizations", userId, { name: "Accept Dismissed Client" })).json();
+    const document = await storage.createDocumentForOrganization(userId, org.id, {
+      organizationId: org.id,
+      filename: "accept-dismissed-profile.txt",
+      originalName: "Accept Dismissed Profile.txt",
+      fileType: "text/plain",
+      fileSize: 10,
+      category: "organization-info",
+    });
+    const [suggestion] = await storage.createOrganizationProfileSuggestions(userId, org.id, document.id, [
+      {
+        field: "primaryContact",
+        suggestedValue: "Avery Stone",
+        confidence: 82,
+        sourceQuote: "Primary contact: Avery Stone",
+      },
+    ]);
+
+    await postJson(
+      `/api/organizations/${org.id}/profile-suggestions/${suggestion.id}/review`,
+      userId,
+      { status: "rejected" },
+    );
+
+    const acceptResponse = await postJson(
+      `/api/organizations/${org.id}/profile-suggestions/${suggestion.id}/review`,
+      userId,
+      { status: "accepted" },
+    );
+    const body = await acceptResponse.json();
+    const updatedOrg = await storage.getOrganization(org.id);
+
+    expect(acceptResponse.status).toBe(200);
+    expect(body.suggestion.status).toBe("accepted");
+    expect(updatedOrg?.primaryContact).toBe("Avery Stone");
+  });
+
+  it("backfills profile suggestions from existing organization documents", async () => {
+    const userId = "workspace-profile-backfill";
+    const org = await (await postJson("/api/organizations", userId, { name: "Backfill Client" })).json();
+    await storage.createDocumentForOrganization(userId, org.id, {
+      organizationId: org.id,
+      filename: "backfill-profile.txt",
+      originalName: "Backfill Profile.txt",
+      fileType: "text/plain",
+      fileSize: 10,
+      category: "organization-info",
+      summary: "Mission: Improve community health through accessible education and care. EIN: 12-3456789.",
+      processed: true,
+      processingStatus: "complete",
+    });
+
+    const response = await requestJson(`/api/organizations/${org.id}/profile-suggestions`, userId);
+    const suggestions = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(suggestions.some((suggestion: any) => suggestion.field === "mission")).toBe(true);
+    expect(suggestions.some((suggestion: any) => suggestion.field === "ein")).toBe(true);
+  });
 });
 
 describe("workspace retrieval isolation", () => {

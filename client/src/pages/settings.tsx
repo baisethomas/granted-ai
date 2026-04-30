@@ -1,23 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
-import { api, type OrganizationProfileSuggestion, type UserSettings } from "@/lib/api";
+import { api, type UserSettings } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useState, useEffect } from "react";
 import { 
   Save, 
-  Plus, 
-  X,
-  Check,
   Info,
   BarChart3,
   LogOut
@@ -29,32 +23,11 @@ export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const handleLogout = useLogout();
-  const { activeOrganization, activeOrganizationId } = useWorkspace();
+  const { activeOrganizationId } = useWorkspace();
 
   const { data: settings, isLoading } = useQuery<UserSettings>({
     queryKey: ["/api/settings"],
     queryFn: api.getSettings,
-  });
-
-  const { data: profileSuggestions = [] } = useQuery<OrganizationProfileSuggestion[]>({
-    queryKey: ["organizations", activeOrganizationId, "profile-suggestions"],
-    queryFn: () => activeOrganizationId
-      ? api.getOrganizationProfileSuggestions(activeOrganizationId)
-      : Promise.resolve([]),
-    enabled: !!activeOrganizationId,
-  });
-
-  const pendingProfileSuggestions = profileSuggestions.filter((suggestion) => suggestion.status === "pending");
-
-  const [organizationForm, setOrganizationForm] = useState({
-    organizationName: "",
-    organizationType: "501(c)(3) Nonprofit",
-    ein: "",
-    foundedYear: 2015,
-    primaryContact: "",
-    email: "",
-    mission: "",
-    focusAreas: [] as string[],
   });
 
   const [aiSettings, setAiSettings] = useState({
@@ -73,21 +46,6 @@ export default function Settings() {
     autoSave: true,
     analytics: true,
   });
-
-  useEffect(() => {
-    if (activeOrganization) {
-      setOrganizationForm({
-        organizationName: activeOrganization.name || "",
-        organizationType: activeOrganization.organizationType || "501(c)(3) Nonprofit",
-        ein: activeOrganization.ein || "",
-        foundedYear: activeOrganization.foundedYear || 2015,
-        primaryContact: activeOrganization.primaryContact || "",
-        email: activeOrganization.contactEmail || "",
-        mission: activeOrganization.mission || "",
-        focusAreas: activeOrganization.focusAreas || [],
-      });
-    }
-  }, [activeOrganization]);
 
   useEffect(() => {
     if (settings) {
@@ -110,25 +68,6 @@ export default function Settings() {
     }
   }, [settings]);
 
-  const updateOrganizationMutation = useMutation({
-    mutationFn: () => {
-      if (!activeOrganizationId) throw new Error("No active workspace selected");
-      return api.updateOrganization(activeOrganizationId, {
-        name: organizationForm.organizationName,
-        organizationType: organizationForm.organizationType,
-        ein: organizationForm.ein || null,
-        foundedYear: organizationForm.foundedYear || null,
-        primaryContact: organizationForm.primaryContact || null,
-        contactEmail: organizationForm.email || null,
-        mission: organizationForm.mission || null,
-        focusAreas: organizationForm.focusAreas,
-      } as any);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
-    },
-  });
-
   const updateSettingsMutation = useMutation({
     mutationFn: api.updateSettings,
     onSuccess: () => {
@@ -147,34 +86,7 @@ export default function Settings() {
     },
   });
 
-  const reviewProfileSuggestionMutation = useMutation({
-    mutationFn: ({ suggestionId, status }: { suggestionId: string; status: "accepted" | "rejected" }) => {
-      if (!activeOrganizationId) throw new Error("No active workspace selected");
-      return api.reviewOrganizationProfileSuggestion(activeOrganizationId, suggestionId, status);
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
-      if (activeOrganizationId) {
-        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "profile-suggestions"] });
-      }
-      toast({
-        title: variables.status === "accepted" ? "Profile updated" : "Suggestion dismissed",
-        description: variables.status === "accepted"
-          ? "The suggestion has been added to this workspace profile."
-          : "The suggestion will no longer appear in review.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Failed to review suggestion",
-        description: error.message || "Please try again later.",
-        variant: "destructive",
-      });
-    },
-  });
-
   const handleSaveSettings = () => {
-    updateOrganizationMutation.mutate();
     updateSettingsMutation.mutate({
       ...aiSettings,
       ...accountSettings,
@@ -200,22 +112,6 @@ export default function Settings() {
     });
   };
 
-  const addFocusArea = (area: string) => {
-    if (area && !organizationForm.focusAreas.includes(area)) {
-      setOrganizationForm({
-        ...organizationForm,
-        focusAreas: [...organizationForm.focusAreas, area],
-      });
-    }
-  };
-
-  const removeFocusArea = (area: string) => {
-    setOrganizationForm({
-      ...organizationForm,
-      focusAreas: organizationForm.focusAreas.filter(a => a !== area),
-    });
-  };
-
   const addEmphasisArea = (area: string) => {
     if (area && !aiSettings.emphasisAreas.includes(area)) {
       setAiSettings({
@@ -230,20 +126,6 @@ export default function Settings() {
       ...aiSettings,
       emphasisAreas: aiSettings.emphasisAreas.filter(a => a !== area),
     });
-  };
-
-  const getSuggestionLabel = (field: string) => {
-    switch (field) {
-      case "name": return "Organization Name";
-      case "organizationType": return "Organization Type";
-      case "ein": return "EIN";
-      case "foundedYear": return "Founded Year";
-      case "primaryContact": return "Primary Contact";
-      case "contactEmail": return "Contact Email";
-      case "mission": return "Mission Statement";
-      case "focusAreas": return "Focus Areas";
-      default: return field;
-    }
   };
 
   if (isLoading) {
@@ -273,189 +155,6 @@ export default function Settings() {
         </CardHeader>
         <CardContent className="p-4 md:p-6">
           <UsageDashboard organizationId={activeOrganizationId} />
-        </CardContent>
-      </Card>
-
-      <Card className="shadow-sm border border-slate-200">
-        <CardContent className="p-4 md:p-6">
-          <h2 className="text-xl font-bold text-slate-900 mb-2 md:text-2xl">Settings & Profile</h2>
-          <p className="text-slate-600 mb-8">
-            Manage your organization information, AI preferences, and account settings.
-          </p>
-
-          {/* Organization Profile */}
-          <div className="space-y-6">
-            <div className="border-b border-slate-200 pb-4">
-              <h3 className="text-lg font-semibold text-slate-900">Organization Profile</h3>
-              <p className="text-sm text-slate-600 mt-1">
-                This information helps the AI better understand your organization
-              </p>
-            </div>
-
-            {pendingProfileSuggestions.length > 0 && (
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
-                <div className="mb-3 flex items-start gap-2">
-                  <Info className="mt-0.5 h-4 w-4 text-amber-700" />
-                  <div>
-                    <h4 className="text-sm font-semibold text-amber-950">Review profile suggestions</h4>
-                    <p className="text-sm text-amber-900">
-                      Granted found possible profile details in uploaded organization documents.
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  {pendingProfileSuggestions.map((suggestion) => (
-                    <div key={suggestion.id} className="rounded-md border border-amber-200 bg-white p-3">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-                            {getSuggestionLabel(suggestion.field)}
-                          </p>
-                          <p className="mt-1 break-words text-sm text-slate-900">{suggestion.suggestedValue}</p>
-                          {suggestion.sourceQuote && (
-                            <p className="mt-2 line-clamp-2 text-xs text-slate-500">{suggestion.sourceQuote}</p>
-                          )}
-                        </div>
-                        <div className="flex shrink-0 gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="bg-primary-600 hover:bg-primary-700"
-                            disabled={reviewProfileSuggestionMutation.isPending}
-                            onClick={() => reviewProfileSuggestionMutation.mutate({ suggestionId: suggestion.id, status: "accepted" })}
-                          >
-                            <Check className="mr-1 h-3 w-3" />
-                            Accept
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={reviewProfileSuggestionMutation.isPending}
-                            onClick={() => reviewProfileSuggestionMutation.mutate({ suggestionId: suggestion.id, status: "rejected" })}
-                          >
-                            <X className="mr-1 h-3 w-3" />
-                            Dismiss
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="orgName">Organization Name</Label>
-                <Input
-                  id="orgName"
-                  value={organizationForm.organizationName}
-                  onChange={(e) => setOrganizationForm({ ...organizationForm, organizationName: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="orgType">Organization Type</Label>
-                <Select 
-                  value={organizationForm.organizationType} 
-                  onValueChange={(value) => setOrganizationForm({ ...organizationForm, organizationType: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="501(c)(3) Nonprofit">501(c)(3) Nonprofit</SelectItem>
-                    <SelectItem value="Educational Institution">Educational Institution</SelectItem>
-                    <SelectItem value="Government Agency">Government Agency</SelectItem>
-                    <SelectItem value="Research Institution">Research Institution</SelectItem>
-                    <SelectItem value="For-Profit Organization">For-Profit Organization</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ein">EIN (Tax ID)</Label>
-                <Input
-                  id="ein"
-                  placeholder="XX-XXXXXXX"
-                  value={organizationForm.ein}
-                  onChange={(e) => setOrganizationForm({ ...organizationForm, ein: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="foundedYear">Founded Year</Label>
-                <Input
-                  id="foundedYear"
-                  type="number"
-                  value={organizationForm.foundedYear}
-                  onChange={(e) => setOrganizationForm({ ...organizationForm, foundedYear: parseInt(e.target.value) || 2015 })}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="primaryContact">Primary Contact</Label>
-                <Input
-                  id="primaryContact"
-                  placeholder="Jane Smith"
-                  value={organizationForm.primaryContact}
-                  onChange={(e) => setOrganizationForm({ ...organizationForm, primaryContact: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="grants@nonprofit.org"
-                  value={organizationForm.email}
-                  onChange={(e) => setOrganizationForm({ ...organizationForm, email: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="mission">Mission Statement</Label>
-              <Textarea
-                id="mission"
-                rows={4}
-                placeholder="Brief description of your organization's mission..."
-                value={organizationForm.mission}
-                onChange={(e) => setOrganizationForm({ ...organizationForm, mission: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Focus Areas</Label>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {organizationForm.focusAreas.map((area) => (
-                  <Badge key={area} className="inline-flex items-center px-3 py-1 bg-primary-100 text-primary-800">
-                    {area}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeFocusArea(area)}
-                      className="ml-1 p-0 h-auto text-primary-600 hover:text-primary-800"
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </Badge>
-                ))}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const newArea = prompt("Enter focus area:");
-                    if (newArea) addFocusArea(newArea);
-                  }}
-                  className="inline-flex items-center px-3 py-1 text-sm"
-                >
-                  <Plus className="mr-1 h-3 w-3" />
-                  Add Focus Area
-                </Button>
-              </div>
-            </div>
-          </div>
         </CardContent>
       </Card>
 

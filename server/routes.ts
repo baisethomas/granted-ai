@@ -274,11 +274,20 @@ function firstSentenceContaining(text: string, terms: string[]): string | null {
   ) ?? null;
 }
 
-function organizationHasField(organization: any, field: string): boolean {
-  const value = organization?.[field];
-  if (Array.isArray(value)) return value.length > 0;
-  if (typeof value === "number") return Number.isFinite(value);
-  return typeof value === "string" ? value.trim().length > 0 : value != null;
+function organizationHasExactFieldValue(organization: any, field: string, suggestedValue: string): boolean {
+  const current = organization?.[field];
+  const normalizedSuggestion = normalizeWhitespace(suggestedValue).toLowerCase();
+  if (!normalizedSuggestion) return true;
+  if (Array.isArray(current)) {
+    return current
+      .map((value) => normalizeWhitespace(String(value)).toLowerCase())
+      .join(", ") === normalizedSuggestion;
+  }
+  if (typeof current === "number") return String(current) === normalizedSuggestion;
+  if (typeof current === "string") {
+    return normalizeWhitespace(current).toLowerCase() === normalizedSuggestion;
+  }
+  return false;
 }
 
 function buildOrganizationProfileSuggestions(params: {
@@ -295,9 +304,10 @@ function buildOrganizationProfileSuggestions(params: {
     sourceQuote?: string | null;
   }> = [];
   const addSuggestion = (field: string, value: string | number | string[] | null, sourceQuote?: string | null, confidence = 70) => {
-    if (!value || !PROFILE_SUGGESTION_FIELDS.has(field) || organizationHasField(params.organization, field)) return;
+    if (!value || !PROFILE_SUGGESTION_FIELDS.has(field)) return;
     const suggestedValue = Array.isArray(value) ? value.join(", ") : String(value);
     if (!suggestedValue.trim()) return;
+    if (organizationHasExactFieldValue(params.organization, field, suggestedValue)) return;
     suggestions.push({
       field,
       suggestedValue: suggestedValue.trim(),
@@ -507,7 +517,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!(await storage.userHasOrganizationAccess(userId, organizationId))) {
         return res.status(404).json({ error: "Organization not found" });
       }
-      const suggestions = await storage.getOrganizationProfileSuggestions(userId, organizationId);
+      let suggestions = await storage.getOrganizationProfileSuggestions(userId, organizationId);
+      if (suggestions.length === 0) {
+        const [organization, documents] = await Promise.all([
+          storage.getOrganization(organizationId),
+          storage.getDocumentsForOrganization(userId, organizationId),
+        ]);
+        const organizationDocuments = documents.filter(
+          (document) => document.category === "organization-info" && document.summary,
+        );
+        for (const document of organizationDocuments) {
+          const generatedSuggestions = buildOrganizationProfileSuggestions({
+            organization,
+            documentId: document.id,
+            rawText: "",
+            summary: document.summary ?? "",
+          });
+          if (generatedSuggestions.length) {
+            await storage.createOrganizationProfileSuggestions(
+              userId,
+              organizationId,
+              document.id,
+              generatedSuggestions,
+            );
+          }
+        }
+        suggestions = await storage.getOrganizationProfileSuggestions(userId, organizationId);
+      }
       res.json(suggestions);
     } catch (error) {
       console.error("Failed to fetch profile suggestions:", error);
@@ -519,17 +555,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = getUserId(req);
       const { organizationId, suggestionId } = req.params;
-      const status = req.body?.status;
-      if (status !== "accepted" && status !== "rejected") {
-        return res.status(400).json({ error: "Status must be accepted or rejected" });
+      const requestedStatus = req.body?.status;
+      if (
+        requestedStatus !== "accepted" &&
+        requestedStatus !== "rejected" &&
+        requestedStatus !== "dismissed" &&
+        requestedStatus !== "pending"
+      ) {
+        return res.status(400).json({ error: "Status must be accepted, rejected, dismissed, or pending" });
       }
+      const status = requestedStatus === "dismissed" ? "rejected" : requestedStatus;
       if (!(await storage.userHasOrganizationAccess(userId, organizationId))) {
         return res.status(404).json({ error: "Organization not found" });
       }
 
       const suggestions = await storage.getOrganizationProfileSuggestions(userId, organizationId);
       const suggestion = suggestions.find((item) => item.id === suggestionId);
-      if (!suggestion || suggestion.status !== "pending") {
+      if (!suggestion) {
+        return res.status(404).json({ error: "Suggestion not found" });
+      }
+      if (status === "pending" && suggestion.status === "pending") {
+        return res.status(400).json({ error: "Suggestion is already pending" });
+      }
+      if (status === "accepted" && suggestion.status === "accepted") {
+        return res.status(400).json({ error: "Suggestion is already accepted" });
+      }
+      if (status === "rejected" && suggestion.status !== "pending") {
         return res.status(404).json({ error: "Suggestion not found" });
       }
 
@@ -554,8 +605,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const reviewed = await storage.updateOrganizationProfileSuggestion(userId, organizationId, suggestionId, {
         status,
-        reviewedBy: userId,
-        reviewedAt: new Date(),
+        reviewedBy: status === "pending" ? null : userId,
+        reviewedAt: status === "pending" ? null : new Date(),
       } as any);
       res.json({ suggestion: reviewed, organization });
     } catch (error) {

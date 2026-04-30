@@ -44,7 +44,7 @@ export interface OrganizationProfileSuggestion {
   suggestedValue: string;
   confidence?: number | null;
   sourceQuote?: string | null;
-  status: "pending" | "accepted" | "rejected";
+  status: "pending" | "accepted" | "rejected" | "dismissed";
   reviewedBy?: string | null;
   reviewedAt?: string | null;
   createdAt: string;
@@ -301,7 +301,7 @@ export const api = {
   async reviewOrganizationProfileSuggestion(
     organizationId: string,
     suggestionId: string,
-    status: "accepted" | "rejected",
+    status: "pending" | "accepted" | "rejected" | "dismissed",
   ): Promise<{ suggestion: OrganizationProfileSuggestion; organization: Organization | null }> {
     const res = await apiRequest("POST", `/api/organizations/${organizationId}/profile-suggestions/${suggestionId}/review`, { status });
     return res.json();

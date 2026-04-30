@@ -25,6 +25,7 @@ export function useUploadData() {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
       if (activeOrganizationId) {
         queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "documents"] });
+        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "profile-suggestions"] });
       }
       toast({
         title: "Upload successful",
@@ -46,6 +47,7 @@ export function useUploadData() {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
       if (activeOrganizationId) {
         queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "documents"] });
+        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "profile-suggestions"] });
       }
       toast({
         title: "Document deleted",

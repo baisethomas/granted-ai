@@ -31,6 +31,7 @@ import Upload from "@/pages/upload";
 import Forms from "@/pages/forms";
 import Drafts from "@/pages/drafts";
 import Settings from "@/pages/settings";
+import Organization from "@/pages/organization";
 import Pricing from "@/pages/pricing";
 import Privacy from "@/pages/privacy";
 import Terms from "@/pages/terms";
@@ -82,6 +83,8 @@ function AppContent() {
     switch (activeTab) {
       case "dashboard":
         return <Dashboard onOpenProject={handleOpenProject} />;
+      case "organization":
+        return <Organization />;
       case "upload":
         return <Upload />;
       case "forms":
@@ -235,6 +238,8 @@ function AppLayoutWithTabs({
     switch (activeTab) {
       case "dashboard":
         return "Dashboard";
+      case "organization":
+        return "Organization";
       case "upload":
         return "Upload Documents";
       case "forms":
@@ -254,6 +259,8 @@ function AppLayoutWithTabs({
     switch (activeTab) {
       case "dashboard":
         return "Welcome to your grant writing workspace";
+      case "organization":
+        return "View and edit the active workspace profile";
       case "upload":
         return "Upload and manage your documents";
       case "forms":
