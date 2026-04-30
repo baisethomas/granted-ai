@@ -1174,6 +1174,29 @@ export class MemStorage implements IStorage {
 }
 
 export class DbStorage implements IStorage {
+  private async ensureUserRecord(userId: string): Promise<User> {
+    const existing = await this.getUser(userId);
+    if (existing) return existing;
+
+    const rows = await db
+      ?.insert(schema.users)
+      .values({
+        id: userId,
+        username: userId,
+        password: null,
+      } as any)
+      .onConflictDoNothing({ target: schema.users.id })
+      .returning();
+
+    if (rows?.[0]) return rows[0];
+
+    const createdByConcurrentRequest = await this.getUser(userId);
+    if (!createdByConcurrentRequest) {
+      throw new Error(`Failed to ensure user record for authenticated user ${userId}`);
+    }
+    return createdByConcurrentRequest;
+  }
+
   async getUser(id: string): Promise<User | undefined> {
     const rows = await db?.select().from(schema.users).where(eq(schema.users.id, id));
     return rows?.[0];
@@ -1216,6 +1239,7 @@ export class DbStorage implements IStorage {
   }
 
   async ensureDefaultOrganizationForUser(userId: string, displayName?: string): Promise<Organization> {
+    const user = await this.ensureUserRecord(userId);
     const existing = await this.getOrganization(userId);
     if (existing) {
       const membership = await db
@@ -1228,7 +1252,6 @@ export class DbStorage implements IStorage {
       return existing;
     }
 
-    const user = await this.getUser(userId);
     const rows = await db?.insert(schema.organizations).values({
       id: userId,
       name: displayName || user?.organizationName || "My Organization",
@@ -1246,6 +1269,7 @@ export class DbStorage implements IStorage {
   }
 
   async createOrganization(userId: string, insertOrganization: InsertOrganization): Promise<Organization> {
+    await this.ensureUserRecord(userId);
     const rows = await db?.insert(schema.organizations).values({
       ...(insertOrganization as any),
       plan: "starter",
