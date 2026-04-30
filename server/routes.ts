@@ -468,7 +468,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = getUserId(req);
       const validatedData = insertOrganizationSchema.parse(req.body);
       const organization = await storage.createOrganization(userId, validatedData);
-      await billingService.ensureSubscription(userId, organization.name, organization.id);
+      try {
+        await billingService.ensureSubscription(userId, organization.name, organization.id);
+      } catch (billingError) {
+        console.error("Created organization but failed to ensure subscription:", billingError);
+      }
       res.status(201).json(organization);
     } catch (error: any) {
       console.error("Failed to create organization:", error);
