@@ -46,6 +46,12 @@ UPLOAD_RATE_LIMIT_MAX_REQUESTS=10    # Max uploads per hour
 # Request Body Size Limits (optional - defaults shown)
 REQUEST_BODY_LIMIT=1mb               # JSON body size limit
 REQUEST_URLENCODED_LIMIT=10mb        # URL-encoded body size limit
+
+# Stripe Billing
+STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key_here
+STRIPE_WEBHOOK_SECRET=whsec_your_stripe_webhook_secret_here
+STRIPE_PRO_PRICE_ID=price_1TTUzQCy6PByA3b62RruIZL4
+STRIPE_PRO_PAYMENT_LINK_URL=https://buy.stripe.com/test_aFa6oG20Q55y2Kz0ureEo00
 ```
 
 ### API Key Sources
@@ -61,6 +67,17 @@ REQUEST_URLENCODED_LIMIT=10mb        # URL-encoded body size limit
 2. Create a new API key
 3. Copy the key (starts with `sk-ant-`)
 4. Add to your `.env` file as `ANTHROPIC_API_KEY=sk-ant-...`
+
+#### Stripe Billing
+1. Open the connected Stripe account dashboard.
+2. Add the secret key as `STRIPE_SECRET_KEY`.
+3. Configure a webhook endpoint for `/api/billing/webhook` and subscribe to:
+   - `checkout.session.completed`
+   - `customer.subscription.updated`
+   - `customer.subscription.deleted`
+4. Add the webhook signing secret as `STRIPE_WEBHOOK_SECRET`.
+
+If `STRIPE_SECRET_KEY` is not set, the app falls back to the configured test payment link for the Pro plan.
 
 ### Development Mode (Mock Implementation)
 

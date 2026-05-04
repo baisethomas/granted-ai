@@ -111,6 +111,38 @@ describe("workspace route isolation", () => {
     expect(orgBProjects[0]).toMatchObject({ title: "Client B Grant", organizationId: orgB.id });
   });
 
+  it("rejects document upload when projectId belongs to a different workspace", async () => {
+    const userId = "workspace-upload-scope";
+    const orgAResponse = await postJson("/api/organizations", userId, { name: "Upload Client A" });
+    const orgBResponse = await postJson("/api/organizations", userId, { name: "Upload Client B" });
+    const orgA = await orgAResponse.json();
+    const orgB = await orgBResponse.json();
+
+    const projectBResponse = await postJson(`/api/organizations/${orgB.id}/projects`, userId, {
+      title: "Other workspace grant",
+      funder: "Funder",
+    });
+    expect([200, 201]).toContain(projectBResponse.status);
+    const projectB = await projectBResponse.json();
+
+    const form = new FormData();
+    form.set("projectId", projectB.id);
+    form.set("category", "organization-info");
+    form.set("file", new Blob(["hello"], { type: "text/plain" }), "note.txt");
+
+    const response = await fetch(`${baseUrl}/api/organizations/${orgA.id}/documents/upload`, {
+      method: "POST",
+      headers: {
+        "x-test-user": userId,
+      },
+      body: form,
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toBe("Project not found for this workspace");
+  });
+
   it("does not allow another user to read a workspace they are not a member of", async () => {
     const ownerId = "workspace-owner-user";
     const outsiderId = "workspace-outsider-user";

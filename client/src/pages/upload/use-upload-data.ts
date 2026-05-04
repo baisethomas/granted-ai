@@ -20,11 +20,22 @@ export function useUploadData() {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: ({ file, category }: { file: File; category: string }) => {
+    mutationFn: ({
+      file,
+      category,
+      projectId,
+    }: {
+      file: File;
+      category: string;
+      projectId?: string | null;
+    }) => {
       if (!activeOrganizationId) {
         throw new Error("Select a workspace before uploading documents.");
       }
-      return api.uploadDocument(file, category, { organizationId: activeOrganizationId });
+      return api.uploadDocument(file, category, {
+        organizationId: activeOrganizationId,
+        projectId: projectId ?? null,
+      });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });

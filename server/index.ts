@@ -27,6 +27,7 @@ app.use(corsMiddleware);
 // Request body size limits - prevent memory exhaustion from large payloads
 // JSON body limit: 1MB (configurable via REQUEST_BODY_LIMIT env var)
 const jsonBodyLimit = process.env.REQUEST_BODY_LIMIT || "1mb";
+app.use("/api/billing/webhook", express.raw({ type: "application/json", limit: jsonBodyLimit }));
 app.use(express.json({ limit: jsonBodyLimit }));
 // URL-encoded body limit: 10MB (for file uploads via form data)
 const urlEncodedLimit = process.env.REQUEST_URLENCODED_LIMIT || "10mb";

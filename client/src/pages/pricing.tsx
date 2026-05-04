@@ -3,7 +3,9 @@ import { Button } from "@/components/ui/button";
 import MarketingHeader from "@/components/layout/marketing-header";
 import { Footer } from "@/components/landing/footer";
 import { getAuthUrl } from "@/lib/domains";
+import { apiRequest } from "@/lib/queryClient";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { useState } from "react";
 
 const plans = [
   {
@@ -30,6 +32,7 @@ const plans = [
     description: "For solo grant writers and consultants managing a recurring grant pipeline.",
     cta: "Try Pro",
     href: getAuthUrl(),
+    checkout: true,
     highlighted: true,
     features: [
       "Expanded projects and uploads",
@@ -95,6 +98,29 @@ const faqs = [
 ];
 
 export default function Pricing() {
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  async function startProCheckout() {
+    setCheckoutLoading(true);
+    try {
+      const response = await apiRequest("POST", "/api/billing/checkout");
+      const checkout = await response.json() as { url?: string };
+      if (!checkout.url) {
+        throw new Error("Checkout URL was not returned");
+      }
+      window.location.href = checkout.url;
+    } catch (error: any) {
+      if (error?.status === 401 || String(error?.message || "").startsWith("401:")) {
+        window.location.href = getAuthUrl();
+        return;
+      }
+      console.error("Failed to start checkout:", error);
+      window.location.href = getAuthUrl();
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <MarketingHeader />
@@ -157,15 +183,27 @@ export default function Pricing() {
                     </li>
                   ))}
                 </ul>
-                <a href={plan.href} className="mt-8 block">
+                {plan.checkout ? (
                   <Button
-                    className="w-full"
+                    className="mt-8 w-full"
                     variant={plan.highlighted ? "default" : "outline"}
+                    onClick={startProCheckout}
+                    disabled={checkoutLoading}
                   >
-                    {plan.cta}
+                    {checkoutLoading ? "Opening checkout..." : plan.cta}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
-                </a>
+                ) : (
+                  <a href={plan.href} className="mt-8 block">
+                    <Button
+                      className="w-full"
+                      variant={plan.highlighted ? "default" : "outline"}
+                    >
+                      {plan.cta}
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </a>
+                )}
               </CardContent>
             </Card>
           ))}

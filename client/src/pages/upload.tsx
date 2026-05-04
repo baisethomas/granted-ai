@@ -1,8 +1,16 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { FileUpload } from "@/components/ui/file-upload";
 import { api, type Document } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -137,31 +145,52 @@ const getEmbeddingBadge = (document: any) => {
   }
 };
 
+const ATTACH_WORKSPACE_WIDE = "__workspace_wide";
+
 export default function Upload() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { activeOrganization, activeOrganizationId } = useWorkspace();
+  const [attachToProjectChoice, setAttachToProjectChoice] = useState<string>(ATTACH_WORKSPACE_WIDE);
 
-  const { data: documents = [], isLoading, error } = useQuery<Document[]>({
-    queryKey: workspaceKeys.documents(activeOrganizationId),
-    queryFn: () => activeOrganizationId ? api.getOrganizationDocuments(activeOrganizationId) : Promise.resolve([]),
+  const { data: projects = [] } = useQuery({
+    queryKey: workspaceKeys.projects(activeOrganizationId),
+    queryFn: () =>
+      activeOrganizationId ? api.getOrganizationProjects(activeOrganizationId) : Promise.resolve([]),
     enabled: !!activeOrganizationId,
-    meta: {
-      onSuccess: (data: any) => {
-      },
-      onError: (error: any) => {
-        console.error('Documents query error:', error);
-      }
-    }
   });
 
+  const projectTitleById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const project of projects) {
+      map[project.id] = project.title;
+    }
+    return map;
+  }, [projects]);
 
+  const { data: documents = [], isLoading } = useQuery<Document[]>({
+    queryKey: workspaceKeys.documents(activeOrganizationId),
+    queryFn: () =>
+      activeOrganizationId ? api.getOrganizationDocuments(activeOrganizationId) : Promise.resolve([]),
+    enabled: !!activeOrganizationId,
+  });
   const uploadMutation = useMutation({
-    mutationFn: ({ file, category }: { file: File; category?: string }) => {
+    mutationFn: ({
+      file,
+      category,
+      projectId,
+    }: {
+      file: File;
+      category?: string;
+      projectId?: string | null;
+    }) => {
       if (!activeOrganizationId) {
         throw new Error("Select a workspace before uploading documents.");
       }
-      return api.uploadDocument(file, category, { organizationId: activeOrganizationId });
+      return api.uploadDocument(file, category, {
+        organizationId: activeOrganizationId,
+        projectId: projectId ?? null,
+      });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
@@ -200,7 +229,9 @@ export default function Upload() {
   });
 
   const handleUpload = async (file: File, category?: string) => {
-    await uploadMutation.mutateAsync({ file, category });
+    const projectId =
+      attachToProjectChoice === ATTACH_WORKSPACE_WIDE ? null : attachToProjectChoice;
+    await uploadMutation.mutateAsync({ file, category, projectId });
   };
 
   const handleDelete = (id: string) => {
@@ -255,7 +286,33 @@ export default function Upload() {
             Add documents for {activeOrganization?.name || "this workspace"} to build context for AI-powered grant writing.
             These files help the AI understand your mission, capabilities, and past successes.
           </p>
-          {/* Debug: Force rebuild */}
+
+          <div className="mb-6 max-w-xl space-y-2">
+            <Label htmlFor="upload-project-scope" className="text-slate-800">
+              Attach uploads to a specific grant (optional)
+            </Label>
+            <Select
+              value={attachToProjectChoice}
+              onValueChange={setAttachToProjectChoice}
+            >
+              <SelectTrigger id="upload-project-scope" className="w-full">
+                <SelectValue placeholder="Workspace memory — shared across all grants" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ATTACH_WORKSPACE_WIDE}>
+                  Workspace memory (shared across all grants)
+                </SelectItem>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-slate-500">
+              Workspace files apply to every grant in this workspace. Grant-specific sources are retrieved only while drafting that grant.
+            </p>
+          </div>
 
           <FileUpload onUpload={handleUpload} />
 
@@ -349,6 +406,19 @@ export default function Upload() {
                     <Badge className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryColor(document.category)}`}>
                       {getCategoryLabel(document.category)}
                     </Badge>
+                    {document.projectId ? (
+                      <Badge
+                        variant="outline"
+                        className="text-xs font-normal text-slate-700 border-slate-300"
+                        title={`Grant attachment: ${projectTitleById[document.projectId] ?? document.projectId}`}
+                      >
+                        Grant: {projectTitleById[document.projectId] ?? "Unknown project"}
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-xs font-normal text-slate-600">
+                        Workspace-wide
+                      </Badge>
+                    )}
                     {(() => {
                       const status = getProcessingBadge(document);
                       const Icon = status.icon;

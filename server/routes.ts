@@ -11,6 +11,7 @@ import {
   estimateTokensFromText,
   type LimitDenial,
 } from "./services/billing.js";
+import { createProCheckoutSession, handleStripeWebhook } from "./services/stripeBilling.js";
 import multer from "multer";
 import path from "node:path";
 import crypto from "crypto";
@@ -437,6 +438,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to fetch billing limits:", error);
       res.status(500).json(mergeDevErrorDetails({ error: "Failed to fetch billing limits" }, error));
+    }
+  });
+
+  app.post("/api/billing/checkout", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const organizationId = req.body?.organizationId || await getDefaultOrganizationId(userId);
+      if (!(await storage.userHasOrganizationAccess(userId, organizationId))) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
+
+      const organization = await storage.getOrganization(organizationId);
+      const checkout = await createProCheckoutSession({
+        userId,
+        userEmail: req.supabaseUser?.email,
+        organizationId,
+        organizationName: organization?.name,
+        origin: req.get("origin"),
+      });
+
+      res.json(checkout);
+    } catch (error) {
+      console.error("Failed to create billing checkout:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to create checkout" }, error));
+    }
+  });
+
+  app.post("/api/billing/webhook", async (req: Request, res) => {
+    try {
+      const rawBody = Buffer.isBuffer(req.body)
+        ? req.body
+        : Buffer.from(JSON.stringify(req.body || {}));
+      const event = await handleStripeWebhook(rawBody, req.get("stripe-signature"));
+      res.json({ received: true, type: event.type });
+    } catch (error) {
+      console.error("Stripe webhook error:", error);
+      res.status(400).json(mergeDevErrorDetails({ error: "Invalid Stripe webhook" }, error));
     }
   });
 
@@ -966,6 +1004,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { originalname, mimetype, size, buffer } = req.file;
       const category = req.body.category || "organization-info";
       const projectId = typeof req.body.projectId === "string" && req.body.projectId ? req.body.projectId : null;
+
+      if (projectId) {
+        const scopedProject = await storage.getProject(projectId);
+        if (!scopedProject || scopedProject.organizationId !== organizationId) {
+          return res.status(400).json({ error: "Project not found for this workspace" });
+        }
+      }
 
       const limitCheck = await billingService.checkLimit(userId, "documents", 1, organizationId);
       if (!limitCheck.allowed) {
