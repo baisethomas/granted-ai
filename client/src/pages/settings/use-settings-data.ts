@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type UserSettings } from "@/lib/api";
+import { workspaceKeys } from "@/lib/workspace-query-keys";
 import { useToast } from "@/hooks/use-toast";
 
 interface OrganizationForm {
@@ -39,7 +40,7 @@ export function useSettingsData() {
   const queryClient = useQueryClient();
 
   const { data: settings, isLoading } = useQuery<UserSettings>({
-    queryKey: ["/api/settings"],
+    queryKey: workspaceKeys.userSettings(),
     queryFn: api.getSettings,
   });
 
@@ -107,7 +108,7 @@ export function useSettingsData() {
   const updateSettingsMutation = useMutation({
     mutationFn: api.updateSettings,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.userSettings() });
       toast({
         title: "Settings saved",
         description: "Your preferences have been updated successfully.",

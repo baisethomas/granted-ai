@@ -1,4 +1,4 @@
-export const APP_DOMAIN = import.meta.env.VITE_APP_DOMAIN || 'https://grantedai.app';
+export const APP_DOMAIN = (import.meta.env.VITE_APP_DOMAIN || '').replace(/\/$/, '');
 
 function getBrowserOrigin(): string {
   return typeof window !== 'undefined' && window.location?.origin

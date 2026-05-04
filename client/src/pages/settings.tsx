@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { api, type UserSettings } from "@/lib/api";
+import { workspaceKeys } from "@/lib/workspace-query-keys";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useState, useEffect } from "react";
@@ -26,7 +27,7 @@ export default function Settings() {
   const { activeOrganizationId } = useWorkspace();
 
   const { data: settings, isLoading } = useQuery<UserSettings>({
-    queryKey: ["/api/settings"],
+    queryKey: workspaceKeys.userSettings(),
     queryFn: api.getSettings,
   });
 
@@ -71,7 +72,7 @@ export default function Settings() {
   const updateSettingsMutation = useMutation({
     mutationFn: api.updateSettings,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.userSettings() });
       toast({
         title: "Settings saved",
         description: "Your preferences have been updated successfully.",

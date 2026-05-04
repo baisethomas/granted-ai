@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Pencil } from "lucide-react";
 import { api, type Project } from "@/lib/api";
 import { EditProjectDialog } from "@/components/edit-project-dialog";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { MetricsTab } from "./metrics";
 
 interface ProjectDetailProps {
@@ -24,12 +25,19 @@ const statusColors: Record<string, string> = {
 export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  const { activeOrganizationId } = useWorkspace();
 
   const { data: project, isLoading } = useQuery<Project>({
     queryKey: ["/api/projects", projectId],
     queryFn: () => api.getProject(projectId),
     enabled: Boolean(projectId),
   });
+
+  useEffect(() => {
+    if (project && activeOrganizationId && project.organizationId !== activeOrganizationId) {
+      onBack();
+    }
+  }, [activeOrganizationId, onBack, project]);
 
   if (isLoading) {
     return (
@@ -163,6 +171,7 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
         project={project}
         open={editOpen}
         onOpenChange={setEditOpen}
+        organizationId={project.organizationId}
       />
     </div>
   );

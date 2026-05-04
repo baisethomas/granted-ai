@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
+import { workspaceKeys } from "@/lib/workspace-query-keys";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { 
@@ -118,13 +119,13 @@ export default function Drafts() {
   const { activeOrganization, activeOrganizationId } = useWorkspace();
 
   const { data: projects = [] } = useQuery({
-    queryKey: ["organizations", activeOrganizationId, "projects"],
+    queryKey: workspaceKeys.projects(activeOrganizationId),
     queryFn: () => activeOrganizationId ? api.getOrganizationProjects(activeOrganizationId) : Promise.resolve([]),
     enabled: !!activeOrganizationId,
   });
 
   const { data: questions = [] } = useQuery({
-    queryKey: ["/api/projects", selectedProject, "questions"],
+    queryKey: workspaceKeys.projectQuestions(activeOrganizationId, selectedProject),
     queryFn: () => selectedProject ? api.getQuestions(selectedProject) : Promise.resolve([]),
     enabled: !!selectedProject,
     // Prevent auto-refetch that would overwrite optimistic updates
@@ -152,9 +153,19 @@ export default function Drafts() {
   });
 
   const { data: userSettings } = useQuery({
-    queryKey: ["/api/settings"],
+    queryKey: workspaceKeys.userSettings(),
     queryFn: api.getSettings,
   });
+
+  useEffect(() => {
+    setSelectedProject("");
+    setEditingQuestionId(null);
+    setEditedContent("");
+    setOriginalContent("");
+    setHasUnsavedChanges(false);
+    setShowEvidenceMap(false);
+    setEvidenceMapData([]);
+  }, [activeOrganizationId]);
 
   const generateResponseMutation = useMutation({
     mutationFn: ({ questionId, tone, emphasisAreas }: { 
@@ -194,7 +205,7 @@ export default function Drafts() {
       // Optimistically update the cache with the returned response data
       // CRITICAL: Update cache BEFORE any potential refetch can happen
       queryClient.setQueryData(
-        ["/api/projects", selectedProject, "questions"],
+        workspaceKeys.projectQuestions(activeOrganizationId, selectedProject),
         (oldData: any) => {
           if (!oldData || !Array.isArray(oldData)) {
             // If no old data, create a minimal structure (shouldn't happen but be safe)
@@ -234,7 +245,7 @@ export default function Drafts() {
       
       // CRITICAL: Cancel any pending refetches for this query to prevent overwriting
       queryClient.cancelQueries({ 
-        queryKey: ["/api/projects", selectedProject, "questions"],
+        queryKey: workspaceKeys.projectQuestions(activeOrganizationId, selectedProject),
         exact: false 
       });
       
@@ -279,7 +290,7 @@ export default function Drafts() {
     mutationFn: ({ questionId, content }: { questionId: string; content: string }) => 
       api.updateResponse(questionId, content, false),
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects", selectedProject, "questions"] });
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.projectQuestions(activeOrganizationId, selectedProject) });
       setHasUnsavedChanges(false);
       toast({
         title: "Response updated",
@@ -300,7 +311,7 @@ export default function Drafts() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       if (activeOrganizationId) {
-        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "projects"] });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.projects(activeOrganizationId) });
       }
       toast({
         title: "Project finalized",

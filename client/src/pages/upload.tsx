@@ -7,6 +7,7 @@ import { FileUpload } from "@/components/ui/file-upload";
 import { api, type Document } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { workspaceKeys } from "@/lib/workspace-query-keys";
 import { 
   Building, 
   Trophy, 
@@ -142,7 +143,7 @@ export default function Upload() {
   const { activeOrganization, activeOrganizationId } = useWorkspace();
 
   const { data: documents = [], isLoading, error } = useQuery<Document[]>({
-    queryKey: ["organizations", activeOrganizationId, "documents"],
+    queryKey: workspaceKeys.documents(activeOrganizationId),
     queryFn: () => activeOrganizationId ? api.getOrganizationDocuments(activeOrganizationId) : Promise.resolve([]),
     enabled: !!activeOrganizationId,
     meta: {
@@ -156,13 +157,17 @@ export default function Upload() {
 
 
   const uploadMutation = useMutation({
-    mutationFn: ({ file, category }: { file: File; category?: string }) =>
-      api.uploadDocument(file, category, { organizationId: activeOrganizationId ?? undefined }),
+    mutationFn: ({ file, category }: { file: File; category?: string }) => {
+      if (!activeOrganizationId) {
+        throw new Error("Select a workspace before uploading documents.");
+      }
+      return api.uploadDocument(file, category, { organizationId: activeOrganizationId });
+    },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
       if (activeOrganizationId) {
-        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "documents"] });
-        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "profile-suggestions"] });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.documents(activeOrganizationId) });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.profileSuggestions(activeOrganizationId) });
       }
       toast({
         title: "Document uploaded",
@@ -184,8 +189,8 @@ export default function Upload() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
       if (activeOrganizationId) {
-        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "documents"] });
-        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "profile-suggestions"] });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.documents(activeOrganizationId) });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.profileSuggestions(activeOrganizationId) });
       }
       toast({
         title: "Document deleted",
@@ -291,6 +296,9 @@ export default function Upload() {
               size="sm"
               onClick={() => {
                 queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+                if (activeOrganizationId) {
+                  queryClient.invalidateQueries({ queryKey: workspaceKeys.documents(activeOrganizationId) });
+                }
               }}
             >
               <RefreshCw className="mr-1 h-4 w-4" />

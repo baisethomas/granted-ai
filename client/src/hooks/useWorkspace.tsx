@@ -8,10 +8,20 @@ interface WorkspaceContextValue {
   activeOrganizationId: string | null;
   isLoading: boolean;
   createOrganization: (input: OrganizationInput) => Promise<Organization>;
+  deleteOrganization: (organizationId: string) => Promise<void>;
   setActiveOrganizationId: (organizationId: string) => void;
 }
 
-const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
+const WORKSPACE_CONTEXT_KEY = "__grantedWorkspaceContext";
+const globalWithWorkspaceContext = globalThis as typeof globalThis & {
+  [WORKSPACE_CONTEXT_KEY]?: React.Context<WorkspaceContextValue | null>;
+};
+
+const WorkspaceContext =
+  globalWithWorkspaceContext[WORKSPACE_CONTEXT_KEY] ??
+  createContext<WorkspaceContextValue | null>(null);
+
+globalWithWorkspaceContext[WORKSPACE_CONTEXT_KEY] = WorkspaceContext;
 
 const STORAGE_KEY = "granted.activeOrganizationId";
 
@@ -50,6 +60,28 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: api.deleteOrganization,
+    onSuccess: (_result, deletedOrganizationId) => {
+      const remainingOrganizations = (queryClient.getQueryData<Organization[]>(["/api/organizations"]) ?? [])
+        .filter((organization) => organization.id !== deletedOrganizationId);
+
+      queryClient.setQueryData<Organization[]>(["/api/organizations"], remainingOrganizations);
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
+      queryClient.removeQueries({ queryKey: ["organizations", deletedOrganizationId] });
+
+      if (activeOrganizationId === deletedOrganizationId) {
+        const nextOrganizationId = remainingOrganizations[0]?.id ?? null;
+        setActiveOrganizationIdState(nextOrganizationId);
+        if (nextOrganizationId) {
+          window.localStorage.setItem(STORAGE_KEY, nextOrganizationId);
+        } else {
+          window.localStorage.removeItem(STORAGE_KEY);
+        }
+      }
+    },
+  });
+
   const setActiveOrganizationId = (organizationId: string) => {
     setActiveOrganizationIdState(organizationId);
     window.localStorage.setItem(STORAGE_KEY, organizationId);
@@ -68,6 +100,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         activeOrganizationId,
         isLoading,
         createOrganization: (input) => createMutation.mutateAsync(input),
+        deleteOrganization: async (organizationId) => {
+          await deleteMutation.mutateAsync(organizationId);
+        },
         setActiveOrganizationId,
       }}
     >

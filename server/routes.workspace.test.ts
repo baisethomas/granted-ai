@@ -125,6 +125,67 @@ describe("workspace route isolation", () => {
     expect(body.error).toBe("Organization not found");
   });
 
+  it("does not allow another user to read workspace billing usage", async () => {
+    const ownerId = "workspace-billing-owner";
+    const outsiderId = "workspace-billing-outsider";
+
+    const orgResponse = await postJson("/api/organizations", ownerId, { name: "Billing Client" });
+    const org = await orgResponse.json();
+
+    const response = await requestJson(`/api/organizations/${org.id}/billing/usage`, outsiderId);
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.error).toBe("Organization not found");
+  });
+
+  it("deletes a secondary workspace and removes it from the workspace list", async () => {
+    const userId = "workspace-delete-user";
+    const keepOrgResponse = await postJson("/api/organizations", userId, { name: "Keep Client" });
+    const deleteOrgResponse = await postJson("/api/organizations", userId, { name: "Temporary Client" });
+    const keepOrg = await keepOrgResponse.json();
+    const deleteOrg = await deleteOrgResponse.json();
+
+    expect(keepOrgResponse.status).toBe(201);
+    expect(deleteOrgResponse.status).toBe(201);
+
+    const deleteResponse = await fetch(`${baseUrl}/api/organizations/${deleteOrg.id}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        "x-test-user": userId,
+      },
+    });
+    const deleteBody = await deleteResponse.json();
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteBody).toEqual({ success: true });
+
+    const listResponse = await requestJson("/api/organizations", userId);
+    const organizations = await listResponse.json();
+    const organizationIds = organizations.map((organization: any) => organization.id);
+    expect(organizationIds).toContain(keepOrg.id);
+    expect(organizationIds).toContain(userId);
+    expect(organizationIds).not.toContain(deleteOrg.id);
+  });
+
+  it("does not delete the default workspace", async () => {
+    const userId = "workspace-default-delete-user";
+    await requestJson("/api/organizations", userId);
+
+    const response = await fetch(`${baseUrl}/api/organizations/${userId}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        "x-test-user": userId,
+      },
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toBe("Cannot delete default workspace");
+  });
+
   it("lists documents only inside the requested workspace", async () => {
     const userId = "workspace-document-user";
     const orgA = await (await postJson("/api/organizations", userId, { name: "Doc Client A" })).json();

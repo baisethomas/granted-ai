@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { parseAmountToNumber } from "@/lib/currency";
+import { workspaceKeys } from "@/lib/workspace-query-keys";
 import {
   Select,
   SelectContent,
@@ -28,12 +29,14 @@ interface EditProjectDialogProps {
   project: Project;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  organizationId?: string | null;
 }
 
 export function EditProjectDialog({
   project,
   open,
   onOpenChange,
+  organizationId,
 }: EditProjectDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -56,6 +59,10 @@ export function EditProjectDialog({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.projects(organizationId) });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.stats(organizationId) });
+      }
       toast({
         title: "Project updated",
         description: "Your project has been successfully updated.",

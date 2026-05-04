@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
+import { workspaceKeys } from "@/lib/workspace-query-keys";
 import { useToast } from "@/hooks/use-toast";
 
 interface NewProjectDialogProps {
@@ -41,13 +42,17 @@ export function NewProjectDialog({
   });
 
   const createProjectMutation = useMutation({
-    mutationFn: (data: typeof formData) =>
-      organizationId ? api.createOrganizationProject(organizationId, data) : api.createProject(data),
+    mutationFn: (data: typeof formData) => {
+      if (!organizationId) {
+        throw new Error("Select a workspace before creating a project.");
+      }
+      return api.createOrganizationProject(organizationId, data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       if (organizationId) {
-        queryClient.invalidateQueries({ queryKey: ["organizations", organizationId, "projects"] });
-        queryClient.invalidateQueries({ queryKey: ["organizations", organizationId, "stats"] });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.projects(organizationId) });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.stats(organizationId) });
       }
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       toast({
@@ -161,7 +166,7 @@ export function NewProjectDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={createProjectMutation.isPending}>
+            <Button type="submit" disabled={createProjectMutation.isPending || !organizationId}>
               {createProjectMutation.isPending ? "Creating..." : "Create Project"}
             </Button>
           </DialogFooter>

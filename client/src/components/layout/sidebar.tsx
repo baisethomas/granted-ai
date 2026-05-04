@@ -11,14 +11,27 @@ import {
   BarChart3,
   Plus,
   Building2,
+  Check,
+  Trash2,
 } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useLogout } from "@/hooks/useLogout";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { workspaceKeys } from "@/lib/workspace-query-keys";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,15 +65,24 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   const [workspaceName, setWorkspaceName] = useState("");
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
+  const [isDeleteWorkspaceOpen, setIsDeleteWorkspaceOpen] = useState(false);
+  const [deleteWorkspaceError, setDeleteWorkspaceError] = useState<string | null>(null);
+  const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
   const {
     organizations,
+    activeOrganization,
     activeOrganizationId,
     setActiveOrganizationId,
     createOrganization,
+    deleteOrganization,
   } = useWorkspace();
 
+  const canDeleteActiveWorkspace = !!activeOrganizationId
+    && activeOrganizationId !== user?.id
+    && organizations.length > 1;
+
   const { data: profileSuggestions = [] } = useQuery<OrganizationProfileSuggestion[]>({
-    queryKey: ["organizations", activeOrganizationId, "profile-suggestions"],
+    queryKey: workspaceKeys.profileSuggestions(activeOrganizationId),
     queryFn: () =>
       activeOrganizationId
         ? api.getOrganizationProfileSuggestions(activeOrganizationId)
@@ -104,6 +126,21 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     }
   };
 
+  const handleDeleteWorkspace = async () => {
+    if (!activeOrganizationId) return;
+
+    try {
+      setIsDeletingWorkspace(true);
+      setDeleteWorkspaceError(null);
+      await deleteOrganization(activeOrganizationId);
+      setIsDeleteWorkspaceOpen(false);
+    } catch (error: any) {
+      setDeleteWorkspaceError(error?.message || "Could not delete workspace.");
+    } finally {
+      setIsDeletingWorkspace(false);
+    }
+  };
+
   return (
     <aside className="w-64 bg-white border-r border-gray-100 flex flex-col h-screen">
       {/* Logo Section */}
@@ -140,6 +177,28 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
             <Plus className="mr-2 h-3.5 w-3.5" />
             Create client workspace
           </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="mt-1 h-8 w-full justify-start text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
+            disabled={!canDeleteActiveWorkspace}
+            onClick={() => {
+              setDeleteWorkspaceError(null);
+              setIsDeleteWorkspaceOpen(true);
+            }}
+            title={
+              activeOrganizationId === user?.id
+                ? "The default workspace cannot be deleted."
+                : organizations.length <= 1
+                  ? "Create another workspace before deleting this one."
+                  : "Delete selected workspace"
+            }
+            data-testid="button-delete-workspace"
+          >
+            <Trash2 className="mr-2 h-3.5 w-3.5" />
+            Delete selected workspace
+          </Button>
         </div>
       </div>
 
@@ -168,10 +227,11 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                 <p className="text-sm text-red-600">{workspaceError}</p>
               )}
             </div>
-            <DialogFooter>
+            <DialogFooter className="pt-2">
               <Button
                 type="button"
                 variant="outline"
+                className="w-full sm:w-auto"
                 onClick={() => setIsCreateWorkspaceOpen(false)}
                 disabled={isCreatingWorkspace}
               >
@@ -180,14 +240,45 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
               <Button
                 type="submit"
                 disabled={isCreatingWorkspace || !workspaceName.trim()}
-                className="bg-primary-600 hover:bg-primary-700"
+                className="w-full sm:w-auto"
+                data-testid="button-save-workspace"
               >
-                {isCreatingWorkspace ? "Creating..." : "Create workspace"}
+                {!isCreatingWorkspace && <Check className="h-4 w-4" />}
+                {isCreatingWorkspace ? "Saving..." : "Save workspace"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={isDeleteWorkspaceOpen} onOpenChange={setIsDeleteWorkspaceOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete workspace?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete {activeOrganization?.name || "this workspace"} and its projects,
+              documents, profile suggestions, and billing usage history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteWorkspaceError && (
+            <p className="text-sm text-red-600">{deleteWorkspaceError}</p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingWorkspace}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700"
+              disabled={isDeletingWorkspace}
+              onClick={(event) => {
+                event.preventDefault();
+                void handleDeleteWorkspace();
+              }}
+              data-testid="button-confirm-delete-workspace"
+            >
+              {isDeletingWorkspace ? "Deleting..." : "Delete workspace"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       
       {/* Navigation */}
       <nav className="flex-1 p-4 overflow-y-auto">

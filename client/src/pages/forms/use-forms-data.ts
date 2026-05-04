@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { workspaceKeys } from "@/lib/workspace-query-keys";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 /**
  * Custom hook for managing forms data (projects, questions, settings)
@@ -8,21 +10,31 @@ import { useToast } from "@/hooks/use-toast";
 export function useFormsData() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { activeOrganizationId } = useWorkspace();
 
   const { data: projects = [] } = useQuery({
-    queryKey: ["/api/projects"],
-    queryFn: api.getProjects,
+    queryKey: workspaceKeys.projects(activeOrganizationId),
+    queryFn: () => activeOrganizationId ? api.getOrganizationProjects(activeOrganizationId) : Promise.resolve([]),
+    enabled: !!activeOrganizationId,
   });
 
   const { data: settings } = useQuery({
-    queryKey: ["/api/settings"],
+    queryKey: workspaceKeys.userSettings(),
     queryFn: api.getSettings,
   });
 
   const createProjectMutation = useMutation({
-    mutationFn: api.createProject,
+    mutationFn: (data: any) => {
+      if (!activeOrganizationId) {
+        throw new Error("Select a workspace before creating a project.");
+      }
+      return api.createOrganizationProject(activeOrganizationId, data);
+    },
     onSuccess: (project) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      if (activeOrganizationId) {
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.projects(activeOrganizationId) });
+      }
       toast({
         title: "Project created",
         description: "Your grant application project has been created.",
@@ -43,6 +55,9 @@ export function useFormsData() {
       api.updateProject(projectId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      if (activeOrganizationId) {
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.projects(activeOrganizationId) });
+      }
       toast({
         title: "Project updated",
         description: "Your project has been updated successfully.",

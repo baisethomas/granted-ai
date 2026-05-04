@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BarChart3, FolderOpen, TrendingUp, DollarSign, Clock } from "lucide-react";
 import { api, type PortfolioMetricsResponse } from "@/lib/api";
+import { workspaceKeys } from "@/lib/workspace-query-keys";
 import { useWorkspace } from "@/hooks/useWorkspace";
 
 interface PortfolioMetricsPageProps {
@@ -35,7 +36,7 @@ export default function PortfolioMetricsPage({ onOpenProject }: PortfolioMetrics
   const [periodEnd, setPeriodEnd] = useState("");
   const { activeOrganizationId } = useWorkspace();
   const { data, isLoading, error } = useQuery<PortfolioMetricsResponse>({
-    queryKey: ["organizations", activeOrganizationId, "metrics", "portfolio", periodStart, periodEnd],
+    queryKey: workspaceKeys.portfolioMetrics(activeOrganizationId, periodStart, periodEnd),
     queryFn: () => api.getPortfolioMetrics({ periodStart, periodEnd, organizationId: activeOrganizationId }),
     enabled: !!activeOrganizationId,
   });

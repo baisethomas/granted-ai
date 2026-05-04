@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { FileUpload } from "@/components/ui/file-upload";
 import { parseAmountToNumber } from "@/lib/currency";
 import { api } from "@/lib/api";
+import { workspaceKeys } from "@/lib/workspace-query-keys";
 import { getAuthHeaders } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -59,15 +60,29 @@ export default function Forms() {
   const [clarificationQuestions, setClarificationQuestions] = useState<ClarificationQuestion[]>([]);
 
   const { data: projects = [] } = useQuery({
-    queryKey: ["organizations", activeOrganizationId, "projects"],
+    queryKey: workspaceKeys.projects(activeOrganizationId),
     queryFn: () => activeOrganizationId ? api.getOrganizationProjects(activeOrganizationId) : Promise.resolve([]),
     enabled: !!activeOrganizationId,
   });
 
   const { data: settings } = useQuery({
-    queryKey: ["/api/settings"],
+    queryKey: workspaceKeys.userSettings(),
     queryFn: api.getSettings,
   });
+
+  useEffect(() => {
+    setCurrentProject(null);
+    setProjectForm({
+      title: "",
+      funder: "",
+      amount: "",
+      deadline: "",
+      description: "",
+    });
+    setQuestions([]);
+    setShowClarifications(false);
+    setClarificationQuestions([]);
+  }, [activeOrganizationId]);
 
   // Load project data when a project is selected
   const handleProjectSelect = (projectId: string) => {
@@ -118,12 +133,17 @@ export default function Forms() {
   };
 
   const createProjectMutation = useMutation({
-    mutationFn: (data: any) =>
-      activeOrganizationId ? api.createOrganizationProject(activeOrganizationId, data) : api.createProject(data),
+    mutationFn: (data: any) => {
+      if (!activeOrganizationId) {
+        throw new Error("Select a workspace before creating a project.");
+      }
+      return api.createOrganizationProject(activeOrganizationId, data);
+    },
     onSuccess: (project) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       if (activeOrganizationId) {
-        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "projects"] });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.projects(activeOrganizationId) });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.stats(activeOrganizationId) });
       }
       setCurrentProject(project.id);
       toast({
@@ -147,9 +167,10 @@ export default function Forms() {
       // Create project first if needed
       let pid = currentProject;
       if (!pid) {
-      const project = activeOrganizationId
-        ? await api.createOrganizationProject(activeOrganizationId, projectData)
-        : await api.createProject(projectData);
+        if (!activeOrganizationId) {
+          throw new Error("Select a workspace before saving a draft.");
+        }
+        const project = await api.createOrganizationProject(activeOrganizationId, projectData);
         pid = project.id;
         setCurrentProject(pid);
       } else {
@@ -173,10 +194,12 @@ export default function Forms() {
     onSuccess: (projectId) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       if (activeOrganizationId) {
-        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "projects"] });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.projects(activeOrganizationId) });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.stats(activeOrganizationId) });
       }
       if (activeOrganizationId) {
-        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "projects"] });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.projects(activeOrganizationId) });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.stats(activeOrganizationId) });
       }
       toast({
         title: "Draft saved",
@@ -222,9 +245,10 @@ export default function Forms() {
       // Create project first if needed
       let pid = projectId;
       if (!pid) {
-        const project = activeOrganizationId
-          ? await api.createOrganizationProject(activeOrganizationId, projectData)
-          : await api.createProject(projectData);
+        if (!activeOrganizationId) {
+          throw new Error("Select a workspace before generating responses.");
+        }
+        const project = await api.createOrganizationProject(activeOrganizationId, projectData);
         pid = project.id;
         setCurrentProject(pid);
       } else {
@@ -305,6 +329,9 @@ export default function Forms() {
     },
     onSuccess: (projectId) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      if (activeOrganizationId) {
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.projects(activeOrganizationId) });
+      }
       toast({
         title: "Responses generating",
         description: "AI is generating responses for your questions. View progress in the drafts section.",

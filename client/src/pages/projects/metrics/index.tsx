@@ -9,6 +9,7 @@ import {
   type RecordMetricEventPayload,
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import {
   useAcceptMetric,
   useBulkCreateMetrics,
@@ -36,16 +37,17 @@ interface MetricsTabProps {
 
 export function MetricsTab({ projectId }: MetricsTabProps) {
   const { toast } = useToast();
-  const { data, isLoading, error } = useMetrics(projectId);
+  const { activeOrganizationId } = useWorkspace();
+  const { data, isLoading, error } = useMetrics(projectId, activeOrganizationId);
 
-  const createMetric = useCreateMetric(projectId);
-  const updateMetric = useUpdateMetric(projectId);
-  const recordMetricEvent = useRecordMetricEvent(projectId);
-  const deleteMetric = useDeleteMetric(projectId);
-  const acceptMetric = useAcceptMetric(projectId);
-  const dismissMetric = useDismissMetric(projectId);
+  const createMetric = useCreateMetric(projectId, activeOrganizationId);
+  const updateMetric = useUpdateMetric(projectId, activeOrganizationId);
+  const recordMetricEvent = useRecordMetricEvent(projectId, activeOrganizationId);
+  const deleteMetric = useDeleteMetric(projectId, activeOrganizationId);
+  const acceptMetric = useAcceptMetric(projectId, activeOrganizationId);
+  const dismissMetric = useDismissMetric(projectId, activeOrganizationId);
   const extractMetrics = useExtractMetrics(projectId);
-  const bulkCreate = useBulkCreateMetrics(projectId);
+  const bulkCreate = useBulkCreateMetrics(projectId, activeOrganizationId);
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorMode, setEditorMode] = useState<"create" | "edit">("create");

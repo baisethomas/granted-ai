@@ -293,6 +293,11 @@ export const api = {
     return res.json();
   },
 
+  async deleteOrganization(id: string): Promise<{ success: boolean }> {
+    const res = await apiRequest("DELETE", `/api/organizations/${id}`);
+    return res.json();
+  },
+
   async getOrganizationProfileSuggestions(organizationId: string): Promise<OrganizationProfileSuggestion[]> {
     const res = await apiRequest("GET", `/api/organizations/${organizationId}/profile-suggestions`);
     return res.json();

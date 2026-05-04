@@ -17,6 +17,16 @@ describe('domain helpers', () => {
     );
   });
 
+  it('uses the current browser origin outside local development when no app domain is configured', () => {
+    expect(getOAuthRedirectOrigin('https://preview.example.com', '')).toBe(
+      'https://preview.example.com',
+    );
+  });
+
+  it('fails closed in non-browser contexts without a configured app domain', () => {
+    expect(getOAuthRedirectOrigin('', '')).toBe('');
+  });
+
   it('detects local development origins', () => {
     expect(isLocalDevelopmentOrigin('http://localhost:5000')).toBe(true);
     expect(isLocalDevelopmentOrigin('http://127.0.0.1:5173')).toBe(true);

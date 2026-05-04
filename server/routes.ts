@@ -444,6 +444,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = getUserId(req);
       const { organizationId } = req.params;
+      if (!(await storage.userHasOrganizationAccess(userId, organizationId))) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
       const summary = await billingService.getUsageSummary(userId, organizationId);
       res.json(billingService.formatLimits(summary));
     } catch (error) {
@@ -511,6 +514,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Failed to update organization:", error);
       res.status(400).json(mergeDevErrorDetails({ error: "Invalid organization data" }, error));
+    }
+  });
+
+  app.delete("/api/organizations/:organizationId", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const { organizationId } = req.params;
+      if (organizationId === userId) {
+        return res.status(400).json({
+          error: "Cannot delete default workspace",
+          message: "The default workspace is required for your account.",
+        });
+      }
+
+      const organizations = await storage.getOrganizationsForUser(userId);
+      if (!organizations.some((organization) => organization.id === organizationId)) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
+      if (organizations.length <= 1) {
+        return res.status(400).json({
+          error: "Cannot delete last workspace",
+          message: "Create another workspace before deleting this one.",
+        });
+      }
+
+      const documents = await storage.getDocumentsForOrganization(userId, organizationId);
+      const storageClient = supabaseAdminClient;
+      if (storageClient) {
+        const storageFilesByBucket = documents.reduce<Record<string, string[]>>((acc, document) => {
+          if (document.storageBucket && document.storagePath) {
+            acc[document.storageBucket] = acc[document.storageBucket] ?? [];
+            acc[document.storageBucket].push(document.storagePath);
+          }
+          return acc;
+        }, {});
+
+        await Promise.all(
+          Object.entries(storageFilesByBucket).map(async ([bucket, paths]) => {
+            const { error: removeError } = await storageClient.storage.from(bucket).remove(paths);
+            if (removeError) {
+              console.error("Failed to delete workspace documents from storage:", removeError);
+            }
+          }),
+        );
+      }
+
+      const deleted = await storage.deleteOrganization(userId, organizationId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete organization:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to delete organization" }, error));
     }
   });
 

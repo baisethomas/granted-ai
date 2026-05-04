@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { api, type OrganizationProfileSuggestion } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { workspaceKeys } from "@/lib/workspace-query-keys";
 
 export default function Organization() {
   const { toast } = useToast();
@@ -18,7 +19,7 @@ export default function Organization() {
   const { activeOrganization, activeOrganizationId, isLoading } = useWorkspace();
 
   const { data: profileSuggestions = [] } = useQuery<OrganizationProfileSuggestion[]>({
-    queryKey: ["organizations", activeOrganizationId, "profile-suggestions"],
+    queryKey: workspaceKeys.profileSuggestions(activeOrganizationId),
     queryFn: () =>
       activeOrganizationId
         ? api.getOrganizationProfileSuggestions(activeOrganizationId)
@@ -151,7 +152,7 @@ export default function Organization() {
       queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
       if (activeOrganizationId) {
         queryClient.invalidateQueries({
-          queryKey: ["organizations", activeOrganizationId, "profile-suggestions"],
+          queryKey: workspaceKeys.profileSuggestions(activeOrganizationId),
         });
       }
       toast({

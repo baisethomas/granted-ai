@@ -16,6 +16,7 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:auth": "tsx test/auth-smoke.ts",
+    "auth:create-test-user": "tsx scripts/create-supabase-test-user.ts",
     "doc:process": "tsx scripts/run-document-worker.ts"
   },
   "dependencies": {

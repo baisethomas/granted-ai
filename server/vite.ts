@@ -37,9 +37,17 @@ export async function setupVite(app: Express, server: Server) {
   
   log("Loading Vite config...");
   const configStart = Date.now();
-  // Import config synchronously - it's now a simple object, not async
   const viteConfigModule = await import("../vite.config.js");
-  const viteConfig = viteConfigModule.default;
+  const rawConfig = viteConfigModule.default;
+  // defineConfig(() => ({ ... })) exports a function — spreading it omits root/plugins
+  const viteConfig =
+    typeof rawConfig === "function"
+      ? rawConfig({
+          mode:
+            process.env.NODE_ENV === "production" ? "production" : "development",
+          command: "serve",
+        })
+      : rawConfig;
   log(`Vite config loaded in ${Date.now() - configStart}ms`);
   
   const serverOptions = {

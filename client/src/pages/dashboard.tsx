@@ -7,6 +7,7 @@ import { ProjectCard } from "@/components/ui/project-card";
 import { EditProjectDialog } from "@/components/edit-project-dialog";
 import { NewProjectDialog } from "@/components/new-project-dialog";
 import { api, type Project } from "@/lib/api";
+import { workspaceKeys } from "@/lib/workspace-query-keys";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { 
@@ -33,13 +34,13 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
 
   const { data: projects = [], isLoading: projectsLoading } = useQuery<Project[]>({
-    queryKey: ["organizations", activeOrganizationId, "projects"],
+    queryKey: workspaceKeys.projects(activeOrganizationId),
     queryFn: () => activeOrganizationId ? api.getOrganizationProjects(activeOrganizationId) : Promise.resolve([]),
     enabled: !!activeOrganizationId,
   });
 
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["organizations", activeOrganizationId, "stats"],
+    queryKey: workspaceKeys.stats(activeOrganizationId),
     queryFn: () => activeOrganizationId ? api.getOrganizationStats(activeOrganizationId) : Promise.resolve(null),
     enabled: !!activeOrganizationId,
   });
@@ -49,8 +50,8 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       if (activeOrganizationId) {
-        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "projects"] });
-        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "stats"] });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.projects(activeOrganizationId) });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.stats(activeOrganizationId) });
       }
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       toast({
@@ -274,6 +275,7 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
           project={editingProject}
           open={isEditDialogOpen}
           onOpenChange={setIsEditDialogOpen}
+          organizationId={activeOrganizationId}
         />
       )}
     </div>

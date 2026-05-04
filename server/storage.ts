@@ -94,6 +94,7 @@ export interface IStorage {
   ensureDefaultOrganizationForUser(userId: string, displayName?: string): Promise<Organization>;
   createOrganization(userId: string, organization: InsertOrganization): Promise<Organization>;
   updateOrganization(id: string, updates: Partial<Organization>): Promise<Organization | undefined>;
+  deleteOrganization(userId: string, organizationId: string): Promise<boolean>;
   userHasOrganizationAccess(userId: string, organizationId: string): Promise<boolean>;
   getOrganizationProfileSuggestions(userId: string, organizationId: string): Promise<OrganizationProfileSuggestion[]>;
   createOrganizationProfileSuggestions(
@@ -424,6 +425,49 @@ export class MemStorage implements IStorage {
     const updatedOrganization = { ...organization, ...updates, updatedAt: new Date() };
     this.organizations.set(id, updatedOrganization);
     return updatedOrganization;
+  }
+
+  async deleteOrganization(userId: string, organizationId: string): Promise<boolean> {
+    const hasAccess = await this.userHasOrganizationAccess(userId, organizationId);
+    if (!hasAccess) return false;
+
+    for (const project of Array.from(this.projects.values())) {
+      if (project.organizationId === organizationId) {
+        await this.deleteProject(project.id);
+      }
+    }
+
+    for (const document of Array.from(this.documents.values())) {
+      if (document.organizationId === organizationId) {
+        await this.deleteDocument(document.id);
+      }
+    }
+
+    for (const suggestion of Array.from(this.organizationProfileSuggestions.values())) {
+      if (suggestion.organizationId === organizationId) {
+        this.organizationProfileSuggestions.delete(suggestion.id);
+      }
+    }
+
+    for (const subscription of Array.from(this.subscriptions.values())) {
+      if (subscription.organizationId === organizationId) {
+        this.subscriptions.delete(subscription.id);
+      }
+    }
+
+    for (const event of Array.from(this.usageEvents.values())) {
+      if (event.organizationId === organizationId) {
+        this.usageEvents.delete(event.id);
+      }
+    }
+
+    for (const [membershipId, membership] of Array.from(this.memberships.entries())) {
+      if (membership.organizationId === organizationId) {
+        this.memberships.delete(membershipId);
+      }
+    }
+
+    return this.organizations.delete(organizationId);
   }
 
   async userHasOrganizationAccess(userId: string, organizationId: string): Promise<boolean> {
@@ -1290,6 +1334,105 @@ export class DbStorage implements IStorage {
       .where(eq(schema.organizations.id, id))
       .returning();
     return rows?.[0];
+  }
+
+  async deleteOrganization(userId: string, organizationId: string): Promise<boolean> {
+    if (!db) return false;
+    if (!(await this.userHasOrganizationAccess(userId, organizationId))) return false;
+
+    return await db.transaction(async (tx: any) => {
+      const projectRows: Array<{ id: string }> = await tx
+        .select({ id: schema.projects.id })
+        .from(schema.projects)
+        .where(eq(schema.projects.organizationId, organizationId));
+      const projectIds = projectRows.map((project) => project.id);
+
+      const documentRows: Array<{ id: string }> = await tx
+        .select({ id: schema.documents.id })
+        .from(schema.documents)
+        .where(eq(schema.documents.organizationId, organizationId));
+      const documentIds = documentRows.map((document) => document.id);
+
+      if (projectIds.length > 0) {
+        const questionRows: Array<{ id: string }> = await tx
+          .select({ id: schema.grantQuestions.id })
+          .from(schema.grantQuestions)
+          .where(inArray(schema.grantQuestions.projectId, projectIds));
+        const questionIds = questionRows.map((question) => question.id);
+
+        if (questionIds.length > 0) {
+          await tx
+            .delete(schema.draftCitations)
+            .where(inArray(schema.draftCitations.draftId, questionIds));
+          await tx
+            .delete(schema.responseVersions)
+            .where(inArray(schema.responseVersions.questionId, questionIds));
+        }
+
+        await tx
+          .delete(schema.assumptionLabels)
+          .where(inArray(schema.assumptionLabels.projectId, projectIds));
+        await tx
+          .delete(schema.grantQuestions)
+          .where(inArray(schema.grantQuestions.projectId, projectIds));
+        await tx
+          .update(schema.usageEvents)
+          .set({ projectId: null })
+          .where(inArray(schema.usageEvents.projectId, projectIds));
+        await tx
+          .delete(schema.projects)
+          .where(inArray(schema.projects.id, projectIds));
+      }
+
+      if (documentIds.length > 0) {
+        await tx
+          .update(schema.grantMetricEvents)
+          .set({ sourceDocumentId: null })
+          .where(inArray(schema.grantMetricEvents.sourceDocumentId, documentIds));
+        await tx
+          .update(schema.grantMetrics)
+          .set({ sourceDocumentId: null, sourceChunkId: null })
+          .where(inArray(schema.grantMetrics.sourceDocumentId, documentIds));
+        await tx
+          .delete(schema.draftCitations)
+          .where(inArray(schema.draftCitations.sourceDocumentId, documentIds));
+        await tx
+          .delete(schema.organizationProfileSuggestions)
+          .where(inArray(schema.organizationProfileSuggestions.documentId, documentIds));
+        await tx
+          .delete(schema.documentProcessingJobs)
+          .where(inArray(schema.documentProcessingJobs.documentId, documentIds));
+        await tx
+          .delete(schema.documentExtractions)
+          .where(inArray(schema.documentExtractions.documentId, documentIds));
+        await tx
+          .delete(schema.docChunks)
+          .where(inArray(schema.docChunks.documentId, documentIds));
+        await tx
+          .delete(schema.documents)
+          .where(inArray(schema.documents.id, documentIds));
+      }
+
+      await tx
+        .delete(schema.organizationProfileSuggestions)
+        .where(eq(schema.organizationProfileSuggestions.organizationId, organizationId));
+      await tx
+        .delete(schema.usageEvents)
+        .where(eq(schema.usageEvents.organizationId, organizationId));
+      await tx
+        .delete(schema.subscriptions)
+        .where(eq(schema.subscriptions.organizationId, organizationId));
+      await tx
+        .delete(schema.memberships)
+        .where(eq(schema.memberships.organizationId, organizationId));
+
+      const rows = await tx
+        .delete(schema.organizations)
+        .where(eq(schema.organizations.id, organizationId))
+        .returning();
+
+      return rows.length > 0;
+    });
   }
 
   async userHasOrganizationAccess(userId: string, organizationId: string): Promise<boolean> {

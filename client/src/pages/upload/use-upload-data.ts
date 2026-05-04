@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { workspaceKeys } from "@/lib/workspace-query-keys";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/hooks/useWorkspace";
 
@@ -12,20 +13,24 @@ export function useUploadData() {
   const { activeOrganizationId } = useWorkspace();
 
   const { data: documents = [], isLoading, error, refetch } = useQuery({
-    queryKey: ["organizations", activeOrganizationId, "documents"],
+    queryKey: workspaceKeys.documents(activeOrganizationId),
     queryFn: () => activeOrganizationId ? api.getOrganizationDocuments(activeOrganizationId) : Promise.resolve([]),
     enabled: !!activeOrganizationId,
     staleTime: 30000, // 30 seconds
   });
 
   const uploadMutation = useMutation({
-    mutationFn: ({ file, category }: { file: File; category: string }) =>
-      api.uploadDocument(file, category, { organizationId: activeOrganizationId ?? undefined }),
+    mutationFn: ({ file, category }: { file: File; category: string }) => {
+      if (!activeOrganizationId) {
+        throw new Error("Select a workspace before uploading documents.");
+      }
+      return api.uploadDocument(file, category, { organizationId: activeOrganizationId });
+    },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
       if (activeOrganizationId) {
-        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "documents"] });
-        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "profile-suggestions"] });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.documents(activeOrganizationId) });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.profileSuggestions(activeOrganizationId) });
       }
       toast({
         title: "Upload successful",
@@ -46,8 +51,8 @@ export function useUploadData() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
       if (activeOrganizationId) {
-        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "documents"] });
-        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "profile-suggestions"] });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.documents(activeOrganizationId) });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.profileSuggestions(activeOrganizationId) });
       }
       toast({
         title: "Document deleted",

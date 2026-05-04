@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { workspaceKeys } from "@/lib/workspace-query-keys";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/hooks/useWorkspace";
 
@@ -12,13 +13,13 @@ export function useDraftsData(selectedProject: string | null) {
   const { activeOrganizationId } = useWorkspace();
 
   const { data: projects = [] } = useQuery({
-    queryKey: ["organizations", activeOrganizationId, "projects"],
+    queryKey: workspaceKeys.projects(activeOrganizationId),
     queryFn: () => activeOrganizationId ? api.getOrganizationProjects(activeOrganizationId) : Promise.resolve([]),
     enabled: !!activeOrganizationId,
   });
 
   const { data: questions = [] } = useQuery({
-    queryKey: ["/api/projects", selectedProject, "questions"],
+    queryKey: workspaceKeys.projectQuestions(activeOrganizationId, selectedProject),
     queryFn: () => selectedProject ? api.getQuestions(selectedProject) : Promise.resolve([]),
     enabled: !!selectedProject,
     refetchOnWindowFocus: false,
@@ -41,7 +42,7 @@ export function useDraftsData(selectedProject: string | null) {
   });
 
   const { data: userSettings } = useQuery({
-    queryKey: ["/api/settings"],
+    queryKey: workspaceKeys.userSettings(),
     queryFn: api.getSettings,
   });
 
@@ -65,7 +66,7 @@ export function useDraftsData(selectedProject: string | null) {
       };
 
       queryClient.setQueryData(
-        ["/api/projects", selectedProject, "questions"],
+        workspaceKeys.projectQuestions(activeOrganizationId, selectedProject),
         (oldData: any) => {
           if (!oldData || !Array.isArray(oldData)) return [];
 
@@ -88,7 +89,7 @@ export function useDraftsData(selectedProject: string | null) {
       );
 
       queryClient.cancelQueries({
-        queryKey: ["/api/projects", selectedProject, "questions"],
+        queryKey: workspaceKeys.projectQuestions(activeOrganizationId, selectedProject),
         exact: false
       });
 
@@ -119,7 +120,7 @@ export function useDraftsData(selectedProject: string | null) {
     mutationFn: ({ questionId, content }: { questionId: string; content: string }) =>
       api.updateResponse(questionId, content, false),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects", selectedProject, "questions"] });
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.projectQuestions(activeOrganizationId, selectedProject) });
       toast({
         title: "Response updated",
         description: "Your changes have been saved successfully.",
@@ -139,7 +140,7 @@ export function useDraftsData(selectedProject: string | null) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       if (activeOrganizationId) {
-        queryClient.invalidateQueries({ queryKey: ["organizations", activeOrganizationId, "projects"] });
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.projects(activeOrganizationId) });
       }
       toast({
         title: "Project finalized",
