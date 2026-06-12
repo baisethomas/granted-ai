@@ -35,9 +35,7 @@ const RETRY_DELAY = 2000; // 2 seconds
 const apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
 const hasValidApiKey = apiKey && apiKey !== "default_key" && apiKey.startsWith("sk-");
 
-// Debug logging
-console.log("API Key found:", apiKey ? `${apiKey.substring(0, 10)}...` : "none");
-console.log("API Key valid:", hasValidApiKey);
+console.log("OpenAI API key configured:", !!hasValidApiKey);
 
 const openai = new OpenAI({
   apiKey: apiKey || "default_key", // Will trigger error for invalid key, handled in fallbacks

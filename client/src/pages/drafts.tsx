@@ -528,6 +528,25 @@ export default function Drafts() {
     };
   };
 
+  const recordExport = (
+    format: "pdf" | "docx" | "clipboard",
+    exportData: ReturnType<typeof prepareExportData>
+  ) => {
+    if (!selectedProject) return;
+    const completed = exportData.questions.filter(
+      (q: any) => q.responseStatus === "complete" || q.responseStatus === "edited"
+    );
+    const unresolvedGapCount = completed.reduce(
+      (sum: number, q: any) =>
+        sum + ((q.assumptions || []).filter((a: any) => !a?.resolved).length || 0),
+      0
+    );
+    api.recordExportEvent(selectedProject, format, {
+      questionCount: completed.length,
+      unresolvedGapCount,
+    });
+  };
+
   const handleCopyToClipboard = async () => {
     try {
       setExportingClipboard(true);
@@ -544,7 +563,8 @@ export default function Drafts() {
       }
 
       await exportToClipboard(exportData);
-      
+      recordExport("clipboard", exportData);
+
       toast({
         title: "Copied to clipboard",
         description: "All completed responses have been copied with professional formatting.",
@@ -581,7 +601,8 @@ export default function Drafts() {
       });
 
       await exportToPDF(exportData);
-      
+      recordExport("pdf", exportData);
+
       toast({
         title: "PDF exported successfully",
         description: "Your grant application has been downloaded as a PDF.",
@@ -618,7 +639,8 @@ export default function Drafts() {
       });
 
       await exportToWord(exportData);
-      
+      recordExport("docx", exportData);
+
       toast({
         title: "Word document exported successfully",
         description: "Your grant application has been downloaded as a DOCX file.",

@@ -1976,6 +1976,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ----- Export events -----
+  // Exports happen client-side; this endpoint records them so
+  // "drafts exported per active user" can be measured.
+  app.post("/api/projects/:projectId/export-events", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const access = await assertProjectAccess(req, req.params.projectId);
+      if (!access.ok) {
+        return res.status(access.status).json({ error: access.error });
+      }
+      const format = typeof req.body?.format === "string" ? req.body.format : "unknown";
+      const questionCount =
+        typeof req.body?.questionCount === "number" ? req.body.questionCount : undefined;
+      const unresolvedGapCount =
+        typeof req.body?.unresolvedGapCount === "number" ? req.body.unresolvedGapCount : undefined;
+      await billingService.recordUsage({
+        organizationId: access.project.organizationId,
+        userId: access.userId,
+        projectId: access.project.id,
+        type: "export",
+        provider: "internal",
+        metadata: { format, questionCount, unresolvedGapCount },
+      });
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("Failed to record export event:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to record export event" }, error));
+    }
+  });
+
   function formatReportMetricValue(
     value: string | null | undefined,
     type: string,

@@ -461,6 +461,19 @@ export const api = {
     return res.json();
   },
 
+  // Fire-and-forget: a failed tracking call must never break an export.
+  recordExportEvent(
+    projectId: string,
+    format: "pdf" | "docx" | "clipboard",
+    details?: { questionCount?: number; unresolvedGapCount?: number }
+  ): void {
+    apiRequest("POST", `/api/projects/${projectId}/export-events`, { format, ...details }).catch(
+      (error) => {
+        console.warn("Failed to record export event:", error);
+      }
+    );
+  },
+
   async createQuestion(projectId: string, data: Partial<GrantQuestion>): Promise<GrantQuestion> {
     const res = await apiRequest("POST", `/api/projects/${projectId}/questions`, data);
     return res.json();
