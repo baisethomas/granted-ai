@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { StatsCard } from "@/components/ui/stats-card";
 import { ProjectCard } from "@/components/ui/project-card";
 import { EditProjectDialog } from "@/components/edit-project-dialog";
 import { NewProjectDialog } from "@/components/new-project-dialog";
@@ -10,16 +9,7 @@ import { api, type Project } from "@/lib/api";
 import { workspaceKeys } from "@/lib/workspace-query-keys";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { 
-  FolderOpen, 
-  TrendingUp, 
-  DollarSign, 
-  Clock,
-  Plus,
-  Check,
-  Upload,
-  Send
-} from "lucide-react";
+import { FolderOpen, Plus } from "lucide-react";
 
 interface DashboardProps {
   onOpenProject?: (projectId: string) => void;
@@ -36,12 +26,6 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
   const { data: projects = [], isLoading: projectsLoading } = useQuery<Project[]>({
     queryKey: workspaceKeys.projects(activeOrganizationId),
     queryFn: () => activeOrganizationId ? api.getOrganizationProjects(activeOrganizationId) : Promise.resolve([]),
-    enabled: !!activeOrganizationId,
-  });
-
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: workspaceKeys.stats(activeOrganizationId),
-    queryFn: () => activeOrganizationId ? api.getOrganizationStats(activeOrganizationId) : Promise.resolve(null),
     enabled: !!activeOrganizationId,
   });
 
@@ -82,186 +66,77 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
     }
   };
 
-  if (projectsLoading || statsLoading) {
+  // Soonest deadline first; projects without a deadline sink to the bottom.
+  const sortedProjects = [...projects].sort((a, b) => {
+    if (a.deadline && b.deadline) {
+      return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+    }
+    if (a.deadline) return -1;
+    if (b.deadline) return 1;
+    return 0;
+  });
+
+  if (projectsLoading) {
     return (
-      <div className="space-y-8">
-        <div className="animate-pulse">
-          <div className="h-8 bg-slate-200 rounded w-1/3 mb-4"></div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-24 bg-slate-200 rounded"></div>
-            ))}
-          </div>
-        </div>
+      <div className="space-y-4 animate-pulse">
+        <div className="h-8 bg-slate-200 rounded w-1/3"></div>
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="h-24 bg-slate-200 rounded"></div>
+        ))}
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 md:space-y-8">
-      {/* Welcome Section */}
-      <Card className="shadow-sm border border-slate-200">
-        <CardContent className="p-4 md:p-6">
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <h2 className="text-xl font-bold text-slate-900 md:text-2xl">
-                {activeOrganization?.name || "Select a client workspace"}
-              </h2>
-              <p className="text-slate-600 mt-1">
-                Welcome back! Here's your grant writing progress.
-              </p>
-            </div>
-            <Button 
-              className="w-full sm:w-auto"
-              onClick={() => {
-                setIsNewProjectDialogOpen(true);
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              New Grant Application
-            </Button>
-          </div>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold text-slate-900 md:text-2xl">
+            {activeOrganization?.name || "Select a client workspace"}
+          </h2>
+          <p className="text-slate-600 mt-1">Your grant applications, soonest deadline first.</p>
+        </div>
+        <Button
+          className="w-full sm:w-auto"
+          onClick={() => setIsNewProjectDialogOpen(true)}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          New Grant Application
+        </Button>
+      </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 md:grid-cols-4 md:gap-6">
-            <StatsCard
-              title="Active Projects"
-              value={stats?.activeProjects || 0}
-              icon={<FolderOpen className="text-blue-600 h-5 w-5" />}
-              iconBgColor="bg-blue-100"
-            />
-            <StatsCard
-              title="Success Rate"
-              value={stats?.successRate || "0%"}
-              icon={<TrendingUp className="text-green-600 h-5 w-5" />}
-              iconBgColor="bg-green-100"
-            />
-            <StatsCard
-              title="Total Awarded"
-              value={stats?.totalAwarded || "$0"}
-              icon={<DollarSign className="text-emerald-600 h-5 w-5" />}
-              iconBgColor="bg-emerald-100"
-            />
-            <StatsCard
-              title="Due This Week"
-              value={stats?.dueThisWeek || 0}
-              icon={<Clock className="text-orange-600 h-5 w-5" />}
-              iconBgColor="bg-orange-100"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Current Projects */}
-      <Card className="shadow-sm border border-slate-200">
-        <CardHeader className="p-4 border-b border-slate-200 md:p-6">
-          <CardTitle className="text-lg font-semibold text-slate-900">
-            Current Projects
-          </CardTitle>
-          <p className="text-sm text-slate-600 mt-1">
-            Track your ongoing grant applications
-          </p>
-        </CardHeader>
-        <CardContent className="p-4 md:p-6">
-          {projects.length === 0 ? (
+      {sortedProjects.length === 0 ? (
+        <Card className="shadow-sm border border-slate-200">
+          <CardContent className="p-4 md:p-6">
             <div className="text-center py-12">
               <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <FolderOpen className="h-8 w-8 text-slate-400" />
               </div>
-              <h3 className="text-lg font-medium text-slate-900 mb-2">No projects yet</h3>
-              <p className="text-slate-600 mb-4">Create your first grant application to get started.</p>
+              <h3 className="text-lg font-medium text-slate-900 mb-2">Start your first grant application</h3>
+              <p className="text-slate-600 mb-4">
+                Create a project, add your grant questions, and Granted will draft answers from your documents.
+              </p>
               <Button onClick={() => setIsNewProjectDialogOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Create Project
               </Button>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {projects.map((project) => (
-                <ProjectCard 
-                  key={project.id} 
-                  project={project}
-                  onDelete={handleDeleteProject}
-                  onEdit={handleEditProject}
-                  onOpen={onOpenProject}
-                />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Recent Activity & Upcoming Deadlines */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
-        <Card className="shadow-sm border border-slate-200">
-          <CardHeader className="p-4 border-b border-slate-200 md:p-6">
-            <CardTitle className="text-lg font-semibold text-slate-900">
-              Recent Activity
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 md:p-6">
-            <div className="space-y-4">
-              {projects.length === 0 ? (
-                <p className="text-slate-500 text-center py-8">No recent activity</p>
-              ) : (
-                <>
-                  <div className="flex items-start space-x-3">
-                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mt-0.5">
-                      <Check className="text-green-600 h-4 w-4" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm text-slate-900">Project created successfully</p>
-                      <p className="text-xs text-slate-500 mt-1">Just now</p>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
           </CardContent>
         </Card>
+      ) : (
+        <div className="space-y-4">
+          {sortedProjects.map((project) => (
+            <ProjectCard
+              key={project.id}
+              project={project}
+              onDelete={handleDeleteProject}
+              onEdit={handleEditProject}
+              onOpen={onOpenProject}
+            />
+          ))}
+        </div>
+      )}
 
-        <Card className="shadow-sm border border-slate-200">
-          <CardHeader className="p-4 border-b border-slate-200 md:p-6">
-            <CardTitle className="text-lg font-semibold text-slate-900">
-              Upcoming Deadlines
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 md:p-6">
-            <div className="space-y-4">
-              {projects.filter((p) => p.deadline).length === 0 ? (
-                <p className="text-slate-500 text-center py-8">No upcoming deadlines</p>
-              ) : (
-                projects
-                  .filter((p) => p.deadline)
-                  .map((project) => {
-                    const deadline = project.deadline!;
-                    return (
-                    <div key={project.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="min-w-0">
-                        <p className="font-medium text-slate-900">{project.title}</p>
-                        <p className="text-sm text-slate-600">{project.funder}</p>
-                      </div>
-                      <div className="text-left sm:text-right">
-                        <p className="text-sm font-medium text-orange-600">
-                          {new Date(deadline).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric"
-                          })}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} days left
-                        </p>
-                      </div>
-                    </div>
-                    );
-                  })
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* New Project Dialog */}
       <NewProjectDialog
         open={isNewProjectDialogOpen}
         onOpenChange={setIsNewProjectDialogOpen}
@@ -269,7 +144,6 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
         organizationName={activeOrganization?.name}
       />
 
-      {/* Edit Project Dialog */}
       {editingProject && (
         <EditProjectDialog
           project={editingProject}
