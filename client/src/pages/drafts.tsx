@@ -485,6 +485,34 @@ export default function Drafts() {
     return () => document.removeEventListener('keydown', handleKeydown);
   }, [editingQuestionId, hasUnsavedChanges, handleSave, handleCancel]);
 
+  const resolveAssumptionMutation = useMutation({
+    mutationFn: ({ assumptionId, resolved }: { assumptionId: string; resolved: boolean }) =>
+      api.setAssumptionResolved(assumptionId, resolved),
+    onSuccess: (_data, { assumptionId, resolved }) => {
+      queryClient.setQueryData(
+        workspaceKeys.projectQuestions(activeOrganizationId, selectedProject),
+        (old: any) =>
+          Array.isArray(old)
+            ? old.map((q: any) => ({
+                ...q,
+                assumptions: Array.isArray(q.assumptions)
+                  ? q.assumptions.map((a: any) =>
+                      a?.id === assumptionId ? { ...a, resolved } : a
+                    )
+                  : q.assumptions,
+              }))
+            : old
+      );
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Couldn't update gap",
+        description: error?.message || "Failed to update the flagged gap. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const prepareExportData = () => {
     if (!selectedProjectData) {
       throw new Error("No project selected");
@@ -1109,36 +1137,52 @@ export default function Drafts() {
                             <div className="mt-4 border-l-4 border-amber-500 bg-amber-50 rounded-r-lg p-4 space-y-2">
                               <div className="flex items-center text-amber-700">
                                 <AlertTriangle className="h-4 w-4 mr-2" />
-                                <h5 className="text-sm font-semibold">Assumptions flagged by AI</h5>
+                                <h5 className="text-sm font-semibold">Needs your input</h5>
                               </div>
+                              <p className="text-xs text-amber-700">
+                                Your documents didn't cover these. Edit the answer to fill each gap,
+                                then mark it addressed — unaddressed gaps appear as placeholders in exports.
+                              </p>
                               <ul className="space-y-2 text-sm text-amber-800">
                                 {question.assumptions.map((assumption: any, assumptionIndex: number) => {
                                   const body =
                                     typeof assumption === "string"
                                       ? assumption
                                       : assumption?.text ?? assumption?.suggestedQuestion ?? "";
-                                  const cat =
-                                    typeof assumption === "object" && assumption?.category
-                                      ? String(assumption.category)
-                                      : "";
-                                  const showCategory =
-                                    cat && cat !== "general" && cat !== "context_gap";
+                                  const assumptionId =
+                                    typeof assumption === "object" && assumption?.id
+                                      ? String(assumption.id)
+                                      : null;
+                                  const isResolved =
+                                    typeof assumption === "object" && assumption?.resolved === true;
                                   return (
                                     <li
                                       key={`${question.id}-assumption-${assumptionIndex}`}
-                                      className="flex items-start space-x-2"
+                                      className="flex items-start justify-between gap-3"
                                     >
-                                      <span className="font-medium text-amber-700">
-                                        {assumptionIndex + 1}.
-                                      </span>
-                                      <div className="flex-1">
-                                        <p>{body}</p>
-                                        {showCategory ? (
-                                          <p className="text-xs text-amber-600 mt-1 uppercase tracking-wide">
-                                            {cat.replace(/_/g, " ")}
-                                          </p>
-                                        ) : null}
-                                      </div>
+                                      <p
+                                        className={`flex-1 ${
+                                          isResolved ? "text-amber-600/60 line-through" : ""
+                                        }`}
+                                      >
+                                        {body}
+                                      </p>
+                                      {assumptionId && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 shrink-0 px-2 text-xs text-amber-700 hover:text-amber-900"
+                                          disabled={resolveAssumptionMutation.isPending}
+                                          onClick={() =>
+                                            resolveAssumptionMutation.mutate({
+                                              assumptionId,
+                                              resolved: !isResolved,
+                                            })
+                                          }
+                                        >
+                                          {isResolved ? "Undo" : "Mark addressed"}
+                                        </Button>
+                                      )}
                                     </li>
                                   );
                                 })}

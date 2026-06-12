@@ -36,6 +36,51 @@ export type OrganizationInput = Partial<Omit<Organization, "id" | "createdAt" | 
   name: string;
 };
 
+/** Shape of `GET /api/organizations/:id/billing/usage` (formatted usage + limits + billing flags). */
+export interface OrganizationBillingUsage {
+  organizationId: string;
+  plan: string;
+  status: string;
+  period: { start: string; end: string };
+  billing: {
+    canManageInStripe: boolean;
+    cancelAtPeriodEnd: boolean;
+  };
+  currentPeriod: {
+    tokensUsed: number;
+    costUsd: number;
+    eventsCount: number;
+    projectsCreated: number;
+    documentsUploaded: number;
+  };
+  limits: {
+    projects: number;
+    documents: number;
+    aiTokens: number;
+    aiCredits: number;
+    teamMembers: number;
+  };
+  percentUsed: {
+    tokens: number;
+    projects: number;
+    documents: number;
+    aiTokens: number;
+  };
+  usage: {
+    projects: number;
+    documents: number;
+    aiTokens: number;
+    costCents: number;
+    eventsCount: number;
+  };
+  allowed: {
+    createProject: boolean;
+    uploadDocument: boolean;
+    generateDraft: boolean;
+  };
+  alerts: unknown[];
+}
+
 export interface OrganizationProfileSuggestion {
   id: string;
   organizationId: string;
@@ -239,10 +284,11 @@ export interface UserSettings {
   defaultTone: string;
   lengthPreference: string;
   emphasisAreas: string[];
-  aiModel: string;
-  fallbackModel: string;
   creativity: number;
   contextUsage: number;
+  audience: string;
+  answerStructure: string;
+  claimConfidence: string;
   emailNotifications: boolean;
   autoSave: boolean;
   analytics: boolean;
@@ -407,6 +453,14 @@ export const api = {
     return res.json();
   },
 
+  async setAssumptionResolved(
+    assumptionId: string,
+    resolved: boolean
+  ): Promise<{ id: string; resolved: boolean }> {
+    const res = await apiRequest("PATCH", `/api/assumptions/${assumptionId}`, { resolved });
+    return res.json();
+  },
+
   async createQuestion(projectId: string, data: Partial<GrantQuestion>): Promise<GrantQuestion> {
     const res = await apiRequest("POST", `/api/projects/${projectId}/questions`, data);
     return res.json();
@@ -474,6 +528,21 @@ export const api = {
 
   async updateSettings(data: Partial<UserSettings>): Promise<UserSettings> {
     const res = await apiRequest("PUT", "/api/settings", data);
+    return res.json();
+  },
+
+  async getOrganizationBillingUsage(organizationId: string): Promise<OrganizationBillingUsage> {
+    const res = await apiRequest("GET", `/api/organizations/${organizationId}/billing/usage`);
+    return res.json();
+  },
+
+  async createBillingPortalSession(organizationId?: string): Promise<{ url: string }> {
+    const res = await apiRequest("POST", "/api/billing/portal", organizationId ? { organizationId } : {});
+    return res.json();
+  },
+
+  async createProCheckout(organizationId?: string): Promise<{ url: string; source?: string }> {
+    const res = await apiRequest("POST", "/api/billing/checkout", organizationId ? { organizationId } : {});
     return res.json();
   },
 

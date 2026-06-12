@@ -1,5 +1,4 @@
 import jsPDF from 'jspdf';
-import html2pdf from 'html2pdf.js';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { saveAs } from 'file-saver';
 import { Project, GrantQuestion } from './api';
@@ -44,20 +43,19 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
-// Escape HTML so cleaned text can be safely embedded in the HTML export path.
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 // Return a copy of the response text that is safe for export: meta blocks
 // removed and any markdown artifacts stripped.
 function getCleanResponse(question: GrantQuestion): string {
   return stripMarkdown(question.response || '');
+}
+
+// Unresolved "Needs your input" gaps for a question. These must stay visible
+// in exported documents — a gap the AI flagged is never silently dropped.
+function getUnresolvedGaps(question: GrantQuestion): string[] {
+  return (question.assumptions || [])
+    .filter((assumption) => !assumption.resolved)
+    .map((assumption) => (assumption.suggestedQuestion || assumption.text || '').trim())
+    .filter(Boolean);
 }
 
 /**
@@ -89,10 +87,13 @@ export async function exportToClipboard(data: ExportData): Promise<void> {
       const wordCount = cleanResponse ? cleanResponse.trim().split(/\s+/).length : 0;
       const wordLimitText = q.wordLimit ? ` (${wordCount}/${q.wordLimit} words)` : ` (${wordCount} words)`;
 
+      const gaps = getUnresolvedGaps(q);
+
       return [
         `${index + 1}. ${q.question}${wordLimitText}`,
         '',
         cleanResponse || 'No response provided',
+        ...(gaps.length ? ['', ...gaps.map((gap) => `[NEEDS YOUR INPUT: ${gap}]`)] : []),
         '',
         '---',
         ''
@@ -239,6 +240,17 @@ export async function exportToPDF(data: ExportData): Promise<void> {
     // Response content
     const responseText = cleanResponse || 'No response provided';
     addWrappedText(responseText, 10, false);
+
+    // Unresolved gaps stay visible in the exported document
+    const gaps = getUnresolvedGaps(question);
+    if (gaps.length > 0) {
+      addSpace(3);
+      gaps.forEach((gap) => {
+        addWrappedText(`[NEEDS YOUR INPUT: ${gap}]`, 10, true, [180, 83, 9]);
+        addSpace(2);
+      });
+    }
+
     addSpace(8);
   });
 
@@ -364,6 +376,8 @@ export async function exportToWord(data: ExportData): Promise<void> {
       .map((chunk) => chunk.trim())
       .filter(Boolean);
 
+    const gaps = getUnresolvedGaps(question);
+
     children.push(
       new Paragraph({
         children: [
@@ -379,7 +393,20 @@ export async function exportToWord(data: ExportData): Promise<void> {
       ...paragraphs.map((paragraph, pIndex) =>
         new Paragraph({
           children: [new TextRun({ text: paragraph })],
-          spacing: { after: pIndex === paragraphs.length - 1 ? 300 : 150 }
+          spacing: { after: pIndex === paragraphs.length - 1 && gaps.length === 0 ? 300 : 150 }
+        })
+      ),
+      // Unresolved gaps stay visible in the exported document
+      ...gaps.map((gap, gIndex) =>
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `[NEEDS YOUR INPUT: ${gap}]`,
+              bold: true,
+              color: "B45309"
+            })
+          ],
+          spacing: { after: gIndex === gaps.length - 1 ? 300 : 100 }
         })
       )
     );
@@ -417,191 +444,6 @@ export async function exportToWord(data: ExportData): Promise<void> {
     console.error('Word export failed:', error);
     throw new Error('Failed to generate Word document. Please try again.');
   }
-}
-
-/**
- * Create HTML content for PDF export
- */
-function createHTMLContent(data: ExportData, completedQuestions: GrantQuestion[]): string {
-  const { project, metadata } = data;
-
-  const styles = `
-    <style>
-      @page { 
-        margin: 2cm; 
-        size: A4; 
-      }
-      body { 
-        font-family: 'Times New Roman', serif; 
-        line-height: 1.6; 
-        color: #333; 
-        max-width: 100%; 
-        margin: 0;
-        font-size: 12pt;
-      }
-      .header { 
-        text-align: center; 
-        margin-bottom: 30px; 
-        border-bottom: 2px solid #2563eb;
-        padding-bottom: 15px;
-      }
-      .header h1 { 
-        font-size: 24pt; 
-        font-weight: bold; 
-        margin: 0 0 10px 0; 
-        color: #1e40af;
-      }
-      .project-info { 
-        background-color: #f8fafc; 
-        padding: 20px; 
-        margin-bottom: 25px; 
-        border-left: 4px solid #2563eb;
-        page-break-inside: avoid;
-      }
-      .project-info h2 { 
-        font-size: 16pt; 
-        font-weight: bold; 
-        margin: 0 0 15px 0; 
-        color: #1e40af;
-      }
-      .info-row { 
-        margin-bottom: 8px; 
-      }
-      .info-label { 
-        font-weight: bold; 
-        display: inline-block; 
-        width: 150px; 
-      }
-      .description { 
-        margin-top: 15px; 
-        padding-top: 15px; 
-        border-top: 1px solid #e2e8f0; 
-      }
-      .responses-section { 
-        margin-top: 30px; 
-      }
-      .responses-section h2 { 
-        font-size: 18pt; 
-        font-weight: bold; 
-        margin: 0 0 20px 0; 
-        color: #1e40af;
-        border-bottom: 1px solid #2563eb;
-        padding-bottom: 5px;
-      }
-      .question-block { 
-        margin-bottom: 30px; 
-        page-break-inside: avoid; 
-      }
-      .question-header { 
-        font-size: 14pt; 
-        font-weight: bold; 
-        margin-bottom: 10px; 
-        color: #374151;
-        background-color: #f1f5f9;
-        padding: 10px;
-        border-radius: 4px;
-      }
-      .word-count { 
-        font-size: 10pt; 
-        color: #6b7280; 
-        font-weight: normal; 
-      }
-      .response-content { 
-        margin-bottom: 15px; 
-        text-align: justify; 
-        padding-left: 15px;
-        border-left: 3px solid #e2e8f0;
-        padding-top: 10px;
-        padding-bottom: 10px;
-      }
-      .footer { 
-        margin-top: 40px; 
-        text-align: center; 
-        font-size: 10pt; 
-        color: #6b7280; 
-        border-top: 1px solid #e2e8f0; 
-        padding-top: 15px; 
-      }
-      .page-break { 
-        page-break-before: always; 
-      }
-    </style>
-  `;
-
-  const header = `
-    <div class="header">
-      <h1>${metadata.organizationName ? `${metadata.organizationName} - Grant Application` : 'Grant Application'}</h1>
-    </div>
-  `;
-
-  const projectInfoItems = [
-    `<div class="info-row"><span class="info-label">Project Title:</span> ${project.title}</div>`,
-    `<div class="info-row"><span class="info-label">Funder:</span> ${project.funder}</div>`,
-    project.amount ? `<div class="info-row"><span class="info-label">Amount Requested:</span> ${project.amount}</div>` : '',
-    project.deadline ? `<div class="info-row"><span class="info-label">Application Deadline:</span> ${new Date(project.deadline).toLocaleDateString()}</div>` : '',
-  ].filter(Boolean).join('');
-
-  const projectInfo = `
-    <div class="project-info">
-      <h2>Project Information</h2>
-      ${projectInfoItems}
-      ${project.description ? `
-        <div class="description">
-          <div class="info-label">Project Description:</div>
-          <div>${project.description.replace(/\n/g, '<br>')}</div>
-        </div>
-      ` : ''}
-    </div>
-  `;
-
-  const responses = completedQuestions.map((question, index) => {
-    const cleanResponse = getCleanResponse(question);
-    const wordCount = cleanResponse ? cleanResponse.trim().split(/\s+/).length : 0;
-    const wordLimitText = question.wordLimit ? ` <span class="word-count">(${wordCount}/${question.wordLimit} words)</span>` : ` <span class="word-count">(${wordCount} words)</span>`;
-
-    const responseHtml = escapeHtml(cleanResponse || 'No response provided').replace(/\n/g, '<br>');
-
-    return `
-      <div class="question-block">
-        <div class="question-header">
-          ${escapeHtml(`${index + 1}. ${question.question}`)}${wordLimitText}
-        </div>
-        <div class="response-content">
-          ${responseHtml}
-        </div>
-      </div>
-    `;
-  }).join('');
-
-  const responsesSection = `
-    <div class="responses-section">
-      <h2>Grant Application Responses</h2>
-      ${responses}
-    </div>
-  `;
-
-  const footer = `
-    <div class="footer">
-      Generated on: ${metadata.exportDate.toLocaleDateString()} at ${metadata.exportDate.toLocaleTimeString()}
-    </div>
-  `;
-
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <title>${project.title} - Grant Application</title>
-      ${styles}
-    </head>
-    <body>
-      ${header}
-      ${projectInfo}
-      ${responsesSection}
-      ${footer}
-    </body>
-    </html>
-  `;
 }
 
 /**
