@@ -278,8 +278,30 @@ export default function Drafts() {
     },
     onError: (error: any, variables) => {
       setGeneratingQuestionId(null);
+
+      const isTimeout = /timeout|took too long/i.test(error?.message || "");
+      // Persist a failure status into the cache so the card shows the error
+      // and a retry affordance instead of reverting to "not generated yet".
+      // The question itself (input) is untouched, so retrying never duplicates.
+      queryClient.setQueryData(
+        workspaceKeys.projectQuestions(activeOrganizationId, selectedProject),
+        (oldData: any) =>
+          Array.isArray(oldData)
+            ? oldData.map((q: any) =>
+                q.id === variables.questionId
+                  ? {
+                      ...q,
+                      responseStatus: isTimeout ? "timeout" : "failed",
+                      errorMessage:
+                        error?.message || "Failed to generate response. Please try again.",
+                    }
+                  : q
+              )
+            : oldData
+      );
+
       toast({
-        title: "Generation failed",
+        title: isTimeout ? "Generation timed out" : "Generation failed",
         description: error.message || "Failed to generate response. Please try again.",
         variant: "destructive",
       });
@@ -661,6 +683,9 @@ export default function Drafts() {
       case "complete": return "bg-green-100 text-green-800";
       case "edited": return "bg-blue-100 text-blue-800";
       case "generating": return "bg-yellow-100 text-yellow-800";
+      case "needs_context": return "bg-amber-100 text-amber-800";
+      case "timeout": return "bg-orange-100 text-orange-800";
+      case "failed": return "bg-red-100 text-red-800";
       case "pending": return "bg-gray-100 text-gray-800";
       default: return "bg-gray-100 text-gray-800";
     }
@@ -680,6 +705,9 @@ export default function Drafts() {
       case "complete": return <Check className="mr-1 h-3 w-3" />;
       case "edited": return <Edit className="mr-1 h-3 w-3" />;
       case "generating": return <Clock className="mr-1 h-3 w-3" />;
+      case "needs_context": return <AlertTriangle className="mr-1 h-3 w-3" />;
+      case "timeout": return <AlertCircle className="mr-1 h-3 w-3" />;
+      case "failed": return <AlertCircle className="mr-1 h-3 w-3" />;
       default: return <Clock className="mr-1 h-3 w-3" />;
     }
   };
@@ -698,6 +726,9 @@ export default function Drafts() {
       case "complete": return "Complete";
       case "edited": return "Edited";
       case "generating": return "Generating";
+      case "needs_context": return "Needs context";
+      case "timeout": return "Timed out";
+      case "failed": return "Failed";
       case "pending": return "Pending";
       default: return status;
     }
@@ -1218,6 +1249,45 @@ export default function Drafts() {
                             <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
                             <p className="text-slate-600">AI is generating your response...</p>
                             <p className="text-sm text-slate-500 mt-2">Using uploaded documents and organization data</p>
+                          </div>
+                        </div>
+                      ) : (normalizedQuestion.responseStatus === "failed" ||
+                          normalizedQuestion.responseStatus === "timeout") &&
+                        generatingQuestionId !== normalizedQuestion.id ? (
+                        <div className="rounded-lg border border-red-200 bg-red-50 p-6">
+                          <div className="flex items-start gap-3">
+                            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+                            <div className="flex-1">
+                              <h5 className="text-sm font-semibold text-red-800">
+                                {normalizedQuestion.responseStatus === "timeout"
+                                  ? "Generation timed out"
+                                  : "Generation failed"}
+                              </h5>
+                              <p className="mt-1 text-sm text-red-700">
+                                {normalizedQuestion.errorMessage ||
+                                  (normalizedQuestion.responseStatus === "timeout"
+                                    ? "The AI service took too long to respond. Your question is saved — try again."
+                                    : "Something went wrong while generating this response. Your question is saved — try again.")}
+                              </p>
+                              <Button
+                                className="mt-4"
+                                variant="outline"
+                                onClick={() => handleRegenerateResponse(normalizedQuestion.id)}
+                                disabled={generateResponseMutation.isPending}
+                              >
+                                {generateResponseMutation.isPending ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Retrying...
+                                  </>
+                                ) : (
+                                  <>
+                                    <RotateCcw className="mr-2 h-4 w-4" />
+                                    Try again
+                                  </>
+                                )}
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       ) : (
