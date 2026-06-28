@@ -117,6 +117,18 @@ export function normalizeGroundedCitations(
         ? retrievedChunks.find((chunk) => chunk.chunkIndex === chunkIndex)
         : undefined;
 
+    // Models often echo marker position (1-based) as chunkIndex instead of the
+    // document's stored chunk index — resolve that when direct lookup fails.
+    if (
+      !match &&
+      chunkIndex !== undefined &&
+      Number.isInteger(chunkIndex) &&
+      chunkIndex >= 1 &&
+      chunkIndex <= retrievedChunks.length
+    ) {
+      match = retrievedChunks[chunkIndex - 1];
+    }
+
     if (!match && typeof e.marker === "string") {
       const markerMatch = e.marker.match(/#(\d+)/);
       if (markerMatch) {

@@ -189,3 +189,96 @@ export async function handleStripeWebhook(rawBody: Buffer, signature: string | u
 
   return event;
 }
+
+export async function createBillingPortalSession(input: {
+  stripeCustomerId: string;
+  origin?: string | null;
+}): Promise<{ url: string }> {
+  const stripe = getStripe();
+  if (!stripe) {
+    throw new Error("Stripe is not configured");
+  }
+
+  const appOrigin = resolveAppOrigin(input.origin);
+  const session = await stripe.billingPortal.sessions.create({
+    customer: input.stripeCustomerId,
+    return_url: `${appOrigin}/app`,
+  });
+
+  if (!session.url) {
+    throw new Error("Stripe billing portal session did not return a URL");
+  }
+
+  return { url: session.url };
+}
+
+async function ensureStripeCustomerIdForOrganization(input: {
+  organizationId: string;
+  email?: string | null;
+  organizationName?: string | null;
+  userId?: string;
+}): Promise<string | null> {
+  const stripe = getStripe();
+  if (!stripe) return null;
+
+  const org = await storage.getOrganization(input.organizationId);
+  if (!org) return null;
+
+  if (org.billingCustomerId) return org.billingCustomerId;
+
+  const subscription = await storage.getSubscription(input.organizationId);
+  if (subscription?.stripeCustomerId) {
+    await storage.updateOrganization(input.organizationId, {
+      billingCustomerId: subscription.stripeCustomerId,
+    } as any);
+    return subscription.stripeCustomerId;
+  }
+
+  const customer = await stripe.customers.create({
+    email: input.email || undefined,
+    name: input.organizationName || org.name,
+    metadata: {
+      organizationId: input.organizationId,
+      ...(input.userId ? { userId: input.userId } : {}),
+    },
+  });
+
+  await storage.updateOrganization(input.organizationId, {
+    billingCustomerId: customer.id,
+  } as any);
+
+  if (subscription) {
+    await storage.updateSubscription(subscription.id, {
+      stripeCustomerId: customer.id,
+    } as any);
+  }
+
+  return customer.id;
+}
+
+export async function ensureStripeCustomerForOrganization(input: {
+  organizationId: string;
+  email?: string | null;
+  organizationName?: string | null;
+  userId: string;
+}): Promise<void> {
+  await ensureStripeCustomerIdForOrganization(input);
+}
+
+export async function ensureStripeCustomerForWorkspaceUser(input: {
+  userId: string;
+  email?: string | null;
+  fullName?: string | null;
+}): Promise<void> {
+  const organizations = await storage.getOrganizationsForUser(input.userId);
+  await Promise.all(
+    organizations.map((org) =>
+      ensureStripeCustomerIdForOrganization({
+        organizationId: org.id,
+        email: input.email,
+        organizationName: org.name || input.fullName,
+        userId: input.userId,
+      })
+    )
+  );
+}

@@ -24,6 +24,7 @@ export interface UsageSummary {
   organizationId: string;
   plan: PlanName;
   status: string;
+  stripeCustomerId: string | null;
   period: {
     start: Date;
     end: Date;
@@ -211,11 +212,15 @@ export class BillingService {
     const aiTokensUsed = sumTokens(events);
     const costCents = events.reduce((sum, event) => sum + (event.costCents ?? 0), 0);
     const limits = PLAN_LIMITS[plan];
+    const organization = await this.store.getOrganization(organizationId);
+    const stripeCustomerId =
+      subscription.stripeCustomerId ?? organization?.billingCustomerId ?? null;
 
     return {
       organizationId,
       plan,
       status: subscription.status,
+      stripeCustomerId,
       period: { start, end },
       usage: {
         projects: projectsUsed,

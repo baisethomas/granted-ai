@@ -54,6 +54,13 @@ describe("normalizeGroundedCitations", () => {
     expect(result[0].documentId).toBe("doc-annual");
   });
 
+  it("treats chunkIndex as 1-based snippet position when it does not match a stored chunk index", () => {
+    const result = normalizeGroundedCitations([{ chunkIndex: 2 }], chunks);
+    expect(result).toHaveLength(1);
+    expect(result[0].documentId).toBe("doc-budget");
+    expect(result[0].chunkIndex).toBe(9);
+  });
+
   it("keeps a model quote only when it appears verbatim in the matched chunk", () => {
     const [verbatim] = normalizeGroundedCitations(
       [{ marker: "#1", quote: "served 1,240 families" }],
