@@ -37,8 +37,13 @@ import {
   BookOpen,
   Wand2
 } from "lucide-react";
-import CitationTooltip from "@/components/CitationTooltip";
 import EvidenceMap, { EvidenceMapData } from "@/components/EvidenceMap";
+import {
+  getCitationDocumentName,
+  getCitationQuote,
+  getResponseTrustSummary,
+  ResponseWithCitationMarkers,
+} from "@/pages/drafts/citation-display";
 
 // Strip any trailing "Citations:" / "Assumptions & Follow-ups:" blocks that
 // legacy drafts may have appended to the response body. Citations and
@@ -1115,59 +1120,65 @@ export default function Drafts() {
                             ) : (
                               <>
                                 <div className="text-slate-800 leading-relaxed whitespace-pre-wrap">
-                                  {normalizedQuestion.response}
+                                  <ResponseWithCitationMarkers
+                                    text={normalizedQuestion.response}
+                                    citations={question.citations}
+                                    citationListId={`citations-${normalizedQuestion.id}`}
+                                  />
                                 </div>
-                                <div className="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-sm text-blue-800">
-                                  <p>
-                                    <Lightbulb className="inline mr-1 h-4 w-4" />
-                                    <strong>AI Note:</strong> This response draws from your uploaded documents 
-                                    to provide specific metrics and examples.
-                                  </p>
-                                </div>
+                                {getResponseTrustSummary({
+                                  citations: question.citations,
+                                  assumptions: question.assumptions,
+                                }) ? (
+                                  <div
+                                    className={`mt-4 p-3 text-sm border-l-4 ${
+                                      question.assumptions?.length && !question.citations?.length
+                                        ? "bg-amber-50 border-amber-400 text-amber-800"
+                                        : "bg-blue-50 border-blue-400 text-blue-800"
+                                    }`}
+                                  >
+                                    <p>
+                                      <Lightbulb className="inline mr-1 h-4 w-4" />
+                                      <strong>Trust note:</strong>{" "}
+                                      {getResponseTrustSummary({
+                                        citations: question.citations,
+                                        assumptions: question.assumptions,
+                                      })}
+                                    </p>
+                                  </div>
+                                ) : null}
                               </>
                             )}
                           </div>
 
                           {question.citations && question.citations.length > 0 && (
-                            <div className="mt-6 border border-slate-200 bg-slate-50 rounded-lg p-4">
+                            <div
+                              id={`citations-${normalizedQuestion.id}`}
+                              className="mt-6 border border-slate-200 bg-slate-50 rounded-lg p-4"
+                            >
                               <div className="flex items-center mb-3">
                                 <FileText className="h-4 w-4 text-blue-600 mr-2" />
                                 <h5 className="text-sm font-semibold text-slate-800">Sources & Citations</h5>
                               </div>
                               <ul className="space-y-2 text-sm text-slate-700">
                                 {question.citations.map((citation: any, citationIndex: number) => {
-                                  const chunkRefs = Array.isArray(citation.chunkRefs)
-                                    ? citation.chunkRefs
-                                    : [];
-                                  const firstRef = chunkRefs[0] as
-                                    | { chunkIndex?: number; quote?: string }
-                                    | undefined;
-                                  const docTitle =
-                                    citation.documentName ||
-                                    citation.originalName ||
-                                    citation.filename ||
-                                    citation.documentId ||
-                                    citation.sourceDocumentId ||
-                                    "Source document";
+                                  const docTitle = getCitationDocumentName(citation, citationIndex + 1);
+                                  const quoteText = getCitationQuote(citation);
                                   const chunkIdx =
                                     typeof citation.chunkIndex === "number"
                                       ? citation.chunkIndex
-                                      : typeof firstRef?.chunkIndex === "number"
-                                        ? firstRef.chunkIndex
-                                        : citationIndex;
-                                  const quoteText =
-                                    (typeof citation.quote === "string" && citation.quote) ||
-                                    (typeof firstRef?.quote === "string" ? firstRef.quote : "");
+                                      : citationIndex + 1;
                                   return (
                                     <li
                                       key={`${question.id}-citation-${citationIndex}`}
-                                      className="flex flex-col"
+                                      id={`citations-${normalizedQuestion.id}-item-${citationIndex}`}
+                                      className="flex flex-col scroll-mt-24"
                                     >
                                       <span className="font-medium text-slate-900">
-                                        [{citationIndex + 1}] {docTitle}
+                                        [#{citationIndex + 1}] {docTitle}
                                       </span>
                                       <span className="text-slate-600 text-xs">
-                                        Snippet {chunkIdx + 1}
+                                        Document chunk {chunkIdx}
                                         {citation.section ? ` · ${citation.section}` : ""}
                                       </span>
                                       {quoteText ? (
