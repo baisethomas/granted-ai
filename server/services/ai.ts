@@ -8,11 +8,6 @@
  * - Exponential backoff retry (max 2 retries)
  * - AbortController for proper request cancellation
  * 
- * 🛡️ FALLBACK RESPONSES:
- * - Timeout fallback: Structured outline with guidance
- * - Insufficient context: Specific suggestions for improvement
- * - API error fallback: Manual framework with tips
- * 
  * 📊 STATUS MANAGEMENT:
  * - "pending" - Initial state
  * - "generating" - AI is working
@@ -25,11 +20,6 @@
  * - Specific handling for API keys, rate limits, and network issues
  * - Detailed logging for monitoring and debugging
  * - Graceful degradation with helpful user messages
- * 
- * 📝 RESPONSE QUALITY:
- * - Context-aware fallbacks based on question type
- * - Structured guidance when AI fails
- * - Actionable next steps for users
  */
 
 // Ensure environment variables are loaded first
@@ -45,22 +35,11 @@ const RETRY_DELAY = 2000; // 2 seconds
 const apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
 const hasValidApiKey = apiKey && apiKey !== "default_key" && apiKey.startsWith("sk-");
 
-// Debug logging
-console.log("API Key found:", apiKey ? `${apiKey.substring(0, 10)}...` : "none");
-console.log("API Key valid:", hasValidApiKey);
+console.log("OpenAI API key configured:", !!hasValidApiKey);
 
 const openai = new OpenAI({
   apiKey: apiKey || "default_key", // Will trigger error for invalid key, handled in fallbacks
 });
-
-export interface GenerateResponseOptions {
-  question: string;
-  context: string;
-  tone: string;
-  wordLimit?: number;
-  emphasisAreas?: string[];
-  organizationInfo?: any;
-}
 
 export interface RetrievedContextChunk {
   documentName: string;
@@ -94,6 +73,99 @@ export interface GenerateGroundedResponseOptions {
   emphasisAreas?: string[];
   organizationInfo?: any;
   retrievedChunks: RetrievedContextChunk[];
+  /** Saved user setting: concise | balanced | comprehensive */
+  lengthPreference?: string | null;
+  /** 0–100; maps to sampling temperature */
+  creativity?: number | null;
+  /** Who will read this answer */
+  audience?: string | null;
+  /** prose | bulleted | sectioned */
+  answerStructure?: string | null;
+  /** confident | balanced | cautious */
+  claimConfidence?: string | null;
+}
+
+/**
+ * Maps model-emitted citations onto the chunks that were actually retrieved.
+ *
+ * The matched chunk is the source of truth for document identity: a citation
+ * that cannot be traced to a retrieved chunk is dropped (never attributed to a
+ * real document), and a model-provided quote is only kept when it appears
+ * verbatim in the matched chunk's content.
+ */
+export function normalizeGroundedCitations(
+  rawCitations: unknown,
+  retrievedChunks: RetrievedContextChunk[]
+): GeneratedGroundedResponse["citations"] {
+  const entries = Array.isArray(rawCitations) ? rawCitations : [];
+  const normalizeWhitespace = (s: string) => s.replace(/\s+/g, " ").trim();
+  const citations: GeneratedGroundedResponse["citations"] = [];
+
+  for (const entry of entries) {
+    if (!entry || typeof entry !== "object") continue;
+    const e = entry as Record<string, unknown>;
+
+    const chunkIndex =
+      typeof e.chunkIndex === "number"
+        ? e.chunkIndex
+        : typeof e.chunk_index === "number"
+          ? e.chunk_index
+          : undefined;
+
+    let match =
+      chunkIndex !== undefined
+        ? retrievedChunks.find((chunk) => chunk.chunkIndex === chunkIndex)
+        : undefined;
+
+    // Models often echo marker position (1-based) as chunkIndex instead of the
+    // document's stored chunk index — resolve that when direct lookup fails.
+    if (
+      !match &&
+      chunkIndex !== undefined &&
+      Number.isInteger(chunkIndex) &&
+      chunkIndex >= 1 &&
+      chunkIndex <= retrievedChunks.length
+    ) {
+      match = retrievedChunks[chunkIndex - 1];
+    }
+
+    if (!match && typeof e.marker === "string") {
+      const markerMatch = e.marker.match(/#(\d+)/);
+      if (markerMatch) {
+        const markerIndex = parseInt(markerMatch[1], 10) - 1;
+        if (markerIndex >= 0 && markerIndex < retrievedChunks.length) {
+          match = retrievedChunks[markerIndex];
+        }
+      }
+    }
+
+    if (!match) {
+      console.warn(
+        "Dropping unverifiable citation from model output:",
+        JSON.stringify(e).slice(0, 200)
+      );
+      continue;
+    }
+
+    const modelQuote =
+      (typeof e.quote === "string" && e.quote) ||
+      (typeof e.snippet === "string" && e.snippet) ||
+      "";
+    const quote =
+      modelQuote &&
+      normalizeWhitespace(match.content).includes(normalizeWhitespace(modelQuote))
+        ? modelQuote
+        : match.content.slice(0, 160);
+
+    citations.push({
+      documentName: match.documentName,
+      documentId: match.documentId,
+      chunkIndex: match.chunkIndex,
+      quote,
+    });
+  }
+
+  return citations;
 }
 
 export interface MetricSuggestion {
@@ -151,210 +223,101 @@ export class AIService {
       .trim();
   }
 
-  // Generate fallback responses based on the scenario
-  private generateFallbackResponse(question: string, errorType: 'timeout' | 'api_error' | 'insufficient_context'): string {
-    const questionLower = question.toLowerCase();
-    
-    if (errorType === 'timeout') {
-      return `I'm having trouble generating a detailed response right now. Here's a structured approach to help you get started:
-
-Key Areas to Address:
-${this.getQuestionStructurePlainText(questionLower)}
-
-Recommended Approach: First, review your organizational documents and context. Then, identify specific examples and metrics. Next, align your response with the funder's priorities. Finally, consider having this section reviewed by a colleague.
-
-Please try generating again, or use this structure to manually draft your response.`;
-    }
-    
-    if (errorType === 'insufficient_context') {
-      return `Based on the available information, I need additional details to provide a comprehensive response. Consider including:
-
-${this.getMissingContextSuggestionsPlainText(questionLower)}
-
-What you can do: Upload relevant organizational documents. Add more specific context about your programs. Include performance metrics and outcomes data. Provide examples of similar past work.
-
-Once you've added more context, try generating this response again.`;
-    }
-    
-    // API error fallback
-    return `Unable to generate AI response at this time due to a service issue. 
-
-Manual Response Framework:
-${this.getQuestionStructurePlainText(questionLower)}
-
-Tips for Writing: Be specific and use concrete examples. Include quantitative data where possible. Align with your organization's mission. Address the funder's priorities directly.
-
-Please try again in a moment, or use this framework to draft your response manually.`;
+  private creativityToTemperature(creativity: number | null | undefined): number {
+    const c =
+      typeof creativity === "number" && Number.isFinite(creativity)
+        ? Math.min(Math.max(creativity, 0), 100)
+        : 30;
+    return 0.15 + (c / 100) * 0.72;
   }
 
-  private getQuestionStructure(questionLower: string): string {
-    if (questionLower.includes('mission') || questionLower.includes('organization')) {
-      return `- Organization overview and history
-- Mission statement and core values
-- Key programs and services
-- Target populations served
-- Organizational capacity and leadership`;
+  private maxOutputTokens(wordLimit?: number, lengthPreference?: string | null): number {
+    if (wordLimit) {
+      return Math.min(Math.max(wordLimit, 1) * 3, 2500);
     }
-    
-    if (questionLower.includes('need') || questionLower.includes('problem')) {
-      return `- Specific need or problem definition
-- Supporting data and evidence
-- Who is affected and how
-- Current gaps in services
-- Consequences of not addressing the need`;
+    switch (lengthPreference) {
+      case "concise":
+        return 900;
+      case "comprehensive":
+        return 2400;
+      default:
+        return 1500;
     }
-    
-    if (questionLower.includes('goal') || questionLower.includes('objective')) {
-      return `- Primary project goals
-- Specific, measurable objectives
-- Expected outcomes and impact
-- Timeline for achievement
-- Success metrics and indicators`;
-    }
-    
-    if (questionLower.includes('evaluation') || questionLower.includes('measure')) {
-      return `- Evaluation methodology
-- Key performance indicators
-- Data collection methods
-- Reporting schedule and format
-- How results will be used for improvement`;
-    }
-    
-    if (questionLower.includes('budget') || questionLower.includes('cost')) {
-      return `- Total project cost breakdown
-- Personnel expenses
-- Program costs and materials
-- Administrative overhead
-- Cost-effectiveness analysis`;
-    }
-    
-    if (questionLower.includes('sustain') || questionLower.includes('continuation')) {
-      return `- Sustainability planning
-- Future funding sources
-- Community support and buy-in
-- Long-term organizational capacity
-- Legacy and ongoing impact`;
-    }
-    
-    // Generic structure for other questions
-    return `- Direct response to the question asked
-- Supporting evidence and examples
-- Specific details about your organization
-- Quantitative data where available
-- Connection to project impact and outcomes`;
   }
 
-  private getQuestionStructurePlainText(questionLower: string): string {
-    if (questionLower.includes('mission') || questionLower.includes('organization')) {
-      return `Organization overview and history. Mission statement and core values. Key programs and services. Target populations served. Organizational capacity and leadership.`;
-    }
-    
-    if (questionLower.includes('need') || questionLower.includes('problem')) {
-      return `Specific need or problem definition. Supporting data and evidence. Who is affected and how. Current gaps in services. Consequences of not addressing the need.`;
-    }
-    
-    if (questionLower.includes('goal') || questionLower.includes('objective')) {
-      return `Primary project goals. Specific, measurable objectives. Expected outcomes and impact. Timeline for achievement. Success metrics and indicators.`;
-    }
-    
-    if (questionLower.includes('evaluation') || questionLower.includes('measure')) {
-      return `Evaluation methodology. Key performance indicators. Data collection methods. Reporting schedule and format. How results will be used for improvement.`;
-    }
-    
-    if (questionLower.includes('budget') || questionLower.includes('cost')) {
-      return `Total project cost breakdown. Personnel expenses. Program costs and materials. Administrative overhead. Cost-effectiveness analysis.`;
-    }
-    
-    if (questionLower.includes('sustain') || questionLower.includes('continuation')) {
-      return `Sustainability planning. Future funding sources. Community support and buy-in. Long-term organizational capacity. Legacy and ongoing impact.`;
-    }
-    
-    // Generic structure for other questions
-    return `Direct response to the question asked. Supporting evidence and examples. Specific details about your organization. Quantitative data where available. Connection to project impact and outcomes.`;
-  }
+  private formatTuningInstructions(options: {
+    audience: string | null | undefined;
+    answerStructure: string | null | undefined;
+    claimConfidence: string | null | undefined;
+    lengthPreference: string | null | undefined;
+  }): string {
+    const aud = options.audience ?? "program_officer";
+    const struct = options.answerStructure ?? "prose";
+    const conf = options.claimConfidence ?? "balanced";
+    const len = options.lengthPreference ?? "balanced";
 
-  private getMissingContextSuggestions(questionLower: string): string {
-    const suggestions = [];
-    
-    if (questionLower.includes('organization') || questionLower.includes('mission')) {
-      suggestions.push('- Organizational profile document with mission, history, and structure');
-      suggestions.push('- Leadership bios and organizational chart');
-      suggestions.push('- Recent annual reports or impact statements');
-    }
-    
-    if (questionLower.includes('program') || questionLower.includes('service')) {
-      suggestions.push('- Detailed program descriptions and logic models');
-      suggestions.push('- Service delivery methods and approaches');
-      suggestions.push('- Client testimonials or case studies');
-    }
-    
-    if (questionLower.includes('need') || questionLower.includes('data')) {
-      suggestions.push('- Community needs assessment data');
-      suggestions.push('- Demographic and statistical information');
-      suggestions.push('- Stakeholder input and feedback');
-    }
-    
-    if (questionLower.includes('experience') || questionLower.includes('capacity')) {
-      suggestions.push('- Examples of similar past projects');
-      suggestions.push('- Staff qualifications and experience');
-      suggestions.push('- Organizational capacity assessments');
-    }
-    
-    if (questionLower.includes('budget') || questionLower.includes('financial')) {
-      suggestions.push('- Detailed budget worksheets');
-      suggestions.push('- Financial policies and procedures');
-      suggestions.push('- Audit reports or financial statements');
-    }
-    
-    if (suggestions.length === 0) {
-      suggestions.push('- More specific context about your programs and services');
-      suggestions.push('- Organizational background and experience');
-      suggestions.push('- Relevant data and performance metrics');
-    }
-    
-    return suggestions.join('\n');
-  }
+    const audienceBlocks: Record<string, string> = {
+      program_officer:
+        "AUDIENCE: Program officers and foundation staff. Prioritize alignment with funder priorities, clear outcomes, and efficient use of their time. Favor specificity over narrative flourish.",
+      peer_reviewers:
+        "AUDIENCE: Peer or technical reviewers. Emphasize methodology, evidence, and measurable rigor. Define terms and cite concrete data from snippets.",
+      board_community:
+        "AUDIENCE: Board members or community stakeholders. Use accessible language; briefly clarify jargon. Emphasize human impact and stewardship of resources.",
+      general_reader:
+        "AUDIENCE: General professional reader. Balance clarity and completeness; avoid insider shorthand.",
+    };
 
-  private getMissingContextSuggestionsPlainText(questionLower: string): string {
-    const suggestions = [];
-    
-    if (questionLower.includes('organization') || questionLower.includes('mission')) {
-      suggestions.push('Organizational profile document with mission, history, and structure');
-      suggestions.push('Leadership bios and organizational chart');
-      suggestions.push('Recent annual reports or impact statements');
+    let structureBlock: string;
+    if (struct === "bulleted") {
+      structureBlock = `FORMAT — BULLETED:
+- Plain text only (no markdown bold/italic, no numbered markdown lists).
+- You MAY use lines starting with "- " for bullets when it improves scannability; keep each bullet substantive (not single words).
+- Still use [#N] citations inline after factual claims.`;
+    } else if (struct === "sectioned") {
+      structureBlock = `FORMAT — SECTIONED:
+- Plain text only (no markdown).
+- Begin each major part with a short standalone title line in Title Case ending with a colon (e.g., "Organizational Capacity:") followed by one or more paragraphs.
+- Do not use markdown headings; titles are plain text lines only.
+- Keep [#N] citations inline after factual claims.`;
+    } else {
+      structureBlock = `FORMAT — PROSE:
+- Plain text only: no markdown, no bullet points, no numbered lists, no headings. Use paragraph breaks for organization.`;
     }
-    
-    if (questionLower.includes('program') || questionLower.includes('service')) {
-      suggestions.push('Detailed program descriptions and logic models');
-      suggestions.push('Service delivery methods and approaches');
-      suggestions.push('Client testimonials or case studies');
+
+    let confidenceBlock: string;
+    if (conf === "confident") {
+      confidenceBlock = `CLAIM CONFIDENCE — CONFIDENT:
+- When snippets clearly support a fact, state it directly without softening.
+- Avoid filler hedging ("may", "might", "could") unless the snippet itself is tentative.
+- You must still never invent facts; grounding rules always win over tone.`;
+    } else if (conf === "cautious") {
+      confidenceBlock = `CLAIM CONFIDENCE — CAUTIOUS:
+- When evidence is thin or implied, prefer careful phrasing ("based on our documents", "as described in the materials") and avoid absolute claims.
+- Add an assumption question whenever a funder-relevant detail is missing or only partially supported.
+- Never invent; hedge rather than overclaim when snippets do not explicitly support the statement.`;
+    } else {
+      confidenceBlock = `CLAIM CONFIDENCE — BALANCED:
+- Be direct when snippets are explicit; use light hedging when support is partial.
+- Follow the grounding contract for citations and assumptions.`;
     }
-    
-    if (questionLower.includes('need') || questionLower.includes('data')) {
-      suggestions.push('Community needs assessment data');
-      suggestions.push('Demographic and statistical information');
-      suggestions.push('Stakeholder input and feedback');
+
+    let lengthBlock: string;
+    if (len === "concise") {
+      lengthBlock =
+        "LENGTH: Prefer a concise answer—short paragraphs, only essential detail, no repetition.";
+    } else if (len === "comprehensive") {
+      lengthBlock =
+        "LENGTH: Prefer depth—cover relevant sub-points the question implies, still without padding or generic filler.";
+    } else {
+      lengthBlock = "LENGTH: Balanced depth—neither sparse nor sprawling.";
     }
-    
-    if (questionLower.includes('experience') || questionLower.includes('capacity')) {
-      suggestions.push('Examples of similar past projects');
-      suggestions.push('Staff qualifications and experience');
-      suggestions.push('Organizational capacity assessments');
-    }
-    
-    if (questionLower.includes('budget') || questionLower.includes('financial')) {
-      suggestions.push('Detailed budget worksheets');
-      suggestions.push('Financial policies and procedures');
-      suggestions.push('Audit reports or financial statements');
-    }
-    
-    if (suggestions.length === 0) {
-      suggestions.push('More specific context about your programs and services');
-      suggestions.push('Organizational background and experience');
-      suggestions.push('Relevant data and performance metrics');
-    }
-    
-    return suggestions.join('. ') + '.';
+
+    return [
+      audienceBlocks[aud] ?? audienceBlocks.program_officer,
+      structureBlock,
+      confidenceBlock,
+      lengthBlock,
+    ].join("\n\n");
   }
 
   async generateGroundedResponse(
@@ -367,6 +330,11 @@ Please try again in a moment, or use this framework to draft your response manua
       emphasisAreas = [],
       organizationInfo,
       retrievedChunks,
+      lengthPreference = null,
+      creativity = null,
+      audience = null,
+      answerStructure = null,
+      claimConfidence = null,
     } = options;
 
     if (!retrievedChunks.length || !hasValidApiKey) {
@@ -394,13 +362,22 @@ Please try again in a moment, or use this framework to draft your response manua
       })
       .join('\n\n');
 
+    const tuning = this.formatTuningInstructions({
+      audience,
+      answerStructure,
+      claimConfidence,
+      lengthPreference,
+    });
+
     const instructions = `You are a senior grant writer drafting one answer for a grant application. Follow EVERY rule below.
 
 VOICE
 - Write concrete, active-voice prose in first-person plural ("we") for the applicant organization.
 - Lead with numbers, dates, places, proper nouns, and specific program names drawn from the snippets. Replace adjectives with specifics.
 - Match the requested tone exactly. Do not shift register mid-response.
-- Plain text only: no markdown, no bullet points, no numbered lists, no headings, no bold or italics. Use paragraph breaks for organization.
+- Unless FORMAT below explicitly allows bullets or section titles, use plain paragraphs only—no markdown, no bullet points, no numbered lists, no bold or italics.
+
+${tuning}
 
 GROUNDING CONTRACT
 - Every factual claim (numbers, dates, program names, outcomes, partner names, populations served, geography, staffing, capacity, funding) MUST be traceable to a specific snippet. Cite it with the marker (e.g. [#2]) placed inline immediately after the claim.
@@ -432,7 +409,7 @@ QUESTION-TYPE GUIDANCE
 
 OUTPUT
 Return a single JSON object with EXACTLY these fields:
-- text (string): the response body. Plain text with [#N] inline citation markers. No markdown.
+- text (string): the response body. Include [#N] inline citation markers as required by the grounding contract. Follow the FORMAT rules above (plain text; bullets or section titles only if permitted there).
 - citations (array): one entry per unique marker used, shape { marker: "#N", documentName, documentId, chunkIndex, quote } where quote is a short verbatim phrase from the cited snippet.
 - assumptions (array of strings): ONLY for gaps where the snippets did not support something the funder likely needs. Each item MUST be one concise question ending in "?". Do not state opinions or thematic summaries (wrong: "Community engagement is crucial…"). Correct: "How many participants do you project annually, and over what geography?"
 
@@ -442,6 +419,7 @@ Stay within the word limit if one is given. The review committee values specific
       `Grant Question: ${question}`,
       `Tone: ${tone}`,
       wordLimit ? `Target word count: ${wordLimit}` : "",
+      !wordLimit && lengthPreference ? `Length preference: ${lengthPreference}` : "",
       emphasisAreas.length ? `Emphasis areas: ${emphasisAreas.join(', ')}` : "",
       `Organization info: ${organizationInfo ? JSON.stringify(organizationInfo) : 'N/A'}`,
       ``,
@@ -453,11 +431,13 @@ Stay within the word limit if one is given. The review committee values specific
 
     try {
       const model = process.env.GRANTED_DEFAULT_MODEL || 'gpt-4o-mini';
+      const temperature = this.creativityToTemperature(creativity);
+      const max_tokens = this.maxOutputTokens(wordLimit, lengthPreference);
       const response = await openai.chat.completions.create({
         model,
         response_format: { type: 'json_object' },
-        temperature: 0.2,
-        max_tokens: wordLimit ? Math.min(wordLimit * 3, 1500) : 1500,
+        temperature,
+        max_tokens,
         messages: [
           { role: 'system', content: instructions },
           { role: 'user', content: userPrompt },
@@ -470,41 +450,7 @@ Stay within the word limit if one is given. The review committee values specific
       }
 
       const parsed = JSON.parse(content);
-      const citations = Array.isArray(parsed.citations) ? parsed.citations : [];
-      const normalizedCitations = citations.map((entry: any, idx: number) => {
-        const matchingChunk = retrievedChunks.find((chunk, index) => {
-          if (typeof entry.chunkIndex === 'number') {
-            return chunk.chunkIndex === entry.chunkIndex;
-          }
-          if (typeof entry.marker === 'string') {
-            const match = entry.marker.match(/#(\d+)/);
-            if (match) {
-              const markerIndex = parseInt(match[1], 10) - 1;
-              return index === markerIndex;
-            }
-          }
-          return false;
-        });
-        const fallback = retrievedChunks[idx] ?? retrievedChunks[0];
-        const reference = matchingChunk || fallback;
-        const chunkIndex =
-          typeof entry.chunkIndex === "number"
-            ? entry.chunkIndex
-            : typeof entry.chunk_index === "number"
-              ? entry.chunk_index
-              : reference.chunkIndex;
-        return {
-          documentName:
-            entry.documentName || entry.document_name || reference.documentName,
-          documentId:
-            entry.documentId || entry.document_id || reference.documentId,
-          chunkIndex,
-          quote:
-            (typeof entry.quote === "string" && entry.quote) ||
-            (typeof entry.snippet === "string" && entry.snippet) ||
-            reference.content.slice(0, 160),
-        };
-      });
+      const normalizedCitations = normalizeGroundedCitations(parsed.citations, retrievedChunks);
 
       const rawAssumptions = Array.isArray(parsed.assumptions) ? parsed.assumptions : [];
       const assumptions = rawAssumptions
@@ -513,8 +459,14 @@ Stay within the word limit if one is given. The review committee values specific
         )
         .filter((s: string) => s.length > 0);
 
+      const rawText = parsed.text || parsed.answer || "";
+      const text =
+        (options.answerStructure ?? "prose") === "bulleted"
+          ? rawText.trim()
+          : this.stripMarkdown(rawText);
+
       return {
-        text: this.stripMarkdown(parsed.text || parsed.answer || ''),
+        text,
         citations: normalizedCitations,
         assumptions,
         usage: {
@@ -541,123 +493,6 @@ Stay within the word limit if one is given. The review committee values specific
         assumptions: ['Model output unavailable; provided raw excerpts instead.'],
       };
     }
-  }
-
-  async generateGrantResponse(options: GenerateResponseOptions): Promise<string> {
-    const { question, context, tone, wordLimit, emphasisAreas = [], organizationInfo } = options;
-
-    // Check if we have valid API key
-    if (!hasValidApiKey) {
-      console.log("No valid API key found, using fallback response for development...");
-      return this.generateFallbackResponse(question, 'api_error');
-    }
-
-    // Check if we have minimal context
-    if (!context || context.trim().length < 50) {
-      console.log("Insufficient context provided, suggesting user adds more information");
-      return this.generateFallbackResponse(question, 'insufficient_context');
-    }
-
-    const systemPrompt = `You are an expert grant writer helping create compelling responses to grant applications. 
-
-Use the following tone: ${tone}
-${wordLimit ? `Word limit: ${wordLimit} words` : ''}
-${emphasisAreas.length > 0 ? `Emphasize these areas: ${emphasisAreas.join(', ')}` : ''}
-
-Organization context:
-${context}
-
-${organizationInfo ? `Additional organization details:
-Name: ${organizationInfo.organizationName || 'N/A'}
-Type: ${organizationInfo.organizationType || 'N/A'}
-Mission: ${organizationInfo.mission || 'N/A'}
-Focus Areas: ${organizationInfo.focusAreas?.join(', ') || 'N/A'}` : ''}
-
-Write a professional, compelling response that:
-1. Directly answers the question
-2. Uses specific examples from the organization's context when relevant
-3. Demonstrates impact and outcomes
-4. Aligns with the organization's mission and values
-5. Stays within the word limit if specified
-6. Uses the requested tone and emphasis areas
-
-IMPORTANT: Provide your response as plain text without markdown formatting. Do not use **bold**, *italics*, bullet points (-), or other markdown syntax. Write in clear, professional prose suitable for a formal grant application.`;
-
-    let lastError: Error | null = null;
-    
-    // Retry logic with exponential backoff
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      let timeoutId: NodeJS.Timeout | undefined;
-      try {
-        console.log(`AI generation attempt ${attempt + 1}/${MAX_RETRIES + 1} for question: ${question.substring(0, 100)}...`);
-        
-        const controller = new AbortController();
-        timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUT);
-
-        const aiPromise = openai.chat.completions.create({
-          model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: question }
-          ],
-          max_tokens: Math.min(4000, wordLimit ? Math.ceil(wordLimit * 1.5) : 2000),
-          temperature: 0.7,
-        }, {
-          signal: controller.signal
-        });
-
-        const timeoutPromise = this.createTimeoutPromise(AI_TIMEOUT);
-        
-        const response = await Promise.race([aiPromise, timeoutPromise]);
-        
-        if (timeoutId) clearTimeout(timeoutId);
-        
-        const content = response.choices[0].message.content;
-        if (!content || content.trim().length === 0) {
-          throw new Error("Empty response from AI service");
-        }
-
-        console.log(`AI generation successful on attempt ${attempt + 1}`);
-        return this.stripMarkdown(content);
-
-      } catch (error: any) {
-        if (timeoutId) clearTimeout(timeoutId);
-        lastError = error;
-        
-        console.error(`AI generation attempt ${attempt + 1} failed:`, error.message || error);
-
-        // Handle specific error types
-        if (error.message === 'REQUEST_TIMEOUT' || error.name === 'AbortError') {
-          console.log(`Request timed out after ${AI_TIMEOUT}ms on attempt ${attempt + 1}`);
-          
-          if (attempt === MAX_RETRIES) {
-            console.log('Maximum retries reached, returning timeout fallback response');
-            return this.generateFallbackResponse(question, 'timeout');
-          }
-        } else if (error.code === 'insufficient_quota' || error.code === 'rate_limit_exceeded') {
-          console.log('API quota/rate limit error, returning fallback response');
-          return this.generateFallbackResponse(question, 'api_error');
-        } else if (error.code === 'invalid_api_key' || error.status === 401) {
-          console.log('API authentication error, returning fallback response');
-          return this.generateFallbackResponse(question, 'api_error');
-        } else if (attempt === MAX_RETRIES) {
-          // On final attempt, return fallback for any other error
-          console.log('Maximum retries reached, returning API error fallback response');
-          return this.generateFallbackResponse(question, 'api_error');
-        }
-
-        // Wait before retrying (exponential backoff)
-        if (attempt < MAX_RETRIES) {
-          const delay = RETRY_DELAY * Math.pow(2, attempt);
-          console.log(`Waiting ${delay}ms before retry...`);
-          await this.sleep(delay);
-        }
-      }
-    }
-
-    // This shouldn't be reached, but just in case
-    console.error("Unexpected error in generateGrantResponse retry loop");
-    return this.generateFallbackResponse(question, 'api_error');
   }
 
   async summarizeDocument(content: string, filename: string): Promise<string> {

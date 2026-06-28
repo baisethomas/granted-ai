@@ -9,16 +9,16 @@ interface HeroSectionProps {
 export function HeroSection({ onClickSeeHow, onNavigateToAuth }: HeroSectionProps) {
   const highlights = [
     {
+      title: "Cited to your documents",
+      description: "Every claim traces back to a source you uploaded, so review means checking, not rewriting.",
+    },
+    {
+      title: "Honest gaps, not filler",
+      description: "When your materials can't answer a funder's question, Granted flags it for your input instead of inventing something plausible.",
+    },
+    {
       title: "Reusable memory",
-      description: "Stop rebuilding the same organization context for every application.",
-    },
-    {
-      title: "Funder alignment",
-      description: "Draft against the questions, priorities, and language in each opportunity.",
-    },
-    {
-      title: "Review-ready output",
-      description: "Keep versions organized before exporting a polished draft.",
+      description: "Build your organization context once and use it across every application.",
     },
   ];
 
@@ -31,12 +31,13 @@ export function HeroSection({ onClickSeeHow, onNavigateToAuth }: HeroSectionProp
           </div>
           <h1 className="mt-4 text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
             <span className="bg-gradient-to-r from-[var(--brand-a)] via-[var(--brand-b)] to-[var(--brand-c)] bg-clip-text text-transparent">
-              Turn your organization's story into stronger grant drafts
+              Grant drafts you can defend
             </span>
           </h1>
           <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">
-            Upload past proposals, budgets, impact reports, and program materials. Granted uses that
-            context to draft funder-aligned responses your team can review, revise, and export.
+            Upload past proposals, budgets, and impact reports. Granted drafts funder-aligned
+            answers with every claim cited to your own documents — and flags what it can't
+            support instead of making it up.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button onClick={onNavigateToAuth}>

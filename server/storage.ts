@@ -210,6 +210,8 @@ export interface IStorage {
   deleteDraftCitations(draftId: string): Promise<void>;
   createAssumptionLabel(label: InsertAssumptionLabel): Promise<AssumptionLabel>;
   getAssumptionLabels(projectId: string, draftId?: string): Promise<AssumptionLabel[]>;
+  getAssumptionLabel(id: string): Promise<AssumptionLabel | undefined>;
+  setAssumptionLabelResolved(id: string, resolved: boolean, resolvedBy: string): Promise<AssumptionLabel | undefined>;
   deleteAssumptionLabels(projectId: string, draftId?: string): Promise<void>;
   getProcessingJobs(options: {
     jobType: string;
@@ -893,6 +895,28 @@ export class MemStorage implements IStorage {
     return draftId ? entries.filter((assumption) => assumption.draftId === draftId) : entries;
   }
 
+  async getAssumptionLabel(id: string): Promise<AssumptionLabel | undefined> {
+    for (const entries of this.assumptionLabels.values()) {
+      const match = entries.find((assumption) => assumption.id === id);
+      if (match) return match;
+    }
+    return undefined;
+  }
+
+  async setAssumptionLabelResolved(
+    id: string,
+    resolved: boolean,
+    resolvedBy: string
+  ): Promise<AssumptionLabel | undefined> {
+    const match = await this.getAssumptionLabel(id);
+    if (!match) return undefined;
+    match.resolved = resolved;
+    match.resolvedBy = resolved ? resolvedBy : null;
+    match.resolvedAt = resolved ? new Date() : null;
+    match.updatedAt = new Date();
+    return match;
+  }
+
   async deleteAssumptionLabels(projectId: string, draftId?: string): Promise<void> {
     if (!draftId) {
       this.assumptionLabels.delete(projectId);
@@ -1076,10 +1100,11 @@ export class MemStorage implements IStorage {
       defaultTone: settings.defaultTone || null,
       lengthPreference: settings.lengthPreference || null,
       emphasisAreas: settings.emphasisAreas || null,
-      aiModel: settings.aiModel || null,
-      fallbackModel: settings.fallbackModel || null,
       creativity: settings.creativity || null,
       contextUsage: settings.contextUsage || null,
+      audience: settings.audience ?? null,
+      answerStructure: settings.answerStructure ?? null,
+      claimConfidence: settings.claimConfidence ?? null,
       emailNotifications: settings.emailNotifications || null,
       autoSave: settings.autoSave || null,
       analytics: settings.analytics || null,
@@ -1870,6 +1895,34 @@ export class DbStorage implements IStorage {
       .from(schema.assumptionLabels)
       .where(condition);
     return rows || [];
+  }
+
+  async getAssumptionLabel(id: string): Promise<AssumptionLabel | undefined> {
+    if (!db) return undefined;
+    const rows = await db
+      .select()
+      .from(schema.assumptionLabels)
+      .where(eq(schema.assumptionLabels.id, id));
+    return rows?.[0];
+  }
+
+  async setAssumptionLabelResolved(
+    id: string,
+    resolved: boolean,
+    resolvedBy: string
+  ): Promise<AssumptionLabel | undefined> {
+    if (!db) return undefined;
+    const rows = await db
+      .update(schema.assumptionLabels)
+      .set({
+        resolved,
+        resolvedBy: resolved ? resolvedBy : null,
+        resolvedAt: resolved ? new Date() : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.assumptionLabels.id, id))
+      .returning();
+    return rows?.[0];
   }
 
   async deleteAssumptionLabels(projectId: string, draftId?: string): Promise<void> {

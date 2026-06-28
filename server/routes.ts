@@ -11,7 +11,13 @@ import {
   estimateTokensFromText,
   type LimitDenial,
 } from "./services/billing.js";
-import { createProCheckoutSession, handleStripeWebhook } from "./services/stripeBilling.js";
+import {
+  createBillingPortalSession,
+  createProCheckoutSession,
+  ensureStripeCustomerForOrganization,
+  ensureStripeCustomerForWorkspaceUser,
+  handleStripeWebhook,
+} from "./services/stripeBilling.js";
 import multer from "multer";
 import path from "node:path";
 import crypto from "crypto";
@@ -107,22 +113,60 @@ async function getDefaultOrganizationId(userId: string): Promise<string> {
   return organization.id;
 }
 
+function clampInt(n: number, min: number, max: number): number {
+  return Math.min(Math.max(Math.round(n), min), max);
+}
+
+function computeMaxOutputTokens(wordLimit?: number | null, lengthPreference?: string | null): number {
+  if (wordLimit) {
+    return Math.min(Math.max(wordLimit, 1) * 3, 2500);
+  }
+  switch (lengthPreference) {
+    case "concise":
+      return 900;
+    case "comprehensive":
+      return 2400;
+    default:
+      return 1500;
+  }
+}
+
+function retrievalLimitsFromContextUsage(contextUsage: number | undefined | null): {
+  limit: number;
+  semanticLimit: number;
+  keywordLimit: number;
+} {
+  const ctx = typeof contextUsage === "number" && Number.isFinite(contextUsage) ? contextUsage : 80;
+  const t = Math.min(Math.max(ctx, 0), 100) / 100;
+  const scale = 0.55 + t * 0.65;
+  const limit = clampInt(8 * scale, 4, 14);
+  const semanticLimit = limit;
+  const keywordLimit = clampInt(4 * scale, 2, 8);
+  return { limit, semanticLimit, keywordLimit };
+}
+
+function estimateContextCharsForBilling(contextUsage: number | undefined | null): number {
+  const { limit } = retrievalLimitsFromContextUsage(contextUsage);
+  return Math.round(2500 * limit);
+}
+
 function estimateGenerationTokens(input: {
   question: string;
   tone: string;
   wordLimit?: number | null;
   emphasisAreas?: string[];
+  contextUsage?: number | null;
+  lengthPreference?: string | null;
 }) {
-  const maxTokens = input.wordLimit ? Math.min(input.wordLimit * 3, 1500) : 1500;
+  const maxTokens = computeMaxOutputTokens(input.wordLimit, input.lengthPreference);
+  const contextChars = estimateContextCharsForBilling(input.contextUsage);
   const estimatedPrompt = [
     input.question,
     input.tone,
     input.wordLimit ? String(input.wordLimit) : "",
     input.emphasisAreas?.join(", ") ?? "",
-    // Matches the retrieval route cap: eight context chunks plus system
-    // instructions. This intentionally errs high so we block before the
-    // expensive generation call if an account is close to the cap.
-    "x".repeat(12_000),
+    input.lengthPreference ?? "",
+    "x".repeat(contextChars),
   ].join("\n");
   return estimateTokensFromText(estimatedPrompt) + maxTokens;
 }
@@ -465,6 +509,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/billing/portal", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const organizationId = req.body?.organizationId || (await getDefaultOrganizationId(userId));
+      if (!(await storage.userHasOrganizationAccess(userId, organizationId))) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
+
+      const summary = await billingService.getUsageSummary(userId, organizationId);
+      if (!summary.stripeCustomerId) {
+        return res.status(400).json({
+          error: "no_stripe_customer",
+          message: "Subscribe to Pro to manage payment methods and invoices in Stripe.",
+        });
+      }
+
+      const portal = await createBillingPortalSession({
+        stripeCustomerId: summary.stripeCustomerId,
+        origin: req.get("origin"),
+      });
+      res.json(portal);
+    } catch (error: any) {
+      const message = typeof error?.message === "string" ? error.message : "";
+      if (message === "Stripe is not configured") {
+        return res.status(503).json({
+          error: "stripe_unavailable",
+          message: "Billing portal is not available because Stripe is not configured on this server.",
+        });
+      }
+      console.error("Failed to create billing portal session:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to open billing portal" }, error));
+    }
+  });
+
   app.post("/api/billing/webhook", async (req: Request, res) => {
     try {
       const rawBody = Buffer.isBuffer(req.body)
@@ -496,6 +574,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/organizations", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = getUserId(req);
+      try {
+        const meta = req.supabaseUser?.user_metadata as Record<string, unknown> | undefined;
+        const fullName =
+          (typeof meta?.full_name === "string" && meta.full_name) ||
+          (typeof meta?.name === "string" && meta.name) ||
+          null;
+        await ensureStripeCustomerForWorkspaceUser({
+          userId,
+          email: req.supabaseUser?.email,
+          fullName,
+        });
+      } catch (provisionError) {
+        console.error("Stripe sign-up provisioning failed:", provisionError);
+      }
       const organizations = await storage.getOrganizationsForUser(userId);
       res.json(organizations);
     } catch (error) {
@@ -513,6 +605,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await billingService.ensureSubscription(userId, organization.name, organization.id);
       } catch (billingError) {
         console.error("Created organization but failed to ensure subscription:", billingError);
+      }
+      try {
+        await ensureStripeCustomerForOrganization({
+          organizationId: organization.id,
+          email: req.supabaseUser?.email ?? null,
+          organizationName: organization.name,
+          userId,
+        });
+      } catch (stripeError) {
+        console.error("Created organization but failed to provision Stripe customer:", stripeError);
       }
       res.status(201).json(organization);
     } catch (error: any) {
@@ -1324,12 +1426,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!(await storage.userHasOrganizationAccess(userId, project.organizationId))) {
         return res.status(403).json({ error: "Forbidden" });
       }
-      const { tone = "professional", emphasisAreas = [] } = req.body;
+
+      const savedSettings = await storage.getUserSettings(userId);
+      const bodyTone = typeof req.body?.tone === "string" ? req.body.tone : undefined;
+      const bodyEmphasis = Array.isArray(req.body?.emphasisAreas) ? req.body.emphasisAreas : undefined;
+      const tone = bodyTone ?? savedSettings?.defaultTone ?? "professional";
+      const emphasisAreas =
+        bodyEmphasis && bodyEmphasis.length > 0
+          ? bodyEmphasis.filter((a: unknown) => typeof a === "string")
+          : savedSettings?.emphasisAreas ?? [];
+      const lengthPreference = savedSettings?.lengthPreference ?? "balanced";
+      const creativity = savedSettings?.creativity ?? 30;
+      const contextUsage = savedSettings?.contextUsage ?? 80;
+      const audience = savedSettings?.audience ?? "program_officer";
+      const answerStructure = savedSettings?.answerStructure ?? "prose";
+      const claimConfidence = savedSettings?.claimConfidence ?? "balanced";
+
+      const retrievalLimits = retrievalLimitsFromContextUsage(contextUsage);
+
       const estimatedTokens = estimateGenerationTokens({
         question: question.question,
         tone,
         wordLimit: question.wordLimit,
         emphasisAreas,
+        contextUsage,
+        lengthPreference,
       });
       const limitCheck = await billingService.checkLimit(userId, "ai_tokens", estimatedTokens, project.organizationId);
       if (!limitCheck.allowed) {
@@ -1369,9 +1490,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           organizationId: project.organizationId,
           projectId: project.id,
           query: question.question,
-          limit: 8,
-          semanticLimit: 8,
-          keywordLimit: 4,
+          limit: retrievalLimits.limit,
+          semanticLimit: retrievalLimits.semanticLimit,
+          keywordLimit: retrievalLimits.keywordLimit,
         });
       } catch (retrievalErr) {
         console.warn(`[generate] retrieveRelevantChunks failed, continuing without context:`, retrievalErr);
@@ -1404,6 +1525,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           tone,
           wordLimit: question.wordLimit || undefined,
           emphasisAreas,
+          lengthPreference,
+          creativity,
+          audience,
+          answerStructure,
+          claimConfidence,
           organizationInfo: {
             organizationName: organization?.name ?? user?.organizationName ?? null,
             organizationType: organization?.organizationType ?? user?.organizationType ?? null,
@@ -1743,10 +1869,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           defaultTone: "professional",
           lengthPreference: "balanced",
           emphasisAreas: ["Impact & Outcomes", "Innovation", "Sustainability", "Community Engagement"],
-          aiModel: "gpt-4o",
-          fallbackModel: "gpt-3.5-turbo",
           creativity: 30,
           contextUsage: 80,
+          audience: "program_officer",
+          answerStructure: "prose",
+          claimConfidence: "balanced",
           emailNotifications: true,
           autoSave: true,
           analytics: true,
@@ -1825,6 +1952,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!access.ok) return access;
     return { ok: true as const, metric, userId: access.userId };
   }
+
+  // ----- Assumption labels ("Needs your input" gaps) -----
+  app.patch("/api/assumptions/:id", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const label = await storage.getAssumptionLabel(req.params.id);
+      if (!label) {
+        return res.status(404).json({ error: "Assumption not found" });
+      }
+      const access = await assertProjectAccess(req, label.projectId);
+      if (!access.ok) {
+        return res.status(access.status).json({ error: access.error });
+      }
+      const resolved = req.body?.resolved;
+      if (typeof resolved !== "boolean") {
+        return res.status(400).json({ error: "Body must include { resolved: boolean }" });
+      }
+      const updated = await storage.setAssumptionLabelResolved(label.id, resolved, access.userId);
+      res.json(updated);
+    } catch (error) {
+      console.error("Failed to update assumption:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to update assumption" }, error));
+    }
+  });
+
+  // ----- Export events -----
+  // Exports happen client-side; this endpoint records them so
+  // "drafts exported per active user" can be measured.
+  app.post("/api/projects/:projectId/export-events", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const access = await assertProjectAccess(req, req.params.projectId);
+      if (!access.ok) {
+        return res.status(access.status).json({ error: access.error });
+      }
+      const format = typeof req.body?.format === "string" ? req.body.format : "unknown";
+      const questionCount =
+        typeof req.body?.questionCount === "number" ? req.body.questionCount : undefined;
+      const unresolvedGapCount =
+        typeof req.body?.unresolvedGapCount === "number" ? req.body.unresolvedGapCount : undefined;
+      await billingService.recordUsage({
+        organizationId: access.project.organizationId,
+        userId: access.userId,
+        projectId: access.project.id,
+        type: "export",
+        provider: "internal",
+        metadata: { format, questionCount, unresolvedGapCount },
+      });
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("Failed to record export event:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Failed to record export event" }, error));
+    }
+  });
 
   function formatReportMetricValue(
     value: string | null | undefined,
