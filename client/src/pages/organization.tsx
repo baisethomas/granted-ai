@@ -248,9 +248,9 @@ export default function Organization() {
   const renderReviewActions = (suggestion: OrganizationProfileSuggestion) => (
     <>
       {suggestion.status !== "accepted" && (
-        <button
+        <Button
           type="button"
-          className="inline-flex h-9 min-w-24 items-center justify-center gap-2 rounded-md border border-indigo-600 bg-indigo-600 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:pointer-events-none disabled:opacity-50"
+          size="sm"
           disabled={reviewProfileSuggestionMutation.isPending}
           data-testid={`button-accept-suggestion-${suggestion.id}`}
           onClick={() =>
@@ -262,7 +262,7 @@ export default function Organization() {
         >
           <Check className="mr-1 h-3 w-3" />
           Accept
-        </button>
+        </Button>
       )}
       {suggestion.status === "pending" ? (
         <Button
@@ -329,7 +329,7 @@ export default function Organization() {
       <Card className="border border-slate-200 shadow-sm">
         <CardHeader className="p-4 border-b border-slate-200 md:p-6">
           <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <Building2 className="h-5 w-5 text-indigo-600" />
+            <Building2 className="h-5 w-5 text-primary" />
             Organization Profile
           </CardTitle>
           <p className="text-sm text-slate-600">
@@ -524,7 +524,7 @@ export default function Organization() {
                     variant="ghost"
                     size="sm"
                     onClick={() => removeFocusArea(area)}
-                    className="ml-1 h-auto p-0 text-primary-600 hover:text-primary-800"
+                    className="ml-1 h-auto p-0 text-primary hover:text-[#1559C9]"
                     aria-label={`Remove ${area}`}
                   >
                     <X className="h-3 w-3" />

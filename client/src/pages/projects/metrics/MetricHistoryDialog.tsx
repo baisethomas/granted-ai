@@ -97,7 +97,7 @@ export function MetricHistoryDialog({
                     href={event.evidenceUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="mt-2 inline-block text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                    className="mt-2 inline-block text-xs font-medium text-primary hover:text-[#1559C9]"
                   >
                     View evidence
                   </a>

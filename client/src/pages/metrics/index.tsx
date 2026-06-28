@@ -70,7 +70,7 @@ export default function PortfolioMetricsPage({ onOpenProject }: PortfolioMetrics
     <div className="space-y-5 md:space-y-6">
       <div>
         <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2 md:text-2xl">
-          <BarChart3 className="h-5 w-5 text-indigo-600" />
+          <BarChart3 className="h-5 w-5 text-primary" />
           Portfolio metrics
         </h2>
         <p className="text-slate-600 mt-1">

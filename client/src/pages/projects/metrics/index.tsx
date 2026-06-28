@@ -233,7 +233,7 @@ export function MetricsTab({ projectId }: MetricsTabProps) {
       {suggestedMetrics.length > 0 && (
         <section>
           <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="h-4 w-4 text-indigo-600" />
+            <Sparkles className="h-4 w-4 text-primary" />
             <h4 className="text-sm font-semibold text-slate-900">
               Suggested from your documents
             </h4>

@@ -107,7 +107,7 @@ export function ExtractFromFileDialog({
       <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-indigo-600" />
+            <Sparkles className="h-4 w-4 text-primary" />
             Extract metrics from grant application
           </DialogTitle>
           <DialogDescription>
@@ -118,8 +118,8 @@ export function ExtractFromFileDialog({
 
         {!suggestions && (
           <div className="py-6 border-2 border-dashed border-slate-200 rounded-lg flex flex-col items-center justify-center gap-3">
-            <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center">
-              <Upload className="h-5 w-5 text-indigo-600" />
+            <div className="w-12 h-12 bg-[#EAF2FE] rounded-full flex items-center justify-center">
+              <Upload className="h-5 w-5 text-primary" />
             </div>
             <p className="text-sm text-slate-600 text-center px-4">
               {extracting
@@ -156,7 +156,7 @@ export function ExtractFromFileDialog({
                 <label
                   key={s.key}
                   className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition ${
-                    isChecked ? "border-indigo-300 bg-indigo-50/40" : "border-slate-200"
+                    isChecked ? "border-primary/30 bg-[#EAF2FE]/40" : "border-slate-200"
                   }`}
                 >
                   <Checkbox

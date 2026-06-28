@@ -9,10 +9,10 @@
   --card-foreground: hsl(210 25% 7.8431%);
   --popover: hsl(0 0% 100%);
   --popover-foreground: hsl(210 25% 7.8431%);
-  /* Brand palette tuned to hero image (blue → cyan → amber) */
-  --brand-a: #1e90ff; /* blue */
+  /* Brand palette — primary azure matches Granted Design System (#2186EB) */
+  --brand-a: #2186eb;
   --brand-b: #22d3ee; /* cyan */
-  --brand-c: #f59e0b; /* amber */
+  --brand-c: #f2b134; /* amber */
 
   --primary: var(--brand-a);
   --primary-foreground: hsl(0 0% 100%);
@@ -24,8 +24,8 @@
   --accent-foreground: var(--brand-c);
   --destructive: hsl(356.3033 90.5579% 54.3137%);
   --destructive-foreground: hsl(0 0% 100%);
-  --border: hsl(201.4286 30.4348% 90.9804%);
-  --input: hsl(200 23.0769% 97.4510%);
+  --border: #e6e9ef;
+  --input: #e6e9ef;
   --ring: var(--brand-a);
   --chart-1: hsl(203.8863 88.2845% 53.1373%);
   --chart-2: hsl(159.7826 100% 36.0784%);

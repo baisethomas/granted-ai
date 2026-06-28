@@ -91,7 +91,6 @@ export function FileUpload({ onUpload, accept = ".pdf,.doc,.docx,.txt", multiple
         <Button 
           asChild
           disabled={isUploading}
-          className="bg-primary-600 hover:bg-primary-700"
         >
           <label htmlFor="file-upload" className="cursor-pointer">
             {isUploading ? "Uploading..." : "Choose Files"}
