@@ -46,7 +46,7 @@ export function MainHeader({
             <Button
               onClick={onNewProject}
               size="sm"
-              className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center"
+              className="flex items-center"
             >
               <Plus className="h-4 w-4 md:mr-2" />
               <span className="hidden md:inline">New Project</span>
@@ -57,7 +57,7 @@ export function MainHeader({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="flex items-center justify-center w-9 h-9 rounded-full bg-indigo-100 text-indigo-600 text-sm font-semibold hover:bg-indigo-200 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                className="flex items-center justify-center w-9 h-9 rounded-full bg-[#EAF2FE] text-primary text-sm font-semibold hover:bg-[#CDE4FE] transition-colors focus:outline-none focus:ring-[3px] focus:ring-primary/15 focus:ring-offset-0"
                 aria-label="Open account menu"
                 data-testid="button-account-menu"
               >

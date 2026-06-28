@@ -309,7 +309,7 @@ export default function ExportDemo() {
             <Button
               onClick={handleExportPDF}
               disabled={!validation.valid || exportingPDF}
-              className="h-16 flex-col space-y-2 bg-primary-600 hover:bg-primary-700"
+              className="h-16 flex-col space-y-2"
             >
               {exportingPDF ? (
                 <Loader2 className="h-5 w-5 animate-spin" />

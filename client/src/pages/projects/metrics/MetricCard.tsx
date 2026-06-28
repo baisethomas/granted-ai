@@ -60,7 +60,7 @@ export function MetricCard({
   const updatedAtLabel = formatUpdatedAt(metric.updatedAt);
 
   return (
-    <Card className={`h-full ${isSuggested ? "border-dashed border-indigo-300 bg-indigo-50/40" : ""}`}>
+    <Card className={`h-full ${isSuggested ? "border-dashed border-primary/30 bg-[#EAF2FE]/40" : ""}`}>
       <CardContent className="p-4 flex flex-col gap-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -72,7 +72,7 @@ export function MetricCard({
                 </Badge>
               )}
               {isSuggested && (
-                <Badge variant="outline" className="text-indigo-700 border-indigo-300">
+                <Badge variant="outline" className="text-primary border-primary/30">
                   Suggested
                 </Badge>
               )}
@@ -128,7 +128,7 @@ export function MetricCard({
           <div>
             <div className="h-1.5 w-full rounded-full bg-slate-100">
               <div
-                className="h-full rounded-full bg-indigo-500 transition-all"
+                className="h-full rounded-full bg-primary transition-all"
                 style={{ width: `${pct}%` }}
               />
             </div>

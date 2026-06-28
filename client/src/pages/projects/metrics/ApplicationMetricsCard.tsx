@@ -43,7 +43,7 @@ export function ApplicationMetricsCard({ data }: ApplicationMetricsCardProps) {
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4 text-indigo-600" />
+          <CheckCircle2 className="h-4 w-4 text-primary" />
           Application progress
         </CardTitle>
       </CardHeader>
@@ -55,7 +55,7 @@ export function ApplicationMetricsCard({ data }: ApplicationMetricsCardProps) {
           </div>
           <div className="h-2 w-full rounded-full bg-slate-100 mt-1.5">
             <div
-              className="h-full rounded-full bg-indigo-500 transition-all"
+              className="h-full rounded-full bg-primary transition-all"
               style={{ width: `${data.completionPct}%` }}
             />
           </div>

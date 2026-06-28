@@ -112,7 +112,7 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
               </p>
             </div>
             <Button 
-              className="w-full bg-primary-600 hover:bg-primary-700 sm:w-auto"
+              className="w-full sm:w-auto"
               onClick={() => {
                 setIsNewProjectDialogOpen(true);
               }}
@@ -170,7 +170,7 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
               </div>
               <h3 className="text-lg font-medium text-slate-900 mb-2">No projects yet</h3>
               <p className="text-slate-600 mb-4">Create your first grant application to get started.</p>
-              <Button className="bg-primary-600 hover:bg-primary-700" onClick={() => setIsNewProjectDialogOpen(true)}>
+              <Button onClick={() => setIsNewProjectDialogOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Create Project
               </Button>

@@ -845,7 +845,7 @@ export default function Drafts() {
               <div className="flex flex-col gap-2 mb-8 sm:flex-row sm:items-center sm:gap-4">
                 <div className="flex-1 bg-slate-200 rounded-full h-2">
                   <div 
-                    className="bg-primary-600 h-2 rounded-full transition-all duration-300" 
+                    className="bg-primary h-2 rounded-full transition-all duration-300" 
                     style={{ width: `${progressPercentage}%` }}
                   ></div>
                 </div>
@@ -1149,7 +1149,7 @@ export default function Drafts() {
                       ) : normalizedQuestion.responseStatus === "generating" ? (
                         <div className="flex items-center justify-center py-12">
                           <div className="text-center">
-                            <div className="animate-spin w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                            <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
                             <p className="text-slate-600">AI is generating your response...</p>
                             <p className="text-sm text-slate-500 mt-2">Using uploaded documents and organization data</p>
                           </div>
@@ -1159,7 +1159,7 @@ export default function Drafts() {
                           <div className="text-center">
                             {generatingQuestionId === normalizedQuestion.id ? (
                               <>
-                                <div className="animate-spin w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                                <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
                                 <p className="text-slate-600">AI is generating your response...</p>
                                 <p className="text-sm text-slate-500 mt-2">This may take up to 60 seconds</p>
                               </>
@@ -1248,7 +1248,7 @@ export default function Drafts() {
                         onClick={handleExportPDF} 
                         className={selectedProjectData.status === 'final' 
                           ? "bg-purple-600 hover:bg-purple-700" 
-                          : "bg-primary-600 hover:bg-primary-700"
+                          : undefined
                         }
                         disabled={hasUnsavedChanges || exportingPDF}
                       >
@@ -1295,7 +1295,7 @@ export default function Drafts() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                      <span className="text-primary-600 font-medium text-sm">v1</span>
+                      <span className="text-primary font-medium text-sm">v1</span>
                     </div>
                     <div>
                       <p className="font-medium text-slate-900">Current Version</p>

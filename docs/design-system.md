@@ -1,30 +1,79 @@
 # Granted Design System
 
-Practical reference for UI work in the client app. Source spec: **Granted Design System** (Figma export). Upload flows on `feat/design-system-upload-forms` (PR #4) were the first components aligned to this spec.
+Practical reference for UI work in the client app. Source spec: **Granted Design System** (Figma export).
 
 ## Color tokens
 
-Use these hex values for new Granted-branded UI. Prefer Tailwind arbitrary values (e.g. `text-[#2186EB]`) until tokens are centralized in CSS variables.
+Use these hex values for reference. Prefer Tailwind semantic classes that consume CSS variables (e.g. `text-primary`, `bg-primary`, `border-border`) so color updates stay in one place. Use arbitrary hex values only when a token is not yet mapped to a CSS variable.
 
 | Token | Hex | Usage |
 |-------|-----|--------|
-| Primary blue | `#2186EB` | Links, active states, icons, drag highlight border |
-| Blue tint | `#EAF2FE` | Icon backgrounds, drop zone drag state |
-| Text primary | `#0C1B33` | Headings, drop zone title |
+| Primary blue | `#2186EB` | Primary buttons, links, active states, focus rings, drag highlight |
+| Primary hover | `#1559C9` | Primary button hover |
+| Blue tint | `#EAF2FE` | Ghost button hover, icon backgrounds, drop zone drag state |
+| Text primary | `#0C1B33` | Headings, button labels, input text, drop zone title |
 | Text secondary | `#56627A` | Body copy, descriptions |
-| Text muted | `#8A94A6` | Hints, file-type labels |
-| Border default | `#E6E9EF` | Cards, dividers |
-| Border dashed | `#C7CFDD` | File upload drop zone (default) |
-| Surface subtle | `#FBFBFD` | File upload drop zone background |
+| Text muted | `#8A94A6` | Hints, placeholders, file-type labels |
+| Label text | `#2E3A4F` | Form field labels |
+| Border default | `#E6E9EF` | Inputs, cards, outline buttons, dividers |
+| Border strong | `#C7CFDD` | Outline button hover, dashed upload zones |
+| Surface subtle | `#FBFBFD` | Outline button hover background, drop zone background |
+| Disabled fill | `#EEF1F6` | Disabled buttons |
+| Disabled text | `#AEB6C4` | Disabled button text |
 | Success green | `#1B8E3E` | Success states |
 | Accent amber | `#F2B134` | Highlights, badges |
 
-Existing shadcn/Radix theme variables in `client/src/index.css` (`--primary`, `--border`, etc.) still power most of the app. New upload-related UI should follow the tokens above for consistency with the design system.
+CSS variables in `client/src/index.css` (`--primary`, `--border`, `--ring`) are tuned to `#2186EB` and `#E6E9EF`. Shared shadcn primitives in `client/src/components/ui/` consume these tokens.
 
 ## Typography
 
 - **UI text**: Open Sans — set via `--font-sans` in `client/src/index.css` and applied to `body`.
 - **Hints / code**: JetBrains Mono in the design spec. The app uses `font-mono` (currently Menlo via `--font-mono`); use `font-mono text-[11px]` for file-type hints to match the File Upload pattern.
+
+## Buttons
+
+Shared component: `client/src/components/ui/button.tsx`
+
+Pill buttons with ≥44px hit area. Use variants instead of one-off color classes.
+
+| Variant | When to use | Key styles |
+|---------|-------------|------------|
+| `default` | Primary actions (Save, Submit, Generate) | Fill `#2186EB`, pill radius, soft shadow |
+| `outline` | Secondary actions (Cancel, Save draft) | `#E6E9EF` border, hover `#FBFBFD` |
+| `ghost` | Tertiary / inline actions | Text `#2186EB`, hover `#EAF2FE` |
+| `destructive` | Irreversible deletes | Existing destructive token |
+| `link` | Inline text actions | Underlined primary text |
+
+Sizes: `default` (13px/22px padding), `sm`, `lg`, `icon`. Compact overrides (`h-auto`, `h-8`, `h-7`) work via fixed `h-*` size variants.
+
+**Do not** override with `bg-primary-600`, `bg-indigo-600`, or `bg-blue-600` — use `<Button>` variants.
+
+### Dialog / form action rows
+
+Use `DialogFooter` with outline for cancel/dismiss and default for the primary action:
+
+```tsx
+<DialogFooter>
+  <Button variant="outline" onClick={onClose}>Cancel</Button>
+  <Button onClick={onSave} disabled={saving}>Save</Button>
+</DialogFooter>
+```
+
+For full-width mobile stacks, add `className="w-full sm:w-auto"` on individual buttons rather than custom colors.
+
+## Form fields
+
+Shared primitives: `Input`, `Textarea`, `Select`, `Label`, `Checkbox` in `client/src/components/ui/`.
+
+| Element | Style |
+|---------|--------|
+| Label | 13px semibold `#2E3A4F` |
+| Input / textarea / select | 15px text, `#E6E9EF` border (1.5px), 11px radius, min-height 44px |
+| Placeholder | `#8A94A6` |
+| Focus | Border `#2186EB`, ring `3px rgba(33,134,235,.15)` |
+| Checkbox | 22×22px, 7px radius, checked fill `#2186EB` |
+
+Use `<Label htmlFor="…">` with matching `id` on the control. Prefer `FormField` / `FormItem` from `form.tsx` for react-hook-form screens.
 
 ## File Upload
 

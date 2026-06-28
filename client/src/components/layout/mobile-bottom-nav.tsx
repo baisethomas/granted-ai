@@ -25,7 +25,7 @@ export function MobileBottomNav({ activeTab, onTabChange }: MobileBottomNavProps
               type="button"
               onClick={() => onTabChange(item.id)}
               className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 text-[11px] font-medium transition-colors ${
-                isActive ? "text-indigo-600" : "text-slate-500 hover:text-slate-900"
+                isActive ? "text-primary" : "text-slate-500 hover:text-slate-900"
               }`}
               aria-current={isActive ? "page" : undefined}
             >

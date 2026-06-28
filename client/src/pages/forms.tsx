@@ -611,7 +611,7 @@ export default function Forms() {
             <Card className="border-2 border-primary-200 bg-primary-50">
               <CardContent className="p-4 md:p-6">
                 <div className="flex items-center space-x-3 mb-4">
-                  <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
+                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                     <Keyboard className="text-white h-4 w-4" />
                   </div>
                   <h3 className="text-lg font-semibold text-slate-900">Manual Input</h3>
@@ -620,7 +620,7 @@ export default function Forms() {
                   Copy and paste questions from grant applications or enter them manually.
                 </p>
                 <Button 
-                  className="bg-primary-600 hover:bg-primary-700 w-full"
+                  className="w-full"
                   onClick={() => {
                     document.getElementById('questions-section')?.scrollIntoView({ behavior: 'smooth' });
                     addQuestion();
@@ -822,7 +822,7 @@ export default function Forms() {
                           variant="ghost"
                           size="sm"
                           onClick={() => removeFocusArea(area)}
-                          className="ml-1 p-0 h-auto text-primary-600 hover:text-primary-800"
+                          className="ml-1 p-0 h-auto text-primary hover:text-[#1559C9]"
                         >
                           <X className="h-3 w-3" />
                         </Button>
@@ -859,7 +859,7 @@ export default function Forms() {
             <Button 
               onClick={handleGenerateResponses}
               disabled={generateResponsesMutation.isPending || saveProjectMutation.isPending}
-              className="w-full bg-primary-600 hover:bg-primary-700 sm:w-auto"
+              className="w-full sm:w-auto"
             >
               <Wand2 className="mr-2 h-4 w-4" />
               {generateResponsesMutation.isPending ? "Generating..." : "Generate Responses"}
@@ -901,7 +901,6 @@ export default function Forms() {
                   <Button
                     onClick={proceedWithGeneration}
                     disabled={generateResponsesMutation.isPending}
-                    className="bg-blue-600 hover:bg-blue-700"
                   >
                     {generateResponsesMutation.isPending ? (
                       <>
@@ -936,7 +935,7 @@ export default function Forms() {
             {isProcessingFile ? (
               <div className="flex items-center justify-center p-8">
                 <div className="flex items-center space-x-3">
-                  <Loader2 className="h-5 w-5 animate-spin text-primary-600" />
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
                   <span className="text-slate-600">Processing document...</span>
                 </div>
               </div>

@@ -29,7 +29,7 @@ export function Navigation({ activeTab, onTabChange }: NavigationProps) {
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <div className="flex items-center space-x-8">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
               <Edit className="text-white text-sm" />
             </div>
             <h1 className="text-xl font-bold text-slate-900">Granted</h1>
@@ -46,7 +46,7 @@ export function Navigation({ activeTab, onTabChange }: NavigationProps) {
                   onClick={() => onTabChange(item.id)}
                   className={`px-3 py-2 text-sm font-medium transition-colors ${
                     isActive
-                      ? "text-primary-600 bg-primary-50"
+                      ? "text-primary bg-[#EAF2FE]"
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                   }`}
                 >
