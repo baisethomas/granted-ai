@@ -64,8 +64,6 @@ export function FileUpload({
             description: error instanceof Error ? error.message : "Failed to upload file",
             variant: "destructive",
           });
-        } else {
-          throw error;
         }
       } finally {
         setIsUploading(false);
@@ -84,6 +82,7 @@ export function FileUpload({
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
     setIsDragging(false);
   }, []);
 
