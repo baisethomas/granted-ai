@@ -79,7 +79,7 @@ This is a **Vite + React + Express** application for AI-powered grant writing as
 
 - Radix UI primitives in `client/src/components/ui/` (Button, Card, Dialog, Select, etc.)
 - Custom components: ClarificationPanel, EvidenceMap, UsageDashboard
-- Tailwind CSS 4 with custom design system
+- Tailwind CSS 4 with custom design system — see `docs/design-system.md` for Granted color tokens and the shared `FileUpload` drop zone (`client/src/components/ui/file-upload.tsx`)
 - Lucide React for icons
 - Framer Motion for animations
 

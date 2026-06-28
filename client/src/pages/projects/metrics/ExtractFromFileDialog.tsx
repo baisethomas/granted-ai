@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Sparkles, Upload } from "lucide-react";
+import { FileUpload } from "@/components/ui/file-upload";
+import { Sparkles } from "lucide-react";
 import type { MetricSuggestion } from "@/lib/api";
 import { CATEGORY_LABELS } from "./utils";
 import { useToast } from "@/hooks/use-toast";
@@ -29,22 +30,16 @@ export function ExtractFromFileDialog({
   onAccept,
 }: ExtractFromFileDialogProps) {
   const { toast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [suggestions, setSuggestions] = useState<MetricSuggestion[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [file, setFile] = useState<File | null>(null);
-  const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const reset = () => {
     setSuggestions(null);
     setSelected(new Set());
-    setFile(null);
   };
 
   const handleFile = async (picked: File) => {
-    setFile(picked);
-    setExtracting(true);
     setSuggestions(null);
     setSelected(new Set());
     try {
@@ -63,8 +58,7 @@ export function ExtractFromFileDialog({
         description: err?.message ?? "Unable to extract metrics from this file.",
         variant: "destructive",
       });
-    } finally {
-      setExtracting(false);
+      throw err;
     }
   };
 
@@ -117,35 +111,18 @@ export function ExtractFromFileDialog({
         </DialogHeader>
 
         {!suggestions && (
-          <div className="py-6 border-2 border-dashed border-slate-200 rounded-lg flex flex-col items-center justify-center gap-3">
-            <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center">
-              <Upload className="h-5 w-5 text-indigo-600" />
-            </div>
-            <p className="text-sm text-slate-600 text-center px-4">
-              {extracting
-                ? `Reading ${file?.name ?? "document"}…`
-                : "PDF, DOCX, or TXT up to 10 MB"}
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-              onChange={e => {
-                const f = e.target.files?.[0];
-                if (f) void handleFile(f);
-                e.target.value = "";
-              }}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={extracting}
-            >
-              {extracting ? "Extracting…" : "Choose file"}
-            </Button>
-          </div>
+          <FileUpload
+            onUpload={handleFile}
+            showToast={false}
+            accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+            description={
+              <>
+                Upload the RFP or funder guidelines — or{" "}
+                <span className="font-semibold text-[#2186EB]">browse files</span>
+              </>
+            }
+            fileTypesHint="PDF · DOCX · TXT — up to 10 MB"
+          />
         )}
 
         {suggestions && suggestions.length > 0 && (
