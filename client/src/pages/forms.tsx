@@ -944,6 +944,14 @@ export default function Forms() {
                 onUpload={handleUploadDocument}
                 accept=".pdf,.doc,.docx"
                 multiple={false}
+                showToast={false}
+                description={
+                  <>
+                    Upload your grant application form — or{" "}
+                    <span className="font-semibold text-[#2186EB]">browse files</span>
+                  </>
+                }
+                fileTypesHint="PDF · DOC · DOCX — up to 10 MB each"
               />
             )}
           </div>

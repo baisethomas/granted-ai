@@ -314,7 +314,11 @@ export default function Upload() {
             </p>
           </div>
 
-          <FileUpload onUpload={handleUpload} />
+          <FileUpload
+            onUpload={handleUpload}
+            showToast={false}
+            fileTypesHint="PDF · DOC · DOCX · TXT — up to 10 MB each"
+          />
 
           {/* Document Categories */}
           <div className="grid grid-cols-1 gap-3 mt-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">

@@ -23,6 +23,7 @@ Granted helps nonprofits streamline their grant application process by intellige
 - React Query (TanStack Query) for state management
 - Tailwind CSS + Radix UI components
 - Wouter (lightweight routing)
+- Granted Design System — see [docs/design-system.md](docs/design-system.md) for color tokens and the shared `FileUpload` component
 
 **Backend**
 - Express.js + TypeScript

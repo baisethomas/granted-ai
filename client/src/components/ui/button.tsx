@@ -15,6 +15,7 @@ const buttonVariants = cva(
           "bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:bg-[#EEF1F6] disabled:text-[#AEB6C4] disabled:opacity-100",
         outline:
           "border-[1.5px] border-[#E6E9EF] bg-background text-[#0C1B33] hover:border-[#C7CFDD] hover:bg-[#FBFBFD] disabled:bg-[#EEF1F6] disabled:text-[#AEB6C4] disabled:opacity-100",
+        // secondary intentionally matches outline — differentiate later if needed
         secondary:
           "border-[1.5px] border-[#E6E9EF] bg-background text-[#0C1B33] hover:border-[#C7CFDD] hover:bg-[#FBFBFD] disabled:bg-[#EEF1F6] disabled:text-[#AEB6C4] disabled:opacity-100",
         ghost:
@@ -22,10 +23,10 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "min-h-[44px] px-[22px] py-[13px]",
-        sm: "min-h-9 px-4 py-2 text-sm",
-        lg: "min-h-12 px-8 py-3",
-        icon: "h-11 w-11 min-h-0 shrink-0 p-0",
+        default: "h-[44px] px-[22px] py-[13px]",
+        sm: "h-9 px-4 py-2 text-sm",
+        lg: "h-12 px-8 py-3",
+        icon: "h-11 w-11 shrink-0 p-0",
       },
     },
     defaultVariants: {
