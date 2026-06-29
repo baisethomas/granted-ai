@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import {
   type SignupPlan,
+  clearPendingSignupPlan,
   readSignupPlanFromSearch,
   setPendingSignupPlan,
 } from '@/lib/signup-plan'
@@ -50,11 +51,6 @@ export const Login = () => {
     }
   }, [])
 
-  const persistSignupPlanIfNeeded = () => {
-    if (!isSignUp) return
-    setPendingSignupPlan(signupPlan)
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -62,17 +58,22 @@ export const Login = () => {
 
     try {
       if (isSignUp) {
-        persistSignupPlanIfNeeded()
-      }
-
-      const { error } = isSignUp
-        ? await signUp(email, password, { signup_plan: signupPlan })
-        : await signIn(email, password)
-
-      if (error) {
-        setError(error.message)
+        const { error } = await signUp(email, password, { signup_plan: signupPlan })
+        if (error) {
+          clearPendingSignupPlan()
+          setError(error.message)
+        } else {
+          setPendingSignupPlan(signupPlan)
+        }
+      } else {
+        clearPendingSignupPlan()
+        const { error } = await signIn(email, password)
+        if (error) {
+          setError(error.message)
+        }
       }
     } catch (err: any) {
+      clearPendingSignupPlan()
       setError(err.message || 'An error occurred')
     } finally {
       setLoading(false)
@@ -84,15 +85,19 @@ export const Login = () => {
     setError('')
 
     try {
-      if (isSignUp) {
-        persistSignupPlanIfNeeded()
+      if (!isSignUp) {
+        clearPendingSignupPlan()
       }
 
       const { error } = await signInWithGoogle()
       if (error) {
+        clearPendingSignupPlan()
         setError(error.message)
+      } else if (isSignUp) {
+        setPendingSignupPlan(signupPlan)
       }
     } catch (err: any) {
+      clearPendingSignupPlan()
       setError(err.message || 'Failed to sign in with Google')
     } finally {
       setGoogleLoading(false)
@@ -297,6 +302,7 @@ export const Login = () => {
                   onClick={() => {
                     setIsSignUp(!isSignUp)
                     setError('')
+                    clearPendingSignupPlan()
                     if (!isSignUp) {
                       setSignupPlan('starter')
                     }
