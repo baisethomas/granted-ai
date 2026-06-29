@@ -26,7 +26,7 @@ interface TextChunk {
 const DEFAULT_CHUNK_SIZE = 1200; // approx characters
 const DEFAULT_CHUNK_OVERLAP = 200;
 
-function chunkText(
+export function chunkText(
   text: string,
   chunkSize: number,
   overlap: number

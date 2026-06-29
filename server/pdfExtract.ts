@@ -1,5 +1,10 @@
 const DEFAULT_PDF_PARSE_MS = 45_000;
 
+if (!(Promise as unknown as { try?: unknown }).try) {
+  (Promise as unknown as { try: <T>(fn: () => T | PromiseLike<T>) => Promise<T> }).try = (fn) =>
+    Promise.resolve().then(fn);
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const t = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
