@@ -1,33 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { api } from "@/lib/api";
-import {
-  consumePendingSignupPlan,
-  readSignupPlanFromUserMetadata,
-  setPendingSignupPlan,
-} from "@/lib/signup-plan";
+import { resolvePendingSignupPlan, setPendingSignupPlan } from "@/lib/signup-plan";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
 async function clearSignupPlanMetadata(): Promise<void> {
   await supabase.auth.updateUser({ data: { signup_plan: null } });
-}
-
-function resolvePendingSignupPlan(user: User): {
-  plan: "starter" | "pro" | null;
-  fromMetadata: boolean;
-} {
-  const fromStorage = consumePendingSignupPlan();
-  if (fromStorage) {
-    return { plan: fromStorage, fromMetadata: false };
-  }
-
-  const fromMetadata = readSignupPlanFromUserMetadata(user);
-  if (fromMetadata) {
-    return { plan: fromMetadata, fromMetadata: true };
-  }
-
-  return { plan: null, fromMetadata: false };
 }
 
 /**
@@ -42,12 +21,12 @@ export function usePostSignupCheckout(user: User | null, loading: boolean) {
   useEffect(() => {
     if (loading || !user || checkoutStartedRef.current) return;
 
-    const { plan: pendingPlan, fromMetadata } = resolvePendingSignupPlan(user);
+    const pendingPlan = resolvePendingSignupPlan(user);
     if (!pendingPlan) return;
 
-    if (fromMetadata) {
-      void clearSignupPlanMetadata();
-    }
+    // Clear metadata whenever a plan is resolved so stale signup_plan cannot
+    // re-trigger checkout after sessionStorage is gone (e.g. Stripe redirect).
+    void clearSignupPlanMetadata();
 
     if (pendingPlan !== "pro") return;
 
