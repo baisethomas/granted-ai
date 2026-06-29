@@ -15,13 +15,16 @@ import { useToast } from "@/hooks/use-toast";
 export function usePostSignupCheckout(user: User | null, loading: boolean) {
   const [redirecting, setRedirecting] = useState(false);
   const checkoutStartedRef = useRef(false);
+  const userRef = useRef(user);
+  userRef.current = user;
   const { toast } = useToast();
   const userId = user?.id ?? null;
 
   useEffect(() => {
-    if (loading || !user || checkoutStartedRef.current) return;
+    const currentUser = userRef.current;
+    if (loading || !currentUser || checkoutStartedRef.current) return;
 
-    const pendingPlan = resolvePendingSignupPlan(user);
+    const pendingPlan = resolvePendingSignupPlan(currentUser);
     if (!pendingPlan) return;
 
     if (pendingPlan !== "pro") {
