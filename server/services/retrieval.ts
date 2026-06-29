@@ -118,16 +118,14 @@ export async function retrieveRelevantChunks(options: RetrieveOptions): Promise<
         content: record.chunk.content,
         tokenCount: record.chunk.tokenCount ?? record.chunk.content.split(/\s+/).length,
         similarity: existing?.similarity ?? record.similarity ?? 0.25,
-        source: existing ? existing.source : "keyword",
+        // Keyword evidence upgrades retention even when the same chunk was
+        // already seen via semantic search with low similarity.
+        source: "keyword",
         category: record.document.category,
         uploadedAt: record.document.uploadedAt ? new Date(record.document.uploadedAt) : undefined,
       };
 
-      if (!existing) {
-        chunksMap.set(key, chunk);
-      } else if (existing.source !== "semantic") {
-        chunksMap.set(key, chunk);
-      }
+      chunksMap.set(key, chunk);
     }
   }
 
