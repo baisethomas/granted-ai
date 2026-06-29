@@ -2,6 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import MarketingHeader from "@/components/layout/marketing-header";
 import { Footer } from "@/components/landing/footer";
+import { useAuth } from "@/hooks/useAuth";
 import { getAuthUrl } from "@/lib/domains";
 import { apiRequest } from "@/lib/queryClient";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
@@ -15,7 +16,7 @@ const plans = [
     period: "",
     description: "Upload a small set of source materials and generate reviewable grant drafts.",
     cta: "Start Free",
-    href: getAuthUrl(),
+    plan: "starter" as const,
     highlighted: false,
     features: [
       "Single-user workspace",
@@ -31,7 +32,7 @@ const plans = [
     period: "/mo",
     description: "For solo grant writers and consultants managing a recurring grant pipeline.",
     cta: "Try Pro",
-    href: getAuthUrl(),
+    plan: "pro" as const,
     checkout: true,
     highlighted: true,
     features: [
@@ -98,9 +99,15 @@ const faqs = [
 ];
 
 export default function Pricing() {
+  const { user } = useAuth();
   const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   async function startProCheckout() {
+    if (!user) {
+      window.location.href = getAuthUrl("pro");
+      return;
+    }
+
     setCheckoutLoading(true);
     try {
       const response = await apiRequest("POST", "/api/billing/checkout");
@@ -194,7 +201,10 @@ export default function Pricing() {
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 ) : (
-                  <a href={plan.href} className="mt-8 block">
+                  <a
+                    href={"href" in plan ? plan.href : getAuthUrl(plan.plan)}
+                    className="mt-8 block"
+                  >
                     <Button
                       className="w-full"
                       variant={plan.highlighted ? "default" : "outline"}
@@ -269,7 +279,7 @@ export default function Pricing() {
             uploads, exports, or draft history.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <a href={getAuthUrl()}>
+            <a href={getAuthUrl("starter")}>
               <Button>
                 Start Free <ArrowRight className="ml-2 h-4 w-4" />
               </Button>

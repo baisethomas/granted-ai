@@ -33,6 +33,8 @@ export function isMarketingDomain(): boolean {
   );
 }
 
-export function getAuthUrl(): string {
-  return isMarketingDomain() ? `${APP_DOMAIN}/auth` : '/auth';
+export function getAuthUrl(plan?: 'starter' | 'pro'): string {
+  const base = isMarketingDomain() ? `${APP_DOMAIN}/auth` : '/auth';
+  if (!plan) return base;
+  return `${base}?plan=${plan}`;
 }
