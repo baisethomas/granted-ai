@@ -3,7 +3,7 @@
 import { readFileSync, statSync } from "fs";
 import { join } from "path";
 import mammoth from "mammoth";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import * as pdfExtract from "../pdfExtract.js";
 import { FileProcessor } from "./fileProcessor.js";
 import { aiService } from "./ai.js";
@@ -14,6 +14,10 @@ const FIXTURE_DIR = join(process.cwd(), "test/fixtures/nonprofit");
 describe("nonprofit fixture extraction (GRA-9)", () => {
   let pdfBuffer: Buffer;
   let docxBuffer: Buffer;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   beforeAll(() => {
     pdfBuffer = readFileSync(join(FIXTURE_DIR, "community-impact-brief.pdf"));
