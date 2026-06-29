@@ -101,6 +101,7 @@ const faqs = [
 export default function Pricing() {
   const { user } = useAuth();
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   async function startProCheckout() {
     if (!user) {
@@ -109,6 +110,7 @@ export default function Pricing() {
     }
 
     setCheckoutLoading(true);
+    setCheckoutError(null);
     try {
       const response = await apiRequest("POST", "/api/billing/checkout");
       const checkout = await response.json() as { url?: string };
@@ -122,7 +124,11 @@ export default function Pricing() {
         return;
       }
       console.error("Failed to start checkout:", error);
-      window.location.href = getAuthUrl("pro");
+      const message =
+        typeof error?.message === "string" && error.message.length > 0
+          ? error.message.replace(/^\d+:\s*/, "")
+          : "Could not start checkout. Please try again.";
+      setCheckoutError(message);
     } finally {
       setCheckoutLoading(false);
     }
@@ -191,15 +197,25 @@ export default function Pricing() {
                   ))}
                 </ul>
                 {plan.checkout ? (
-                  <Button
-                    className="mt-8 w-full"
-                    variant={plan.highlighted ? "default" : "outline"}
-                    onClick={startProCheckout}
-                    disabled={checkoutLoading}
-                  >
-                    {checkoutLoading ? "Opening checkout..." : plan.cta}
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+                  <div className="mt-8 space-y-3">
+                    {checkoutError && (
+                      <div
+                        role="alert"
+                        className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+                      >
+                        {checkoutError}
+                      </div>
+                    )}
+                    <Button
+                      className="w-full"
+                      variant={plan.highlighted ? "default" : "outline"}
+                      onClick={startProCheckout}
+                      disabled={checkoutLoading}
+                    >
+                      {checkoutLoading ? "Opening checkout..." : plan.cta}
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </div>
                 ) : (
                   <a
                     href={"href" in plan ? plan.href : getAuthUrl(plan.plan)}
