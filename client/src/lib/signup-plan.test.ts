@@ -5,6 +5,7 @@ import {
   parseSignupPlan,
   peekPendingSignupPlan,
   readSignupPlanFromSearch,
+  readSignupPlanFromUserMetadata,
   setPendingSignupPlan,
 } from "./signup-plan";
 
@@ -40,5 +41,32 @@ describe("signup plan helpers", () => {
     expect(peekPendingSignupPlan()).toBe("pro");
     clearPendingSignupPlan();
     expect(peekPendingSignupPlan()).toBeNull();
+  });
+
+  it("reads signup plan from Supabase user metadata", () => {
+    expect(readSignupPlanFromUserMetadata(null)).toBeNull();
+    expect(readSignupPlanFromUserMetadata({})).toBeNull();
+    expect(
+      readSignupPlanFromUserMetadata({ user_metadata: { signup_plan: "pro" } }),
+    ).toBe("pro");
+    expect(
+      readSignupPlanFromUserMetadata({ user_metadata: { signup_plan: "starter" } }),
+    ).toBe("starter");
+    expect(
+      readSignupPlanFromUserMetadata({ user_metadata: { signup_plan: "team" } }),
+    ).toBeNull();
+    expect(
+      readSignupPlanFromUserMetadata({ user_metadata: { signup_plan: 29 } }),
+    ).toBeNull();
+  });
+
+  it("prefers session storage over user metadata when both are present", () => {
+    setPendingSignupPlan("starter");
+    expect(
+      consumePendingSignupPlan(),
+    ).toBe("starter");
+    expect(
+      readSignupPlanFromUserMetadata({ user_metadata: { signup_plan: "pro" } }),
+    ).toBe("pro");
   });
 });

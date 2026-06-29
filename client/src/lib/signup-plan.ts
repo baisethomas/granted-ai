@@ -36,3 +36,11 @@ export function consumePendingSignupPlan(): SignupPlan | null {
   }
   return plan;
 }
+
+export function readSignupPlanFromUserMetadata(
+  user: { user_metadata?: Record<string, unknown> } | null | undefined,
+): SignupPlan | null {
+  if (!user?.user_metadata) return null;
+  const raw = user.user_metadata.signup_plan;
+  return parseSignupPlan(typeof raw === "string" ? raw : null);
+}

@@ -16,6 +16,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { clearPendingSignupPlan } from "@/lib/signup-plan";
 
 interface LogoutContextValue {
   /** Opens the logout confirmation dialog. */
@@ -48,6 +49,7 @@ export function LogoutProvider({ children }: LogoutProviderProps) {
       if (result?.error) {
         throw result.error;
       }
+      clearPendingSignupPlan();
       queryClient.clear();
       setIsOpen(false);
       setLocation("/");
