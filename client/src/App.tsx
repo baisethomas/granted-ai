@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Route, useLocation } from "wouter";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { usePostSignupCheckout } from "@/hooks/usePostSignupCheckout";
 import { LogoutProvider } from "@/hooks/useLogout";
 import { WorkspaceProvider, useWorkspace } from "@/hooks/useWorkspace";
 import { Login } from "@/components/Login";
@@ -44,6 +45,7 @@ function AppContent() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [location, setLocation] = useLocation();
   const { user, loading, signOut } = useAuth();
+  const checkoutRedirecting = usePostSignupCheckout(user, loading);
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
 
   const PUBLIC_PATHS = ["/privacy", "/terms", "/pricing"];
@@ -100,12 +102,14 @@ function AppContent() {
     }
   };
 
-  if (loading) {
+  if (loading || checkoutRedirecting) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900 mx-auto mb-4"></div>
-          <p className="text-slate-600">Loading your session...</p>
+          <p className="text-slate-600">
+            {checkoutRedirecting ? "Redirecting to secure checkout..." : "Loading your session..."}
+          </p>
         </div>
       </div>
     );

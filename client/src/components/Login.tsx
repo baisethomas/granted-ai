@@ -1,19 +1,59 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
+import {
+  type SignupPlan,
+  readSignupPlanFromSearch,
+  setPendingSignupPlan,
+} from '@/lib/signup-plan'
 import { ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react'
+
+const planOptions: Array<{
+  id: SignupPlan
+  name: string
+  price: string
+  description: string
+}> = [
+  {
+    id: 'starter',
+    name: 'Starter',
+    price: 'Free',
+    description: 'Start drafting with core limits. No payment required.',
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    price: '$29/mo',
+    description: 'More projects, exports, and draft history. Checkout after sign-up.',
+  },
+]
 
 export const Login = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
+  const [signupPlan, setSignupPlan] = useState<SignupPlan>('starter')
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
 
   const { signIn, signUp, signInWithGoogle } = useAuth()
+
+  useEffect(() => {
+    const planFromUrl = readSignupPlanFromSearch(window.location.search)
+    if (planFromUrl) {
+      setSignupPlan(planFromUrl)
+      setIsSignUp(true)
+    }
+  }, [])
+
+  const persistSignupPlanIfNeeded = () => {
+    if (!isSignUp) return
+    setPendingSignupPlan(signupPlan)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,8 +61,12 @@ export const Login = () => {
     setError('')
 
     try {
+      if (isSignUp) {
+        persistSignupPlanIfNeeded()
+      }
+
       const { error } = isSignUp
-        ? await signUp(email, password)
+        ? await signUp(email, password, { signup_plan: signupPlan })
         : await signIn(email, password)
 
       if (error) {
@@ -40,6 +84,10 @@ export const Login = () => {
     setError('')
 
     try {
+      if (isSignUp) {
+        persistSignupPlanIfNeeded()
+      }
+
       const { error } = await signInWithGoogle()
       if (error) {
         setError(error.message)
@@ -161,6 +209,33 @@ export const Login = () => {
               </div>
 
               <form className="space-y-4" onSubmit={handleSubmit}>
+                {isSignUp && (
+                  <div className="space-y-3">
+                    <Label>Choose your plan</Label>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {planOptions.map((plan) => (
+                        <button
+                          key={plan.id}
+                          type="button"
+                          onClick={() => setSignupPlan(plan.id)}
+                          className={cn(
+                            "rounded-lg border p-4 text-left transition-colors",
+                            signupPlan === plan.id
+                              ? "border-[var(--brand-a)] bg-amber-50/60 ring-2 ring-amber-100"
+                              : "border-slate-200 hover:border-slate-300",
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-slate-900">{plan.name}</span>
+                            <span className="text-sm font-medium text-slate-600">{plan.price}</span>
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-slate-600">{plan.description}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="email">Email address</Label>
                   <Input
@@ -222,6 +297,9 @@ export const Login = () => {
                   onClick={() => {
                     setIsSignUp(!isSignUp)
                     setError('')
+                    if (!isSignUp) {
+                      setSignupPlan('starter')
+                    }
                   }}
                 >
                   {isSignUp ? 'Sign in' : 'Sign up'}
