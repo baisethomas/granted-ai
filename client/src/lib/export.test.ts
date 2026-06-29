@@ -1,17 +1,24 @@
 // @vitest-environment node
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 import { Packer } from "docx";
 import { GRANT_EXPORT_FIXTURE } from "../../../test/fixtures/export/grant-export-cases";
 import {
   buildClipboardText,
   createPdfDocument,
   createWordDocument,
+  exportToClipboard,
+  exportToPDF,
   exportToWord,
+  pdfExport,
   stripMarkdown,
   validateExportData,
   type ExportData,
 } from "./export";
+
+function decodePdfBytes(bytes: ArrayBuffer): string {
+  return new TextDecoder("latin1").decode(new Uint8Array(bytes));
+}
 
 vi.mock("file-saver", () => ({
   saveAs: vi.fn(),
@@ -93,6 +100,11 @@ describe("export formatting (GRA-14)", () => {
     vi.mocked(saveAs).mockReset();
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
   it("strips markdown artifacts from AI responses", () => {
     const cleaned = stripMarkdown(
       "**Riverside Community Food Bank** serves over *850 families* monthly.\n\nCitations:\n- doc1"
@@ -119,13 +131,30 @@ describe("export formatting (GRA-14)", () => {
     expect(text).toContain("Generated on:");
   });
 
+  it("copies formatted grant text via clipboard API", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+
+    await exportToClipboard(GRANT_EXPORT_FIXTURE);
+
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(writeText.mock.calls[0][0]).toContain("Riverside Community Food Bank - Grant Application");
+    expect(writeText.mock.calls[0][0]).toContain("[NEEDS YOUR INPUT: What is the current monthly families served figure?]");
+  });
+
   it("produces a readable PDF with grant sections and gap callouts", () => {
     const doc = createPdfDocument(GRANT_EXPORT_FIXTURE);
     const pdfBytes = doc.output("arraybuffer");
+    const pdfText = decodePdfBytes(pdfBytes);
     const header = new TextDecoder().decode(new Uint8Array(pdfBytes).slice(0, 5));
 
     expect(header).toBe("%PDF-");
     expect(pdfBytes.byteLength).toBeGreaterThan(1000);
+    expect(pdfText).toContain("Grant Application Responses");
+    expect(pdfText).toContain("Project Information");
+    expect(pdfText).toContain(
+      "[NEEDS YOUR INPUT: What is the current monthly families served figure?]"
+    );
   });
 
   it("produces a Word-compatible DOCX package", async () => {
@@ -147,6 +176,16 @@ describe("export formatting (GRA-14)", () => {
 
     await expect(exportToWord(mockExportData)).rejects.toThrow(
       "Failed to generate Word document. Please try again."
+    );
+  });
+
+  it("surfaces PDF export failures to callers", async () => {
+    vi.spyOn(pdfExport, "saveDocument").mockImplementation(() => {
+      throw new Error("save blocked");
+    });
+
+    await expect(exportToPDF(mockExportData)).rejects.toThrow(
+      "Failed to generate PDF document. Please try again."
     );
   });
 });

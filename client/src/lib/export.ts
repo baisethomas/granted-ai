@@ -272,13 +272,25 @@ export function createPdfDocument(data: ExportData): jsPDF {
   return doc;
 }
 
+export const pdfExport = {
+  saveDocument(doc: jsPDF, filename: string): void {
+    doc.save(filename);
+  },
+};
+
 /**
  * Export to PDF with professional formatting
  */
 export async function exportToPDF(data: ExportData): Promise<void> {
-  const doc = createPdfDocument(data);
   const filename = `${sanitizeFilename(data.project.title)}-Grant-Application.pdf`;
-  doc.save(filename);
+
+  try {
+    const doc = createPdfDocument(data);
+    pdfExport.saveDocument(doc, filename);
+  } catch (error) {
+    console.error("PDF export failed:", error);
+    throw new Error("Failed to generate PDF document. Please try again.");
+  }
 }
 
 /**
