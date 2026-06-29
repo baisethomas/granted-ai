@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import type { User } from "@supabase/supabase-js";
-import { clearPendingSignupPlan } from "@/lib/signup-plan";
+import { clearPendingSignupPlan, clearSignupCheckoutHandled } from "@/lib/signup-plan";
 
 vi.mock("@/lib/api", () => ({
   api: {
@@ -43,6 +43,7 @@ describe("usePostSignupCheckout", () => {
     assignedHref = "";
     toastMock.mockReset();
     clearPendingSignupPlan();
+    clearSignupCheckoutHandled();
     vi.mocked(api.createProCheckout).mockReset();
     vi.mocked(supabase.auth.updateUser).mockReset();
     vi.mocked(supabase.auth.updateUser).mockResolvedValue({
@@ -64,6 +65,7 @@ describe("usePostSignupCheckout", () => {
 
   afterEach(() => {
     clearPendingSignupPlan();
+    clearSignupCheckoutHandled();
   });
 
   it("completes checkout when user metadata updates mid-flight with the same id", async () => {
@@ -100,7 +102,7 @@ describe("usePostSignupCheckout", () => {
     });
   });
 
-  it("still redirects when metadata cleanup fails after checkout URL is returned", async () => {
+  it("does not redirect when metadata cleanup returns an error", async () => {
     vi.mocked(api.createProCheckout).mockResolvedValue({
       url: "https://checkout.stripe.com/test",
     });
@@ -109,16 +111,66 @@ describe("usePostSignupCheckout", () => {
       error: { message: "metadata update failed", name: "AuthApiError", status: 500 } as never,
     });
 
-    renderHook(() => usePostSignupCheckout(makeUser("user-2", "pro"), false));
+    const user = makeUser("user-2", "pro");
+    const { rerender } = renderHook(
+      ({ user, loading }) => usePostSignupCheckout(user, loading),
+      { initialProps: { user, loading: false } },
+    );
 
     await waitFor(() => {
       expect(api.createProCheckout).toHaveBeenCalledTimes(1);
       expect(supabase.auth.updateUser).toHaveBeenCalledTimes(1);
+      expect(toastMock).toHaveBeenCalledTimes(1);
     });
+
+    expect(assignedHref).toBe("");
+    expect(window.sessionStorage.getItem("granted.signupPlan")).toBe("pro");
+
+    rerender({ user: makeUser("user-2", "pro"), loading: false });
+
+    await waitFor(() => {
+      expect(api.createProCheckout).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("does not redirect when metadata cleanup rejects", async () => {
+    vi.mocked(api.createProCheckout).mockResolvedValue({
+      url: "https://checkout.stripe.com/test",
+    });
+    vi.mocked(supabase.auth.updateUser).mockRejectedValue(new Error("storage failure"));
+
+    const user = makeUser("user-2b", "pro");
+    const { rerender } = renderHook(
+      ({ user, loading }) => usePostSignupCheckout(user, loading),
+      { initialProps: { user, loading: false } },
+    );
+
+    await waitFor(() => {
+      expect(api.createProCheckout).toHaveBeenCalledTimes(1);
+      expect(supabase.auth.updateUser).toHaveBeenCalledTimes(1);
+      expect(toastMock).toHaveBeenCalledTimes(1);
+    });
+
+    expect(assignedHref).toBe("");
+
+    rerender({ user: makeUser("user-2b", "pro"), loading: false });
+
+    await waitFor(() => {
+      expect(api.createProCheckout).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("marks checkout handled and redirects only after metadata cleanup succeeds", async () => {
+    vi.mocked(api.createProCheckout).mockResolvedValue({
+      url: "https://checkout.stripe.com/test",
+    });
+
+    renderHook(() => usePostSignupCheckout(makeUser("user-2c", "pro"), false));
 
     await waitFor(() => {
       expect(assignedHref).toBe("https://checkout.stripe.com/test");
     });
+    expect(window.sessionStorage.getItem("granted.signupCheckoutHandled.user-2c")).toBe("1");
   });
 
   it("clears starter metadata without starting checkout", async () => {
