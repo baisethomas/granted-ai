@@ -23,7 +23,7 @@ function stripMetaBlocks(text: string): string {
 }
 
 // Strip markdown formatting so exports are clean prose, not AI-style markdown.
-function stripMarkdown(text: string): string {
+export function stripMarkdown(text: string): string {
   if (!text) return text;
 
   return stripMetaBlocks(text)
@@ -59,89 +59,93 @@ function getUnresolvedGaps(question: GrantQuestion): string[] {
 }
 
 /**
- * Enhanced clipboard export with professional formatting
+ * Build clipboard text with professional grant-application structure.
  */
-export async function exportToClipboard(data: ExportData): Promise<void> {
+export function buildClipboardText(data: ExportData): string {
   const { project, questions, metadata } = data;
-  
+
   const completedQuestions = questions.filter(
-    q => q.responseStatus === "complete" || q.responseStatus === "edited"
+    (q) => q.responseStatus === "complete" || q.responseStatus === "edited"
   );
 
-  const header = metadata.organizationName 
+  const header = metadata.organizationName
     ? `${metadata.organizationName} - Grant Application\n\n`
-    : 'Grant Application\n\n';
+    : "Grant Application\n\n";
 
   const projectInfo = [
     `Project Title: ${project.title}`,
     `Funder: ${project.funder}`,
     project.amount ? `Amount Requested: ${project.amount}` : null,
-    project.deadline ? `Application Deadline: ${new Date(project.deadline).toLocaleDateString()}` : null,
-    '',
-    project.description ? `Project Description:\n${project.description}\n` : '',
-  ].filter(Boolean).join('\n');
+    project.deadline
+      ? `Application Deadline: ${new Date(project.deadline).toLocaleDateString()}`
+      : null,
+    "",
+    project.description ? `Project Description:\n${project.description}\n` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   const responses = completedQuestions
     .map((q, index) => {
       const cleanResponse = getCleanResponse(q);
       const wordCount = cleanResponse ? cleanResponse.trim().split(/\s+/).length : 0;
-      const wordLimitText = q.wordLimit ? ` (${wordCount}/${q.wordLimit} words)` : ` (${wordCount} words)`;
+      const wordLimitText = q.wordLimit
+        ? ` (${wordCount}/${q.wordLimit} words)`
+        : ` (${wordCount} words)`;
 
       const gaps = getUnresolvedGaps(q);
 
       return [
         `${index + 1}. ${q.question}${wordLimitText}`,
-        '',
-        cleanResponse || 'No response provided',
-        ...(gaps.length ? ['', ...gaps.map((gap) => `[NEEDS YOUR INPUT: ${gap}]`)] : []),
-        '',
-        '---',
-        ''
-      ].join('\n');
+        "",
+        cleanResponse || "No response provided",
+        ...(gaps.length ? ["", ...gaps.map((gap) => `[NEEDS YOUR INPUT: ${gap}]`)] : []),
+        "",
+        "---",
+        "",
+      ].join("\n");
     })
-    .join('\n');
+    .join("\n");
 
   const footer = `\nGenerated on: ${metadata.exportDate.toLocaleDateString()} at ${metadata.exportDate.toLocaleTimeString()}`;
 
-  const fullText = [
-    header,
-    projectInfo,
-    'Grant Application Responses:',
-    '',
-    responses,
-    footer
-  ].join('\n');
+  return [header, projectInfo, "Grant Application Responses:", "", responses, footer].join("\n");
+}
+
+/**
+ * Enhanced clipboard export with professional formatting
+ */
+export async function exportToClipboard(data: ExportData): Promise<void> {
+  const fullText = buildClipboardText(data);
 
   try {
     await navigator.clipboard.writeText(fullText);
   } catch (error) {
     // Fallback for older browsers
-    const textArea = document.createElement('textarea');
+    const textArea = document.createElement("textarea");
     textArea.value = fullText;
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
-    document.execCommand('copy');
+    document.execCommand("copy");
     document.body.removeChild(textArea);
   }
 }
 
 /**
- * Export to PDF with professional formatting
+ * Build a PDF document with professional grant-application formatting.
  */
-export async function exportToPDF(data: ExportData): Promise<void> {
+export function createPdfDocument(data: ExportData): jsPDF {
   const { project, questions, metadata } = data;
-  
+
   const completedQuestions = questions.filter(
-    q => q.responseStatus === "complete" || q.responseStatus === "edited"
+    (q) => q.responseStatus === "complete" || q.responseStatus === "edited"
   );
 
-
-  // Use jsPDF directly for reliable PDF generation
   const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4'
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4",
   });
 
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -265,20 +269,26 @@ export async function exportToPDF(data: ExportData): Promise<void> {
   doc.setTextColor(107, 114, 128);
   doc.text(footerText, pageWidth / 2, yPosition, { align: 'center' });
 
-  // Save the PDF
-  const filename = `${sanitizeFilename(project.title)}-Grant-Application.pdf`;
-  doc.save(filename);
-  
+  return doc;
 }
 
 /**
- * Export to Word document (.docx)
+ * Export to PDF with professional formatting
  */
-export async function exportToWord(data: ExportData): Promise<void> {
+export async function exportToPDF(data: ExportData): Promise<void> {
+  const doc = createPdfDocument(data);
+  const filename = `${sanitizeFilename(data.project.title)}-Grant-Application.pdf`;
+  doc.save(filename);
+}
+
+/**
+ * Build a Word document with professional grant-application formatting.
+ */
+export function createWordDocument(data: ExportData): Document {
   const { project, questions, metadata } = data;
-  
+
   const completedQuestions = questions.filter(
-    q => q.responseStatus === "complete" || q.responseStatus === "edited"
+    (q) => q.responseStatus === "complete" || q.responseStatus === "edited"
   );
 
   const children = [];
@@ -291,11 +301,11 @@ export async function exportToWord(data: ExportData): Promise<void> {
           new TextRun({
             text: `${metadata.organizationName} - Grant Application`,
             bold: true,
-            size: 32
-          })
+            size: 32,
+          }),
         ],
         heading: HeadingLevel.TITLE,
-        spacing: { after: 400 }
+        spacing: { after: 400 },
       })
     );
   } else {
@@ -305,11 +315,11 @@ export async function exportToWord(data: ExportData): Promise<void> {
           new TextRun({
             text: "Grant Application",
             bold: true,
-            size: 32
-          })
+            size: 32,
+          }),
         ],
         heading: HeadingLevel.TITLE,
-        spacing: { after: 400 }
+        spacing: { after: 400 },
       })
     );
   }
@@ -319,25 +329,24 @@ export async function exportToWord(data: ExportData): Promise<void> {
     new Paragraph({
       children: [new TextRun({ text: "Project Information", bold: true, size: 24 })],
       heading: HeadingLevel.HEADING_1,
-      spacing: { before: 400, after: 200 }
+      spacing: { before: 400, after: 200 },
     })
   );
 
   const projectInfo = [
     [`Project Title:`, project.title],
     [`Funder:`, project.funder],
-    ...(project.amount ? [['Amount Requested:', project.amount]] : []),
-    ...(project.deadline ? [['Application Deadline:', new Date(project.deadline).toLocaleDateString()]] : []),
+    ...(project.amount ? [["Amount Requested:", project.amount]] : []),
+    ...(project.deadline
+      ? [["Application Deadline:", new Date(project.deadline).toLocaleDateString()]]
+      : []),
   ];
 
   projectInfo.forEach(([label, value]) => {
     children.push(
       new Paragraph({
-        children: [
-          new TextRun({ text: label, bold: true }),
-          new TextRun({ text: ` ${value}` })
-        ],
-        spacing: { after: 100 }
+        children: [new TextRun({ text: label, bold: true }), new TextRun({ text: ` ${value}` })],
+        spacing: { after: 100 },
       })
     );
   });
@@ -347,11 +356,11 @@ export async function exportToWord(data: ExportData): Promise<void> {
     children.push(
       new Paragraph({
         children: [new TextRun({ text: "Project Description:", bold: true })],
-        spacing: { before: 200, after: 100 }
+        spacing: { before: 200, after: 100 },
       }),
       new Paragraph({
         children: [new TextRun({ text: project.description })],
-        spacing: { after: 400 }
+        spacing: { after: 400 },
       })
     );
   }
@@ -361,7 +370,7 @@ export async function exportToWord(data: ExportData): Promise<void> {
     new Paragraph({
       children: [new TextRun({ text: "Grant Application Responses", bold: true, size: 24 })],
       heading: HeadingLevel.HEADING_1,
-      spacing: { before: 400, after: 200 }
+      spacing: { before: 400, after: 200 },
     })
   );
 
@@ -369,9 +378,11 @@ export async function exportToWord(data: ExportData): Promise<void> {
   completedQuestions.forEach((question, index) => {
     const cleanResponse = getCleanResponse(question);
     const wordCount = cleanResponse ? cleanResponse.trim().split(/\s+/).length : 0;
-    const wordLimitText = question.wordLimit ? ` (${wordCount}/${question.wordLimit} words)` : ` (${wordCount} words)`;
+    const wordLimitText = question.wordLimit
+      ? ` (${wordCount}/${question.wordLimit} words)`
+      : ` (${wordCount} words)`;
 
-    const paragraphs = (cleanResponse || 'No response provided')
+    const paragraphs = (cleanResponse || "No response provided")
       .split(/\n{2,}/)
       .map((chunk) => chunk.trim())
       .filter(Boolean);
@@ -384,30 +395,31 @@ export async function exportToWord(data: ExportData): Promise<void> {
           new TextRun({
             text: `${index + 1}. ${question.question}${wordLimitText}`,
             bold: true,
-            size: 22
-          })
+            size: 22,
+          }),
         ],
         heading: HeadingLevel.HEADING_2,
-        spacing: { before: 300, after: 150 }
+        spacing: { before: 300, after: 150 },
       }),
-      ...paragraphs.map((paragraph, pIndex) =>
-        new Paragraph({
-          children: [new TextRun({ text: paragraph })],
-          spacing: { after: pIndex === paragraphs.length - 1 && gaps.length === 0 ? 300 : 150 }
-        })
+      ...paragraphs.map(
+        (paragraph, pIndex) =>
+          new Paragraph({
+            children: [new TextRun({ text: paragraph })],
+            spacing: { after: pIndex === paragraphs.length - 1 && gaps.length === 0 ? 300 : 150 },
+          })
       ),
-      // Unresolved gaps stay visible in the exported document
-      ...gaps.map((gap, gIndex) =>
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: `[NEEDS YOUR INPUT: ${gap}]`,
-              bold: true,
-              color: "B45309"
-            })
-          ],
-          spacing: { after: gIndex === gaps.length - 1 ? 300 : 100 }
-        })
+      ...gaps.map(
+        (gap, gIndex) =>
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `[NEEDS YOUR INPUT: ${gap}]`,
+                bold: true,
+                color: "B45309",
+              }),
+            ],
+            spacing: { after: gIndex === gaps.length - 1 ? 300 : 100 },
+          })
       )
     );
   });
@@ -416,33 +428,42 @@ export async function exportToWord(data: ExportData): Promise<void> {
   children.push(
     new Paragraph({
       children: [
-        new TextRun({ 
+        new TextRun({
           text: `Generated on: ${metadata.exportDate.toLocaleDateString()} at ${metadata.exportDate.toLocaleTimeString()}`,
           italics: true,
-          size: 18
-        })
+          size: 18,
+        }),
       ],
-      spacing: { before: 600 }
+      spacing: { before: 600 },
     })
   );
 
-  const doc = new Document({
-    sections: [{
-      properties: {},
-      children
-    }],
+  return new Document({
+    sections: [
+      {
+        properties: {},
+        children,
+      },
+    ],
     creator: "Grant Writing Platform",
     title: `${project.title} - Grant Application`,
     description: `Grant application for ${project.funder}`,
-    lastModifiedBy: "Grant Writing Platform"
+    lastModifiedBy: "Grant Writing Platform",
   });
+}
+
+/**
+ * Export to Word document (.docx)
+ */
+export async function exportToWord(data: ExportData): Promise<void> {
+  const doc = createWordDocument(data);
 
   try {
     const blob = await Packer.toBlob(doc);
-    saveAs(blob, `${sanitizeFilename(project.title)}-Grant-Application.docx`);
+    saveAs(blob, `${sanitizeFilename(data.project.title)}-Grant-Application.docx`);
   } catch (error) {
-    console.error('Word export failed:', error);
-    throw new Error('Failed to generate Word document. Please try again.');
+    console.error("Word export failed:", error);
+    throw new Error("Failed to generate Word document. Please try again.");
   }
 }
 
