@@ -3,6 +3,7 @@ import type { User } from "@supabase/supabase-js";
 import { api } from "@/lib/api";
 import {
   clearSignupPlanMetadata,
+  markSignupCheckoutHandled,
   resolvePendingSignupPlan,
   setPendingSignupPlan,
 } from "@/lib/signup-plan";
@@ -45,8 +46,18 @@ export function usePostSignupCheckout(user: User | null, loading: boolean) {
         }
         // Defer metadata cleanup until checkout is ready so updateUser() does not
         // emit USER_UPDATED and replace `user` while this effect is in flight.
-        await clearSignupPlanMetadata();
+        const { error: cleanupError } = await clearSignupPlanMetadata();
         if (cancelled) return;
+        if (cleanupError) {
+          setPendingSignupPlan("pro");
+          setRedirecting(false);
+          toast({
+            title: "Checkout unavailable",
+            description: "Continue to Pro checkout from Pricing or Settings when you're ready.",
+          });
+          return;
+        }
+        markSignupCheckoutHandled(currentUser.id);
         window.location.href = checkout.url;
       } catch (error) {
         console.error("Post-signup checkout failed:", error);

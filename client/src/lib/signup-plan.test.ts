@@ -10,7 +10,11 @@ vi.mock("@/lib/supabase", () => ({
 
 import {
   clearPendingSignupPlan,
+  clearSignupCheckoutHandled,
+  clearSignupPlanMetadata,
   consumePendingSignupPlan,
+  isSignupCheckoutHandled,
+  markSignupCheckoutHandled,
   parseSignupPlan,
   peekPendingSignupPlan,
   readSignupPlanFromSearch,
@@ -18,10 +22,17 @@ import {
   resolvePendingSignupPlan,
   setPendingSignupPlan,
 } from "./signup-plan";
+import { supabase } from "@/lib/supabase";
 
 describe("signup plan helpers", () => {
   beforeEach(() => {
     clearPendingSignupPlan();
+    clearSignupCheckoutHandled();
+    vi.mocked(supabase.auth.updateUser).mockReset();
+    vi.mocked(supabase.auth.updateUser).mockResolvedValue({
+      data: { user: null },
+      error: null,
+    });
   });
 
   it("parses supported plan values", () => {
@@ -96,5 +107,34 @@ describe("signup plan helpers", () => {
       resolvePendingSignupPlan({ user_metadata: { signup_plan: "pro" } }),
     ).toBe("pro");
     expect(resolvePendingSignupPlan(null)).toBeNull();
+  });
+
+  it("resolvePendingSignupPlan ignores metadata when checkout was already handled", () => {
+    markSignupCheckoutHandled("user-99");
+    expect(
+      resolvePendingSignupPlan({
+        id: "user-99",
+        user_metadata: { signup_plan: "pro" },
+      }),
+    ).toBeNull();
+    expect(isSignupCheckoutHandled("user-99")).toBe(true);
+  });
+
+  it("clearSignupPlanMetadata returns resolved Supabase errors without throwing", async () => {
+    const authError = { message: "metadata update failed", name: "AuthApiError", status: 500 };
+    vi.mocked(supabase.auth.updateUser).mockResolvedValue({
+      data: { user: null },
+      error: authError as never,
+    });
+
+    await expect(clearSignupPlanMetadata()).resolves.toEqual({ error: authError });
+  });
+
+  it("clearSignupPlanMetadata normalizes rejected updateUser promises", async () => {
+    vi.mocked(supabase.auth.updateUser).mockRejectedValue(new Error("storage failure"));
+
+    const result = await clearSignupPlanMetadata();
+    expect(result.error).toBeInstanceOf(Error);
+    expect(result.error?.message).toBe("storage failure");
   });
 });
