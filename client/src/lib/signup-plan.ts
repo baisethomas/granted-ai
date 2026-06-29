@@ -1,3 +1,5 @@
+import { supabase } from "@/lib/supabase";
+
 export type SignupPlan = "starter" | "pro";
 
 const STORAGE_KEY = "granted.signupPlan";
@@ -54,4 +56,13 @@ export function resolvePendingSignupPlan(
     return fromStorage;
   }
   return readSignupPlanFromUserMetadata(user);
+}
+
+/** Clear signup_plan from Supabase user metadata after it has been acted on. */
+export async function clearSignupPlanMetadata(): Promise<{ error: Error | null }> {
+  const { error } = await supabase.auth.updateUser({ data: { signup_plan: null } });
+  if (error) {
+    console.warn("[signup-plan] Failed to clear signup_plan metadata:", error.message);
+  }
+  return { error: error ?? null };
 }
