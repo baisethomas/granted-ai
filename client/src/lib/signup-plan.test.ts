@@ -1,4 +1,13 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
+
+vi.mock("@/lib/supabase", () => ({
+  supabase: {
+    auth: {
+      updateUser: vi.fn(),
+    },
+  },
+}));
+
 import {
   clearPendingSignupPlan,
   consumePendingSignupPlan,

@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { api } from "@/lib/api";
-import { resolvePendingSignupPlan, setPendingSignupPlan } from "@/lib/signup-plan";
-import { supabase } from "@/lib/supabase";
+import {
+  clearSignupPlanMetadata,
+  resolvePendingSignupPlan,
+  setPendingSignupPlan,
+} from "@/lib/signup-plan";
 import { useToast } from "@/hooks/use-toast";
-
-async function clearSignupPlanMetadata(): Promise<void> {
-  await supabase.auth.updateUser({ data: { signup_plan: null } });
-}
 
 /**
  * After a new sign-up that chose Pro, redirect to Stripe Checkout once the
@@ -16,19 +15,22 @@ async function clearSignupPlanMetadata(): Promise<void> {
 export function usePostSignupCheckout(user: User | null, loading: boolean) {
   const [redirecting, setRedirecting] = useState(false);
   const checkoutStartedRef = useRef(false);
+  const userRef = useRef(user);
+  userRef.current = user;
   const { toast } = useToast();
+  const userId = user?.id ?? null;
 
   useEffect(() => {
-    if (loading || !user || checkoutStartedRef.current) return;
+    const currentUser = userRef.current;
+    if (loading || !currentUser || checkoutStartedRef.current) return;
 
-    const pendingPlan = resolvePendingSignupPlan(user);
+    const pendingPlan = resolvePendingSignupPlan(currentUser);
     if (!pendingPlan) return;
 
-    // Clear metadata whenever a plan is resolved so stale signup_plan cannot
-    // re-trigger checkout after sessionStorage is gone (e.g. Stripe redirect).
-    void clearSignupPlanMetadata();
-
-    if (pendingPlan !== "pro") return;
+    if (pendingPlan !== "pro") {
+      void clearSignupPlanMetadata();
+      return;
+    }
 
     checkoutStartedRef.current = true;
     let cancelled = false;
@@ -41,6 +43,10 @@ export function usePostSignupCheckout(user: User | null, loading: boolean) {
         if (!checkout.url) {
           throw new Error("Checkout URL was not returned");
         }
+        // Defer metadata cleanup until checkout is ready so updateUser() does not
+        // emit USER_UPDATED and replace `user` while this effect is in flight.
+        await clearSignupPlanMetadata();
+        if (cancelled) return;
         window.location.href = checkout.url;
       } catch (error) {
         console.error("Post-signup checkout failed:", error);
@@ -59,7 +65,9 @@ export function usePostSignupCheckout(user: User | null, loading: boolean) {
     return () => {
       cancelled = true;
     };
-  }, [user, loading, toast]);
+    // Key on user id only — metadata-only updates must not re-run or cancel checkout.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- user read inside effect; userId avoids metadata churn
+  }, [userId, loading]);
 
   return redirecting;
 }
