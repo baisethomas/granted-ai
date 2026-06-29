@@ -19,6 +19,7 @@ import {
   peekPendingSignupPlan,
   readSignupPlanFromSearch,
   readSignupPlanFromUserMetadata,
+  prepareExplicitProCheckout,
   resolvePendingSignupPlan,
   setPendingSignupPlan,
 } from "./signup-plan";
@@ -118,6 +119,48 @@ describe("signup plan helpers", () => {
       }),
     ).toBeNull();
     expect(isSignupCheckoutHandled("user-99")).toBe(true);
+  });
+
+  it("resolvePendingSignupPlan prefers session storage over checkout tombstone", () => {
+    markSignupCheckoutHandled("user-99");
+    setPendingSignupPlan("pro");
+    expect(
+      resolvePendingSignupPlan({
+        id: "user-99",
+        user_metadata: { signup_plan: "pro" },
+      }),
+    ).toBe("pro");
+    expect(peekPendingSignupPlan()).toBeNull();
+    expect(isSignupCheckoutHandled("user-99")).toBe(true);
+  });
+
+  it("prepareExplicitProCheckout clears signup state before manual checkout", async () => {
+    setPendingSignupPlan("pro");
+    const result = await prepareExplicitProCheckout("user-55");
+    expect(result.error).toBeNull();
+    expect(peekPendingSignupPlan()).toBeNull();
+    expect(isSignupCheckoutHandled("user-55")).toBe(true);
+    expect(supabase.auth.updateUser).toHaveBeenCalledWith({
+      data: { signup_plan: null },
+    });
+  });
+
+  it("prepareExplicitProCheckout marks tombstone even when metadata cleanup fails", async () => {
+    const authError = { message: "metadata update failed", name: "AuthApiError", status: 500 };
+    vi.mocked(supabase.auth.updateUser).mockResolvedValue({
+      data: { user: null },
+      error: authError as never,
+    });
+
+    const result = await prepareExplicitProCheckout("user-56");
+    expect(result.error).toBe(authError);
+    expect(isSignupCheckoutHandled("user-56")).toBe(true);
+    expect(
+      resolvePendingSignupPlan({
+        id: "user-56",
+        user_metadata: { signup_plan: "pro" },
+      }),
+    ).toBeNull();
   });
 
   it("clearSignupPlanMetadata returns resolved Supabase errors without throwing", async () => {

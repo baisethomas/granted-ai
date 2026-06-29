@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import type { User } from "@supabase/supabase-js";
-import { clearPendingSignupPlan, clearSignupCheckoutHandled } from "@/lib/signup-plan";
+import { clearPendingSignupPlan, clearSignupCheckoutHandled, setPendingSignupPlan, markSignupCheckoutHandled } from "@/lib/signup-plan";
 
 vi.mock("@/lib/api", () => ({
   api: {
@@ -182,5 +182,20 @@ describe("usePostSignupCheckout", () => {
       });
     });
     expect(api.createProCheckout).not.toHaveBeenCalled();
+  });
+
+  it("starts checkout when session storage pro wins over checkout tombstone", async () => {
+    markSignupCheckoutHandled("user-4");
+    setPendingSignupPlan("pro");
+    vi.mocked(api.createProCheckout).mockResolvedValue({
+      url: "https://checkout.stripe.com/test",
+    });
+
+    renderHook(() => usePostSignupCheckout(makeUser("user-4", "pro"), false));
+
+    await waitFor(() => {
+      expect(assignedHref).toBe("https://checkout.stripe.com/test");
+    });
+    expect(api.createProCheckout).toHaveBeenCalledTimes(1);
   });
 });

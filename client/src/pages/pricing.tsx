@@ -4,6 +4,7 @@ import MarketingHeader from "@/components/layout/marketing-header";
 import { Footer } from "@/components/landing/footer";
 import { useAuth } from "@/hooks/useAuth";
 import { getAuthUrl } from "@/lib/domains";
+import { prepareExplicitProCheckout } from "@/lib/signup-plan";
 import { apiRequest } from "@/lib/queryClient";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
@@ -112,6 +113,14 @@ export default function Pricing() {
     setCheckoutLoading(true);
     setCheckoutError(null);
     try {
+      const { error: cleanupError } = await prepareExplicitProCheckout(user.id);
+      if (cleanupError) {
+        console.warn(
+          "[pricing] Failed to clear signup_plan metadata before checkout:",
+          cleanupError.message,
+        );
+      }
+
       const response = await apiRequest("POST", "/api/billing/checkout");
       const checkout = await response.json() as { url?: string };
       if (!checkout.url) {
