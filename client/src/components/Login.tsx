@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import {
   type SignupPlan,
   clearPendingSignupPlan,
+  peekPendingSignupPlan,
   readSignupPlanFromSearch,
   setPendingSignupPlan,
 } from '@/lib/signup-plan'
@@ -66,7 +67,6 @@ export const Login = () => {
           setPendingSignupPlan(signupPlan)
         }
       } else {
-        clearPendingSignupPlan()
         const { error } = await signIn(email, password)
         if (error) {
           setError(error.message)
@@ -85,10 +85,6 @@ export const Login = () => {
     setError('')
 
     try {
-      if (!isSignUp) {
-        clearPendingSignupPlan()
-      }
-
       const { error } = await signInWithGoogle()
       if (error) {
         clearPendingSignupPlan()
@@ -300,11 +296,12 @@ export const Login = () => {
                   type="button"
                   className="font-semibold text-[var(--brand-a)] hover:underline"
                   onClick={() => {
-                    setIsSignUp(!isSignUp)
+                    const switchingToSignUp = !isSignUp
+                    setIsSignUp(switchingToSignUp)
                     setError('')
-                    clearPendingSignupPlan()
-                    if (!isSignUp) {
-                      setSignupPlan('starter')
+                    if (switchingToSignUp) {
+                      const pendingPlan = peekPendingSignupPlan()
+                      setSignupPlan(pendingPlan ?? 'starter')
                     }
                   }}
                 >

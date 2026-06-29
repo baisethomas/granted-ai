@@ -33,4 +33,12 @@ describe("signup plan helpers", () => {
     expect(consumePendingSignupPlan()).toBe("pro");
     expect(peekPendingSignupPlan()).toBeNull();
   });
+
+  it("preserves pending plan across peeks until consumed or cleared", () => {
+    setPendingSignupPlan("pro");
+    expect(peekPendingSignupPlan()).toBe("pro");
+    expect(peekPendingSignupPlan()).toBe("pro");
+    clearPendingSignupPlan();
+    expect(peekPendingSignupPlan()).toBeNull();
+  });
 });
