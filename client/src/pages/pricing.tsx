@@ -118,11 +118,11 @@ export default function Pricing() {
       window.location.href = checkout.url;
     } catch (error: any) {
       if (error?.status === 401 || String(error?.message || "").startsWith("401:")) {
-        window.location.href = getAuthUrl();
+        window.location.href = getAuthUrl("pro");
         return;
       }
       console.error("Failed to start checkout:", error);
-      window.location.href = getAuthUrl();
+      window.location.href = getAuthUrl("pro");
     } finally {
       setCheckoutLoading(false);
     }

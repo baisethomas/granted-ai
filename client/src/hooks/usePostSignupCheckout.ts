@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { consumePendingSignupPlan } from "@/lib/signup-plan";
 
@@ -8,13 +8,15 @@ import { consumePendingSignupPlan } from "@/lib/signup-plan";
  */
 export function usePostSignupCheckout(user: { id: string } | null, loading: boolean) {
   const [redirecting, setRedirecting] = useState(false);
+  const checkoutStartedRef = useRef(false);
 
   useEffect(() => {
-    if (loading || !user || redirecting) return;
+    if (loading || !user || checkoutStartedRef.current) return;
 
     const pendingPlan = consumePendingSignupPlan();
     if (pendingPlan !== "pro") return;
 
+    checkoutStartedRef.current = true;
     let cancelled = false;
     setRedirecting(true);
 
@@ -29,6 +31,7 @@ export function usePostSignupCheckout(user: { id: string } | null, loading: bool
       } catch (error) {
         console.error("Post-signup checkout failed:", error);
         if (!cancelled) {
+          checkoutStartedRef.current = false;
           setRedirecting(false);
         }
       }
@@ -37,7 +40,7 @@ export function usePostSignupCheckout(user: { id: string } | null, loading: bool
     return () => {
       cancelled = true;
     };
-  }, [user, loading, redirecting]);
+  }, [user, loading]);
 
   return redirecting;
 }
