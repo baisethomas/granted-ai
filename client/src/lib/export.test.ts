@@ -7,11 +7,16 @@ import {
   buildClipboardText,
   createPdfDocument,
   createWordDocument,
+  exportToClipboard,
   exportToWord,
   stripMarkdown,
   validateExportData,
   type ExportData,
 } from "./export";
+
+function decodePdfBytes(bytes: ArrayBuffer): string {
+  return new TextDecoder("latin1").decode(new Uint8Array(bytes));
+}
 
 vi.mock("file-saver", () => ({
   saveAs: vi.fn(),
@@ -119,13 +124,30 @@ describe("export formatting (GRA-14)", () => {
     expect(text).toContain("Generated on:");
   });
 
+  it("copies formatted grant text via clipboard API", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+
+    await exportToClipboard(GRANT_EXPORT_FIXTURE);
+
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(writeText.mock.calls[0][0]).toContain("Riverside Community Food Bank - Grant Application");
+    expect(writeText.mock.calls[0][0]).toContain("[NEEDS YOUR INPUT: What is the current monthly families served figure?]");
+  });
+
   it("produces a readable PDF with grant sections and gap callouts", () => {
     const doc = createPdfDocument(GRANT_EXPORT_FIXTURE);
     const pdfBytes = doc.output("arraybuffer");
+    const pdfText = decodePdfBytes(pdfBytes);
     const header = new TextDecoder().decode(new Uint8Array(pdfBytes).slice(0, 5));
 
     expect(header).toBe("%PDF-");
     expect(pdfBytes.byteLength).toBeGreaterThan(1000);
+    expect(pdfText).toContain("Grant Application Responses");
+    expect(pdfText).toContain("Project Information");
+    expect(pdfText).toContain(
+      "[NEEDS YOUR INPUT: What is the current monthly families served figure?]"
+    );
   });
 
   it("produces a Word-compatible DOCX package", async () => {

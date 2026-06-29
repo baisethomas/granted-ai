@@ -278,7 +278,13 @@ export function createPdfDocument(data: ExportData): jsPDF {
 export async function exportToPDF(data: ExportData): Promise<void> {
   const doc = createPdfDocument(data);
   const filename = `${sanitizeFilename(data.project.title)}-Grant-Application.pdf`;
-  doc.save(filename);
+
+  try {
+    doc.save(filename);
+  } catch (error) {
+    console.error("PDF export failed:", error);
+    throw new Error("Failed to generate PDF document. Please try again.");
+  }
 }
 
 /**
