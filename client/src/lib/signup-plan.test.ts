@@ -6,6 +6,7 @@ import {
   peekPendingSignupPlan,
   readSignupPlanFromSearch,
   readSignupPlanFromUserMetadata,
+  resolvePendingSignupPlan,
   setPendingSignupPlan,
 } from "./signup-plan";
 
@@ -68,5 +69,23 @@ describe("signup plan helpers", () => {
     expect(
       readSignupPlanFromUserMetadata({ user_metadata: { signup_plan: "pro" } }),
     ).toBe("pro");
+  });
+
+  it("resolvePendingSignupPlan consumes session storage before metadata", () => {
+    setPendingSignupPlan("starter");
+    expect(
+      resolvePendingSignupPlan({ user_metadata: { signup_plan: "pro" } }),
+    ).toBe("starter");
+    expect(peekPendingSignupPlan()).toBeNull();
+    expect(
+      readSignupPlanFromUserMetadata({ user_metadata: { signup_plan: "pro" } }),
+    ).toBe("pro");
+  });
+
+  it("resolvePendingSignupPlan falls back to user metadata", () => {
+    expect(
+      resolvePendingSignupPlan({ user_metadata: { signup_plan: "pro" } }),
+    ).toBe("pro");
+    expect(resolvePendingSignupPlan(null)).toBeNull();
   });
 });

@@ -44,3 +44,14 @@ export function readSignupPlanFromUserMetadata(
   const raw = user.user_metadata.signup_plan;
   return parseSignupPlan(typeof raw === "string" ? raw : null);
 }
+
+/** Session storage wins over user metadata; storage entry is consumed. */
+export function resolvePendingSignupPlan(
+  user: { user_metadata?: Record<string, unknown> } | null | undefined,
+): SignupPlan | null {
+  const fromStorage = consumePendingSignupPlan();
+  if (fromStorage) {
+    return fromStorage;
+  }
+  return readSignupPlanFromUserMetadata(user);
+}
