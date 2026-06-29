@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 import { Packer } from "docx";
 import { GRANT_EXPORT_FIXTURE } from "../../../test/fixtures/export/grant-export-cases";
 import {
@@ -8,7 +8,9 @@ import {
   createPdfDocument,
   createWordDocument,
   exportToClipboard,
+  exportToPDF,
   exportToWord,
+  pdfExport,
   stripMarkdown,
   validateExportData,
   type ExportData,
@@ -98,6 +100,11 @@ describe("export formatting (GRA-14)", () => {
     vi.mocked(saveAs).mockReset();
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
   it("strips markdown artifacts from AI responses", () => {
     const cleaned = stripMarkdown(
       "**Riverside Community Food Bank** serves over *850 families* monthly.\n\nCitations:\n- doc1"
@@ -169,6 +176,16 @@ describe("export formatting (GRA-14)", () => {
 
     await expect(exportToWord(mockExportData)).rejects.toThrow(
       "Failed to generate Word document. Please try again."
+    );
+  });
+
+  it("surfaces PDF export failures to callers", async () => {
+    vi.spyOn(pdfExport, "saveDocument").mockImplementation(() => {
+      throw new Error("save blocked");
+    });
+
+    await expect(exportToPDF(mockExportData)).rejects.toThrow(
+      "Failed to generate PDF document. Please try again."
     );
   });
 });
