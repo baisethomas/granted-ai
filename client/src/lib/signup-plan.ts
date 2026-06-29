@@ -73,18 +73,34 @@ export function clearSignupCheckoutHandled(userId?: string): void {
   }
 }
 
-/** Session storage wins over user metadata; storage entry is consumed. */
+/**
+ * Session storage wins over tombstone and metadata; storage entry is consumed.
+ * Tombstone only suppresses stale metadata when there is no fresh session intent.
+ */
 export function resolvePendingSignupPlan(
   user: { id?: string; user_metadata?: Record<string, unknown> } | null | undefined,
 ): SignupPlan | null {
-  if (user?.id && isSignupCheckoutHandled(user.id)) {
-    return null;
-  }
   const fromStorage = consumePendingSignupPlan();
   if (fromStorage) {
     return fromStorage;
   }
+  if (user?.id && isSignupCheckoutHandled(user.id)) {
+    return null;
+  }
   return readSignupPlanFromUserMetadata(user);
+}
+
+/**
+ * Prepare for a user-initiated Pro checkout (Pricing, Settings, etc.).
+ * Clears signup state so stale metadata cannot re-trigger post-signup checkout
+ * after Stripe returns to /app.
+ */
+export async function prepareExplicitProCheckout(
+  userId: string,
+): Promise<{ error: Error | null }> {
+  clearPendingSignupPlan();
+  markSignupCheckoutHandled(userId);
+  return clearSignupPlanMetadata();
 }
 
 /** Clear signup_plan from Supabase user metadata after it has been acted on. */

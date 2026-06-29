@@ -49,6 +49,9 @@ export const Login = () => {
     if (planFromUrl) {
       setSignupPlan(planFromUrl)
       setIsSignUp(true)
+      if (planFromUrl === 'pro') {
+        setPendingSignupPlan('pro')
+      }
     }
   }, [])
 
