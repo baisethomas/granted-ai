@@ -1286,6 +1286,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/documents/:id/reprocess", requireSupabaseUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = getUserId(req);
+      const document = await storage.getDocument(req.params.id);
+
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      if (!(await storage.userHasOrganizationAccess(userId, document.organizationId))) {
+        return res.status(403).json({ error: "Unauthorized to reprocess this document" });
+      }
+
+      // Embedding failed but extraction succeeded — re-queue embedding only
+      if (document.processingStatus === "complete" && document.embeddingStatus === "failed") {
+        await storage.updateDocument(document.id, {
+          embeddingStatus: "pending",
+          processingError: null,
+        });
+        await storage.createProcessingJob(document.id, "embedding", "queued");
+        try {
+          const summary = await processDocumentJobs({ batchSize: 1 });
+          console.log(`[reprocess] embedding for ${document.id}:`, summary);
+        } catch (workerErr) {
+          console.warn(`[reprocess] inline embedding failed for ${document.id}:`, workerErr);
+        }
+        const fresh = await storage.getDocument(document.id);
+        return res.json(fresh);
+      }
+
+      // Extraction failed — download from storage and re-run full pipeline
+      if (document.processingStatus === "failed") {
+        if (!supabaseAdminClient || !document.storageBucket || !document.storagePath) {
+          return res.status(400).json({ error: "Cannot reprocess: file is no longer available in storage" });
+        }
+
+        await storage.updateDocument(document.id, {
+          processingStatus: "processing",
+          processingError: null,
+          embeddingStatus: "pending",
+        });
+
+        const { data: blob, error: downloadError } = await supabaseAdminClient.storage
+          .from(document.storageBucket)
+          .download(document.storagePath);
+
+        if (downloadError || !blob) {
+          await storage.updateDocument(document.id, {
+            processingStatus: "failed",
+            processingError: "Could not retrieve file from storage",
+          });
+          return res.status(500).json({ error: "Failed to retrieve file from storage" });
+        }
+
+        let processed;
+        try {
+          const buffer = Buffer.from(await blob.arrayBuffer());
+          processed = await fileProcessor.processFile(buffer, document.originalName, document.fileType, document);
+        } catch (extractErr) {
+          await storage.updateDocument(document.id, {
+            processingStatus: "failed",
+            processingError: extractErr instanceof Error ? extractErr.message : "Extraction failed",
+          });
+          return res.status(500).json({ error: "Reprocessing failed during extraction" });
+        }
+
+        await storage.updateDocument(document.id, {
+          summary: processed.summary,
+          processed: true,
+          processingStatus: "complete",
+          summaryExtractedAt: new Date(),
+          processedAt: new Date(),
+          embeddingStatus: "pending",
+        });
+
+        await storage.setDocumentExtraction(document.id, {
+          rawText: processed.extractedText,
+          rawTextBytes: processed.rawTextBytes,
+          extractionStatus: "complete",
+          extractionError: null,
+        });
+
+        await storage.createProcessingJob(document.id, "embedding", "queued");
+        try {
+          const summary = await processDocumentJobs({ batchSize: 1 });
+          console.log(`[reprocess] full pipeline for ${document.id}:`, summary);
+        } catch (workerErr) {
+          console.warn(`[reprocess] inline embedding failed for ${document.id}:`, workerErr);
+        }
+
+        const fresh = await storage.getDocument(document.id);
+        return res.json(fresh);
+      }
+
+      return res.status(400).json({ error: "Document is not in a failed state" });
+    } catch (error) {
+      console.error("[reprocess] error:", error);
+      res.status(500).json(mergeDevErrorDetails({ error: "Reprocess failed" }, error));
+    }
+  });
+
   app.post("/api/workers/process-documents", workerRateLimiter, async (req, res) => {
     try {
       const expectedKey = process.env.DOCUMENT_WORKER_API_KEY;

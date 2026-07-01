@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase, signIn, signUp, signOut, signInWithGoogle, getCurrentUser, getCurrentSession } from '@/lib/supabase'
+import { queryClient } from '@/lib/queryClient'
 
 interface AuthContextType {
   user: User | null
@@ -45,6 +46,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setSession(session)
         setUser(session?.user ?? null)
         setLoading(false)
+        // Clear cached API data when the session ends so stale data
+        // is never shown to the next user or after a token expiry.
+        if (event === 'SIGNED_OUT') {
+          queryClient.clear()
+        }
       }
     )
 

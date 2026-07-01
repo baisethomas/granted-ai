@@ -447,6 +447,11 @@ export const api = {
     await apiRequest("DELETE", `/api/documents/${id}`);
   },
 
+  async reprocessDocument(id: string): Promise<Document> {
+    const res = await apiRequest("POST", `/api/documents/${id}/reprocess`);
+    return res.json();
+  },
+
   // Grant Questions
   async getQuestions(projectId: string): Promise<GrantQuestion[]> {
     const res = await apiRequest("GET", `/api/projects/${projectId}/questions`);

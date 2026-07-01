@@ -58,6 +58,7 @@ export default function Forms() {
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [showClarifications, setShowClarifications] = useState(false);
   const [clarificationQuestions, setClarificationQuestions] = useState<ClarificationQuestion[]>([]);
+  const [focusAreaInput, setFocusAreaInput] = useState("");
 
   const { data: projects = [] } = useQuery({
     queryKey: workspaceKeys.projects(activeOrganizationId),
@@ -333,8 +334,8 @@ export default function Forms() {
         queryClient.invalidateQueries({ queryKey: workspaceKeys.projects(activeOrganizationId) });
       }
       toast({
-        title: "Responses generating",
-        description: "AI is generating responses for your questions. View progress in the drafts section.",
+        title: `Generating ${questions.length} response${questions.length === 1 ? "" : "s"}`,
+        description: "Head to Drafts to review them as they complete — this usually takes under a minute.",
       });
       // Reload questions to get proper IDs and statuses
       if (projectId) {
@@ -342,9 +343,16 @@ export default function Forms() {
       }
     },
     onError: (error) => {
+      const msg = error instanceof Error ? error.message : "";
+      const isBilling = msg.includes("402") || msg.toLowerCase().includes("limit") || msg.toLowerCase().includes("plan");
+      const isTimeout = msg.toLowerCase().includes("timeout") || msg.toLowerCase().includes("timed out");
       toast({
-        title: "Generation failed",
-        description: error instanceof Error ? error.message : "Failed to generate responses",
+        title: isBilling ? "Usage limit reached" : isTimeout ? "Generation timed out" : "Generation failed",
+        description: isBilling
+          ? "You've hit your plan limit. Upgrade your plan to generate more responses."
+          : isTimeout
+          ? "The request took too long. Try generating one question at a time."
+          : msg || "Something went wrong. Check your documents are processed and try again.",
         variant: "destructive",
       });
     },
@@ -662,7 +670,7 @@ export default function Forms() {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="title">Grant Title</Label>
+                <Label htmlFor="title">Grant Title <span className="text-red-500">*</span></Label>
                 <Input
                   id="title"
                   placeholder="e.g., Community Health Innovation Grant"
@@ -671,7 +679,7 @@ export default function Forms() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="funder">Funding Organization</Label>
+                <Label htmlFor="funder">Funding Organization <span className="text-red-500">*</span></Label>
                 <Input
                   id="funder"
                   placeholder="e.g., Ford Foundation"
@@ -680,7 +688,7 @@ export default function Forms() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="amount">Grant Amount</Label>
+                <Label htmlFor="amount">Grant Amount <span className="text-slate-400 font-normal">(optional)</span></Label>
                 <CurrencyInput
                   id="amount"
                   placeholder="$150,000"
@@ -689,7 +697,7 @@ export default function Forms() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="deadline">Application Deadline</Label>
+                <Label htmlFor="deadline">Application Deadline <span className="text-slate-400 font-normal">(optional)</span></Label>
                 <Input
                   id="deadline"
                   type="date"
@@ -700,7 +708,10 @@ export default function Forms() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Grant Description/Guidelines</Label>
+              <Label htmlFor="description">
+                Grant Description/Guidelines{" "}
+                <span className="text-slate-400 font-normal">(optional)</span>
+              </Label>
               <Textarea
                 id="description"
                 rows={4}
@@ -708,6 +719,10 @@ export default function Forms() {
                 value={projectForm.description}
                 onChange={(e) => setProjectForm({ ...projectForm, description: e.target.value })}
               />
+              <p className="text-xs text-slate-500 flex items-center gap-1">
+                <HelpCircle className="h-3 w-3 flex-shrink-0" />
+                This context helps the AI generate more targeted responses — paste funder priorities, eligibility criteria, or program goals.
+              </p>
             </div>
           </div>
 
@@ -717,6 +732,16 @@ export default function Forms() {
               <h3 className="text-lg font-semibold text-slate-900">Application Questions</h3>
               <p className="text-sm text-slate-600 mt-1">Add the specific questions from the grant application</p>
             </div>
+
+            {questions.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-10 text-center border-2 border-dashed border-slate-200 rounded-lg bg-slate-50">
+                <Keyboard className="h-8 w-8 text-slate-300 mb-3" />
+                <p className="text-sm font-medium text-slate-600 mb-1">No questions yet</p>
+                <p className="text-xs text-slate-400 max-w-xs">
+                  Add questions manually or upload a grant application form above to extract them automatically.
+                </p>
+              </div>
+            )}
 
             {questions.map((question, index) => (
               <Card key={question.id} className="border border-slate-200">
@@ -828,17 +853,32 @@ export default function Forms() {
                         </Button>
                       </Badge>
                     ))}
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Input
+                      placeholder="e.g., Equity, Youth Development"
+                      value={focusAreaInput}
+                      onChange={(e) => setFocusAreaInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addFocusArea(focusAreaInput.trim());
+                          setFocusAreaInput("");
+                        }
+                      }}
+                      className="h-8 text-sm"
+                    />
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const newArea = prompt("Enter focus area:");
-                        if (newArea) addFocusArea(newArea);
+                        addFocusArea(focusAreaInput.trim());
+                        setFocusAreaInput("");
                       }}
-                      className="inline-flex items-center px-3 py-1 text-sm"
+                      disabled={!focusAreaInput.trim()}
+                      className="h-8 px-3 flex-shrink-0"
                     >
-                      <Plus className="mr-1 h-3 w-3" />
-                      Add Focus
+                      <Plus className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
