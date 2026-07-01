@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 
 const baseUrl =
   process.env.AUTH_SMOKE_BASE_URL ||
-  `http://localhost:${process.env.PORT || "5000"}`;
+  `http://localhost:${process.env.PORT || "5001"}`;
 
 const token = process.env.SUPABASE_TEST_ACCESS_TOKEN;
 
