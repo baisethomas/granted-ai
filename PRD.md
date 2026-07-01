@@ -1,3 +1,12 @@
+> ## ⚠️ This is a VISION document, not current state
+>
+> This PRD describes the product we're building toward. Several things in here are **aspirational and not yet built** as of this writing. Do not treat it as a description of the running system. Known gaps between this doc and reality:
+>
+> - **Model-agnostic / multi-provider (OpenAI, Anthropic, Mistral, local):** the app is currently **OpenAI-only**.
+> - **OCR for scanned documents:** **not implemented** — only text-based PDF extraction.
+> - **Clarification engine, rubric scoring, Evidence Map, grant discovery:** planned (Phase 4+), **not yet built**.
+>
+> For what actually exists, see [`CLAUDE.md`](./CLAUDE.md) (source of truth) and the code.
 
 ## 1) Executive Summary
 Granted is an agentic, model-agnostic web app that ingests an organization's materials (mission, past proposals, budgets, impact reports) and autonomously drafts complete, funder-aligned grant applications with minimal user interaction. It differentiates by combining a persistent organization memory, a clarification engine, rubric-based scoring, and optional grant discovery and tracking.
