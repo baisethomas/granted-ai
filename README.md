@@ -64,12 +64,12 @@ Granted helps nonprofits streamline their grant application process by intellige
 
 3. **Set up environment variables**
 
-   Copy `.env.example` to `.env` and fill in values (server accepts `SUPABASE_URL`, `VITE_SUPABASE_URL`, or legacy `NEXT_PUBLIC_SUPABASE_URL` for JWT verification):
+   Copy `.env.example` to `.env` and fill in the values below. The server accepts `VITE_SUPABASE_URL` or the legacy `NEXT_PUBLIC_SUPABASE_URL` fallback — prefer the `VITE_*` names for new setups.
 
    ```bash
-   # Client (Vite) — anon key + URL for browser Supabase client
-   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+   # Client (Vite) — anon key + URL for the browser Supabase client
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-anon-key
 
    # Server — required for validating Supabase JWTs on API routes
    SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
@@ -79,7 +79,11 @@ Granted helps nonprofits streamline their grant application process by intellige
 
    OPENAI_API_KEY=sk-your-openai-api-key
 
-   # Production: required for persistent Express sessions + Passport local auth (see .env.example)
+   # Generation + embedding models (optional — defaults shown)
+   # GRANTED_DEFAULT_MODEL=gpt-4o-mini
+   # DOCUMENT_EMBEDDING_MODEL=text-embedding-3-small
+
+   # Required in production for persistent Express sessions (generate with: openssl rand -hex 32)
    SESSION_SECRET=your-long-random-secret
 
    DOCUMENTS_BUCKET=documents
@@ -87,6 +91,14 @@ Granted helps nonprofits streamline their grant application process by intellige
 
    # OAuth redirect base for Google sign-in (production/staging); falls back to window.location.origin in dev
    # VITE_APP_DOMAIN=https://your-app.example.com
+
+   # Stripe billing (required if using paid plans)
+   # STRIPE_SECRET_KEY=sk_...
+   # STRIPE_WEBHOOK_SECRET=whsec_...
+   # STRIPE_PRO_PRICE_ID=price_...
+
+   # Vercel cron authentication (required if using /api/cron/process-documents)
+   # CRON_SECRET=your-cron-secret
    ```
 
    Google sign-in is configured in the Supabase dashboard (Authentication → Providers → Google); redirect URLs must match your deployed origin or `VITE_APP_DOMAIN`.
@@ -104,27 +116,33 @@ Granted helps nonprofits streamline their grant application process by intellige
 
 6. **Open your browser**
 
-   Navigate to [http://localhost:5000](http://localhost:5000)
+   Navigate to [http://localhost:5001](http://localhost:5001)
 
 ## Environment Variables
 
 | Variable | Purpose | Required |
 |----------|---------|----------|
-| `SUPABASE_URL` / `VITE_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL for server JWT verification | ✅ Yes |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role key for validating authenticated requests | ✅ Yes |
-| `NEXT_PUBLIC_SUPABASE_*` | Browser Supabase client (URL + anon key) | ✅ Yes (frontend auth) |
-| `OPENAI_API_KEY` | OpenAI API key for GPT-4 and embeddings | ✅ Yes |
+| `VITE_SUPABASE_URL` | Supabase project URL — browser client + server JWT verification (also accepts legacy `NEXT_PUBLIC_SUPABASE_URL`) | ✅ Yes |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon key for the browser client (also accepts legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY`) | ✅ Yes |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key for validating Supabase JWTs on API routes | ✅ Yes |
+| `OPENAI_API_KEY` | OpenAI API key for generation and embeddings | ✅ Yes |
 | `DATABASE_URL` | PostgreSQL connection string | ⚠️ Recommended* |
-| `SESSION_SECRET` | Express session signing secret | ✅ Required when `NODE_ENV=production`** |
-| `ALLOWED_ORIGINS` | Comma-separated browser origins allowed by CORS (same-origin always allowed) | ❌ Optional |
-| `DOCUMENTS_BUCKET` | Supabase storage bucket name (defaults to `documents`) | ❌ Optional |
-| `DOCUMENT_WORKER_API_KEY` | API key for `POST /api/workers/process-documents` (and cron) | ❌ Optional |
-| `DOCUMENT_WORKER_BATCH_MAX` | Upper bound for worker `batchSize` query param (default `50`) | ❌ Optional |
-| `VITE_APP_DOMAIN` | Public app origin for OAuth redirects (no trailing slash); dev can use browser origin | ❌ Optional |
-| `PORT` | Server port (defaults to `5000`) | ❌ Optional |
+| `SESSION_SECRET` | Express session signing secret (`openssl rand -hex 32`) | ✅ Required in production |
+| `GRANTED_DEFAULT_MODEL` | Generation model (default: `gpt-4o-mini`) | ❌ Optional |
+| `DOCUMENT_EMBEDDING_MODEL` | Embedding model (default: `text-embedding-3-small`) | ❌ Optional |
+| `DOCUMENTS_BUCKET` | Supabase storage bucket name (default: `documents`) | ❌ Optional |
+| `DOCUMENT_WORKER_API_KEY` | API key for `POST /api/workers/process-documents` | ❌ Optional |
+| `DOCUMENT_WORKER_BATCH_MAX` | Upper bound for worker `batchSize` query param (default: `50`) | ❌ Optional |
+| `CRON_SECRET` | Secret verified by `GET /api/cron/process-documents` (Vercel cron) | ❌ Vercel cron only |
+| `VITE_APP_DOMAIN` | Public app origin for Google OAuth redirects — no trailing slash; dev uses `window.location.origin` | ❌ Optional** |
+| `STRIPE_SECRET_KEY` | Stripe secret key for billing/checkout | ❌ Billing only |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret | ❌ Billing only |
+| `STRIPE_PRO_PRICE_ID` | Stripe price ID for the Pro plan | ❌ Billing only |
+| `ALLOWED_ORIGINS` | Comma-separated browser origins allowed by CORS | ❌ Optional |
+| `PORT` | Server port (default: `5001` in dev, `5000` in production) | ❌ Optional |
 
-\* Without `DATABASE_URL`, the server uses in-memory storage; data resets on restart.  
-\** See `.env.example`. Local Passport login and durable sessions need a stable `SESSION_SECRET` in production.
+\* Without `DATABASE_URL` the server uses in-memory storage — data resets on restart.  
+\** Required when deploying to a custom domain or staging environment; Supabase OAuth redirect URLs must match.
 
 ## Project Structure
 
@@ -374,7 +392,7 @@ export OPENAI_API_KEY=sk-...
 npm run start
 ```
 
-Server runs on `PORT` (default: 5000) and serves:
+Server runs on `PORT` (default: `5001` in dev, `5000` in production) and serves:
 - API endpoints at `/api/*` and `/auth/*`
 - Static client files from `dist/`
 
