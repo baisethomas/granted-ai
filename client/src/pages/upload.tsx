@@ -92,25 +92,14 @@ const getProcessingBadge = (document: any) => {
   const status = document.processingStatus || (document.processed ? "complete" : "pending");
   switch (status) {
     case "complete":
-      return {
-        color: "bg-green-100 text-green-800",
-        icon: Check,
-        label: "Ready",
-      };
+      return { color: "bg-green-100 text-green-800", icon: Check, label: "Ready" };
     case "failed":
-      return {
-        color: "bg-red-100 text-red-800",
-        icon: AlertTriangle,
-        label: "Failed",
-      };
+      return { color: "bg-red-100 text-red-800", icon: AlertTriangle, label: "Extraction failed" };
     case "processing":
+      return { color: "bg-yellow-100 text-yellow-800", icon: Clock, label: "Extracting…" };
     case "pending":
     default:
-      return {
-        color: "bg-yellow-100 text-yellow-800",
-        icon: Clock,
-        label: "Processing",
-      };
+      return { color: "bg-slate-100 text-slate-600", icon: Clock, label: "Queued" };
   }
 };
 
@@ -118,31 +107,34 @@ const getEmbeddingBadge = (document: any) => {
   const status = document.embeddingStatus || "pending";
   switch (status) {
     case "complete":
-      return {
-        color: "bg-blue-100 text-blue-800",
-        icon: Check,
-        label: "Embeddings Ready",
-      };
+      return { color: "bg-blue-100 text-blue-800", icon: Check, label: "Indexed" };
     case "failed":
-      return {
-        color: "bg-red-100 text-red-800",
-        icon: AlertTriangle,
-        label: "Embedding Failed",
-      };
+      return { color: "bg-red-100 text-red-800", icon: AlertTriangle, label: "Indexing failed" };
     case "skipped":
-      return {
-        color: "bg-slate-100 text-slate-700",
-        icon: MoreHorizontal,
-        label: "Embeddings Skipped",
-      };
+      return { color: "bg-slate-100 text-slate-700", icon: MoreHorizontal, label: "Indexing skipped" };
+    case "processing":
+      return { color: "bg-yellow-100 text-yellow-800", icon: Clock, label: "Indexing…" };
     case "pending":
     default:
-      return {
-        color: "bg-slate-100 text-slate-700",
-        icon: Clock,
-        label: "Embeddings Pending",
-      };
+      return { color: "bg-slate-100 text-slate-700", icon: Clock, label: "Indexing queued" };
   }
+};
+
+const isProcessingInFlight = (document: any): boolean => {
+  const ps = document.processingStatus;
+  const es = document.embeddingStatus;
+  return ps === "pending" || ps === "processing" ||
+    es === "pending" || es === "processing";
+};
+
+const getProcessingError = (document: any): string | null => {
+  if (document.processingStatus === "failed") {
+    return "Text extraction failed. Click Retry to try again, or delete and re-upload.";
+  }
+  if (document.embeddingStatus === "failed") {
+    return "Search indexing failed. Click Retry to rebuild the index.";
+  }
+  return null;
 };
 
 const ATTACH_WORKSPACE_WIDE = "__workspace_wide";
@@ -173,6 +165,10 @@ export default function Upload() {
     queryFn: () =>
       activeOrganizationId ? api.getOrganizationDocuments(activeOrganizationId) : Promise.resolve([]),
     enabled: !!activeOrganizationId,
+    refetchInterval: (query) => {
+      const docs = query.state.data as Document[] | undefined;
+      return docs?.some(isProcessingInFlight) ? 5000 : false;
+    },
   });
   const uploadMutation = useMutation({
     mutationFn: ({
@@ -228,6 +224,23 @@ export default function Upload() {
     },
   });
 
+  const reprocessMutation = useMutation({
+    mutationFn: (id: string) => api.reprocessDocument(id),
+    onSuccess: () => {
+      if (activeOrganizationId) {
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.documents(activeOrganizationId) });
+      }
+      toast({ title: "Reprocessing started", description: "The document is being reprocessed." });
+    },
+    onError: (error) => {
+      toast({
+        title: "Retry failed",
+        description: error instanceof Error ? error.message : "Could not reprocess the document.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleUpload = async (file: File, category?: string) => {
     const projectId =
       attachToProjectChoice === ATTACH_WORKSPACE_WIDE ? null : attachToProjectChoice;
@@ -236,6 +249,10 @@ export default function Upload() {
 
   const handleDelete = (id: string) => {
     deleteMutation.mutate(id);
+  };
+
+  const handleReprocess = (id: string) => {
+    reprocessMutation.mutate(id);
   };
 
   const formatFileSize = (bytes: number) => {
@@ -394,9 +411,9 @@ export default function Upload() {
                           {document.summary}
                         </p>
                       )}
-                      {document.processingError && (
+                      {getProcessingError(document) && (
                         <p className="text-sm text-red-600 mt-1">
-                          {document.processingError}
+                          {getProcessingError(document)}
                         </p>
                       )}
                       {document.processedAt && (
@@ -458,9 +475,21 @@ export default function Upload() {
                         </a>
                       </Button>
                     )}
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    {(document.processingStatus === "failed" || document.embeddingStatus === "failed") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleReprocess(document.id)}
+                        disabled={reprocessMutation.isPending}
+                        className="flex items-center gap-1 text-slate-700"
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${reprocessMutation.isPending ? "animate-spin" : ""}`} />
+                        Retry
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleDelete(document.id)}
                       className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
