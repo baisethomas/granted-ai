@@ -127,7 +127,7 @@ export function EvidenceMap({
           <span>Section Evidence Analysis</span>
         </h3>
         
-        {data.map((section, index) => {
+        {data.map((section, _index) => {
           const evidenceStyle = getEvidenceColor(section.evidenceStrength);
           
           return (

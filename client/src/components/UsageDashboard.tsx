@@ -4,12 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { 
-  TrendingUp, 
-  DollarSign, 
-  FileText, 
+  TrendingUp,
+  DollarSign,
+  FileText,
   Users,
   AlertTriangle,
-  CheckCircle,
   Zap,
   BarChart3
 } from "lucide-react";
@@ -75,7 +74,7 @@ export function UsageDashboard({ organizationId, className = "" }: UsageDashboar
     return 'text-green-600';
   };
 
-  const getProgressColor = (percentage: number) => {
+  const _getProgressColor = (percentage: number) => {
     if (percentage >= 90) return 'bg-red-500';
     if (percentage >= 75) return 'bg-orange-500';
     if (percentage >= 50) return 'bg-yellow-500';

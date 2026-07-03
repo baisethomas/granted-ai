@@ -25,7 +25,6 @@ import {
   Clock,
   Lightbulb,
   Eye,
-  MoreHorizontal,
   Save,
   X,
   AlertCircle,
@@ -34,7 +33,6 @@ import {
   CheckCircle2,
   ArrowRight,
   Target,
-  BookOpen,
   Wand2
 } from "lucide-react";
 import EvidenceMap, { EvidenceMapData } from "@/components/EvidenceMap";
@@ -235,7 +233,7 @@ export default function Drafts() {
             return q;
           });
           
-          const updatedQuestion = updated.find((q: any) => q.id === variables.questionId);
+          const _updatedQuestion = updated.find((q: any) => q.id === variables.questionId);
           
           // Force React Query to recognize this as new data by creating a new array reference
           const newArray = [...updated];
@@ -316,7 +314,7 @@ export default function Drafts() {
   const updateResponseMutation = useMutation({
     mutationFn: ({ questionId, content }: { questionId: string; content: string }) => 
       api.updateResponse(questionId, content, false),
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, _variables) => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.projectQuestions(activeOrganizationId, selectedProject) });
       setHasUnsavedChanges(false);
       toast({
@@ -378,7 +376,7 @@ export default function Drafts() {
     try {
       setFinalizingProject(true);
       await finalizeProjectMutation.mutateAsync(selectedProject);
-    } catch (error) {
+    } catch (_error) {
       // Error handling is done in the mutation
     } finally {
       setFinalizingProject(false);
@@ -399,7 +397,7 @@ export default function Drafts() {
           content: editedContent
         });
         setHasUnsavedChanges(false); // Mark as saved
-      } catch (error) {
+      } catch (_error) {
         // Error handling is done in the mutation's onError
       }
     }
@@ -425,6 +423,7 @@ export default function Drafts() {
         clearTimeout(autoSaveTimeout);
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editedContent, originalContent, hasUnsavedChanges]); // Removed handleAutoSave from deps
 
   // This useEffect will be moved after function definitions
@@ -458,6 +457,7 @@ export default function Drafts() {
   };
 
   // Save changes manually
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleSave = async () => {
     if (!editingQuestionId || !hasUnsavedChanges) return;
 
@@ -469,12 +469,13 @@ export default function Drafts() {
       setEditingQuestionId(null);
       setEditedContent("");
       setOriginalContent("");
-    } catch (error) {
+    } catch (_error) {
       // Error handling is done in the mutation's onError
     }
   };
 
   // Cancel editing
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleCancel = () => {
     if (hasUnsavedChanges) {
       const confirmDiscard = window.confirm(
@@ -1417,7 +1418,7 @@ export default function Drafts() {
                   <EvidenceMap
                     data={evidenceMapData}
                     overallGroundingQuality={calculateOverallGroundingQuality()}
-                    onSectionClick={(sectionName) => {
+                    onSectionClick={(_sectionName) => {
                     }}
                   />
                 </div>

@@ -49,6 +49,7 @@ export function useDraftEditor({ onSave }: UseDraftEditorProps) {
         clearTimeout(autoSaveTimeout);
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editedContent, originalContent, hasUnsavedChanges]);
 
   // Update word count when content changes

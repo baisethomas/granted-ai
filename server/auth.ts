@@ -171,7 +171,7 @@ export async function setupAuth(app: Express) {
         if (err) return res.status(500).json({ error: "login failed" });
         res.json({ id: created.id, username: created.username, organizationName: created.organizationName });
       });
-    } catch (e) {
+    } catch (_e) {
       res.status(500).json({ error: "signup failed" });
     }
   });

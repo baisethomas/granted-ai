@@ -44,7 +44,7 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [location, setLocation] = useLocation();
-  const { user, loading, signOut } = useAuth();
+  const { user, loading } = useAuth();
   const checkoutRedirecting = usePostSignupCheckout(user, loading);
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
 

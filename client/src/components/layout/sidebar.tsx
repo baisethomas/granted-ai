@@ -1,12 +1,9 @@
-import { 
-  LayoutDashboard, 
-  CloudUpload, 
-  FileText, 
-  Eye, 
+import {
+  LayoutDashboard,
+  CloudUpload,
+  FileText,
+  Eye,
   Settings,
-  BookOpen,
-  Video,
-  HelpCircle,
   LogOut,
   BarChart3,
   Plus,
@@ -42,6 +39,7 @@ interface SidebarProps {
   onTabChange: (tab: string) => void;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const mainNavItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "organization", label: "Organization", icon: Building2 },
@@ -50,12 +48,6 @@ export const mainNavItems = [
   { id: "drafts", label: "Drafts", icon: Eye },
   { id: "metrics", label: "Metrics", icon: BarChart3 },
   { id: "settings", label: "Settings", icon: Settings },
-];
-
-const resourceNavItems = [
-  { id: "docs", label: "Documentation", icon: BookOpen, href: "#" },
-  { id: "tutorials", label: "Tutorials", icon: Video, href: "#" },
-  { id: "support", label: "Support", icon: HelpCircle, href: "#" },
 ];
 
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {

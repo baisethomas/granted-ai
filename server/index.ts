@@ -8,7 +8,7 @@ import { setupVite, serveStatic, log } from "./vite.js";
 import { setupAuth } from "./auth.js";
 import { validateEnvironment } from "./config.js";
 import { corsMiddleware } from "./middleware/cors.js";
-import { apiRateLimiter, authRateLimiter, uploadRateLimiter } from "./middleware/rateLimiter.js";
+import { apiRateLimiter } from "./middleware/rateLimiter.js";
 import { setupSecurityHeaders } from "./securityHeaders.js";
 
 const app = express();

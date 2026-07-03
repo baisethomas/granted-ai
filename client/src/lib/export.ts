@@ -120,7 +120,7 @@ export async function exportToClipboard(data: ExportData): Promise<void> {
 
   try {
     await navigator.clipboard.writeText(fullText);
-  } catch (error) {
+  } catch (_error) {
     // Fallback for older browsers
     const textArea = document.createElement("textarea");
     textArea.value = fullText;

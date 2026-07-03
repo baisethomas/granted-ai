@@ -54,7 +54,7 @@ export function CitationTooltip({ children, citations, className = "" }: Citatio
           </div>
           
           <div className="space-y-2">
-            {citations.slice(0, 3).map((citation, index) => (
+            {citations.slice(0, 3).map((citation, _index) => (
               <div key={citation.id} className="border-l-2 border-blue-200 pl-3 space-y-1">
                 <div className="flex items-start space-x-2">
                   <FileText className="h-3 w-3 text-slate-400 mt-0.5 flex-shrink-0" />
