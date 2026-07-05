@@ -286,6 +286,8 @@ export interface UserSettings {
   emphasisAreas: string[];
   creativity: number;
   contextUsage: number;
+  aiModel: string;
+  fallbackModel: string;
   audience: string;
   answerStructure: string;
   claimConfidence: string;

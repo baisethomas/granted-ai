@@ -1102,6 +1102,8 @@ export class MemStorage implements IStorage {
       emphasisAreas: settings.emphasisAreas || null,
       creativity: settings.creativity || null,
       contextUsage: settings.contextUsage || null,
+      aiModel: settings.aiModel || null,
+      fallbackModel: settings.fallbackModel || null,
       audience: settings.audience ?? null,
       answerStructure: settings.answerStructure ?? null,
       claimConfidence: settings.claimConfidence ?? null,
