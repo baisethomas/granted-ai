@@ -150,7 +150,7 @@ export class DocumentChunker {
           options.overlapTokens
         );
         
-        sectionChunks.forEach((chunkContent, index) => {
+        sectionChunks.forEach((chunkContent, _index) => {
           chunks.push({
             documentId,
             chunkIndex: chunks.length,

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, check, vector } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, vector } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -277,6 +277,9 @@ export const userSettings = pgTable("user_settings", {
   fallbackModel: text("fallback_model").default("gpt-3.5-turbo"),
   creativity: integer("creativity").default(30),
   contextUsage: integer("context_usage").default(80),
+  audience: text("audience").default("program_officer"),
+  answerStructure: text("answer_structure").default("prose"),
+  claimConfidence: text("claim_confidence").default("balanced"),
   emailNotifications: boolean("email_notifications").default(true),
   autoSave: boolean("auto_save").default(true),
   analytics: boolean("analytics").default(true),
@@ -312,6 +315,9 @@ export const insertUserSettingsSchema = createInsertSchema(userSettings).pick({
   fallbackModel: true,
   creativity: true,
   contextUsage: true,
+  audience: true,
+  answerStructure: true,
+  claimConfidence: true,
   emailNotifications: true,
   autoSave: true,
   analytics: true,

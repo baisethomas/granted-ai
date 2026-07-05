@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { User, Session } from '@supabase/supabase-js'
-import { supabase, signIn, signUp, signOut, signInWithGoogle, getCurrentUser, getCurrentSession } from '@/lib/supabase'
+import { supabase, signIn, signUp, signOut, signInWithGoogle, getCurrentSession } from '@/lib/supabase'
 import { queryClient } from '@/lib/queryClient'
 
 interface AuthContextType {
@@ -15,6 +15,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext)
   if (!context) {

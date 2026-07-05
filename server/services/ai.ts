@@ -501,7 +501,7 @@ Stay within the word limit if one is given. The review committee values specific
       return this.getMockSummary(filename, content);
     }
 
-    let lastError: Error | null = null;
+    let _lastError: Error | null = null;
     
     // Retry logic with exponential backoff  
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -546,7 +546,7 @@ Stay within the word limit if one is given. The review committee values specific
 
       } catch (error: any) {
         if (timeoutId) clearTimeout(timeoutId);
-        lastError = error;
+        _lastError = error;
         
         console.error(`Document summarization attempt ${attempt + 1} failed:`, error.message || error);
 

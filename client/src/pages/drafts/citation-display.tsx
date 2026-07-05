@@ -11,6 +11,7 @@ export type DraftCitation = {
   chunkRefs?: Array<{ chunkIndex?: number; quote?: string }>;
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getCitationDocumentName(
   citation: DraftCitation | undefined,
   fallbackIndex: number
@@ -26,6 +27,7 @@ export function getCitationDocumentName(
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getCitationQuote(citation: DraftCitation | undefined): string {
   if (!citation) return "";
   if (typeof citation.quote === "string" && citation.quote) return citation.quote;
@@ -38,6 +40,7 @@ export type ResponseSegment =
   | { type: "marker"; value: string; markerIndex: number };
 
 /** Split draft body text on inline [#N] citation markers (1-based). */
+// eslint-disable-next-line react-refresh/only-export-components
 export function splitResponseWithCitationMarkers(text: string): ResponseSegment[] {
   if (!text) return [];
 
@@ -110,6 +113,7 @@ export function ResponseWithCitationMarkers({
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getResponseTrustSummary(input: {
   citations?: DraftCitation[] | null;
   assumptions?: unknown[] | null;

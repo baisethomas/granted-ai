@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
@@ -66,7 +66,7 @@ export default function Forms() {
     enabled: !!activeOrganizationId,
   });
 
-  const { data: settings } = useQuery({
+  const { data: _settings } = useQuery({
     queryKey: workspaceKeys.userSettings(),
     queryFn: api.getSettings,
   });
@@ -133,7 +133,7 @@ export default function Forms() {
     }
   };
 
-  const createProjectMutation = useMutation({
+  const _createProjectMutation = useMutation({
     mutationFn: (data: any) => {
       if (!activeOrganizationId) {
         throw new Error("Select a workspace before creating a project.");
@@ -220,7 +220,7 @@ export default function Forms() {
     },
   });
 
-  const createQuestionMutation = useMutation({
+  const _createQuestionMutation = useMutation({
     mutationFn: ({ projectId, question }: { projectId: string; question: any }) =>
       api.createQuestion(projectId, question),
     onSuccess: () => {
@@ -392,7 +392,7 @@ export default function Forms() {
     );
   };
 
-  const handleClarificationFollowUp = (questionId: string) => {
+  const handleClarificationFollowUp = (_questionId: string) => {
     toast({
       title: "Follow-up requested",
       description: "Additional guidance will be provided for this question.",
@@ -431,7 +431,7 @@ export default function Forms() {
         title: "Generation started",
         description: "AI is generating responses using your clarifications.",
       });
-    } catch (error) {
+    } catch (_error) {
       toast({
         title: "Generation failed",
         description: "Failed to start generation. Please try again.",

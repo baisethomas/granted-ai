@@ -116,6 +116,7 @@ export function LogoutProvider({ children }: LogoutProviderProps) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useLogout(): () => void {
   const context = useContext(LogoutContext);
   if (!context) {

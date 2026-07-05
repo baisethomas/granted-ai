@@ -1860,7 +1860,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Forward to the regular generation endpoint by making an internal request
-      const { tone = "professional", emphasisAreas = [] } = req.body;
+      // tone and emphasisAreas from req.body are available if needed for future retry logic
       
       // Rather than duplicating logic, we'll redirect to the generate endpoint
       res.status(200).json({ 
