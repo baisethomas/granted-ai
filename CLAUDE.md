@@ -19,6 +19,7 @@ This repo has ~20 markdown planning docs (`PRD.md`, `PROJECT_ROADMAP.md`, `*_PLA
 - **OCR is not implemented.** The PRD promises OCR for scanned docs; no OCR library is installed. PDF text extraction (`unpdf`) handles text-based PDFs only.
 - **`zustand` is installed but unused.** Client state is TanStack Query (server state) + React hooks (local). Don't reach for zustand.
 - **`shared/schema.ts` is legacy/dead.** The canonical Drizzle schema is `shared/schema-simple.ts` (confirmed in `drizzle.config.ts`). Don't edit `schema.ts`.
+- **The data-access layer is `server/storage.ts`, not `server/services/storage.ts`.** It lives at the top level of `server/`, alongside `routes.ts` and `db.ts` — not inside `services/`. `server/services/` only holds `ai.ts`, `retrieval.ts`, `embedding.ts`, `fileProcessor.ts`, `billing.ts`, `stripeBilling.ts`, `metrics.ts`. This wrong path had propagated into `.claude/agents/rag-engineer.md`, `schema-guardian.md`, and `pr-reviewer.md` — fixed in this pass.
 
 If you find new drift, fix the doc or note it here — don't let it compound.
 
@@ -46,7 +47,7 @@ Never use Haiku for the generation pipeline, billing/plan logic, or auth.
 - **Never expose provider keys client-side.** `OPENAI_API_KEY` is server-only. The only key that reaches the browser is the Supabase anon key.
 - **Never use `Promise.all` for multi-source retrieval or fan-out** — use `Promise.allSettled` so one failure doesn't kill the response.
 - **Never write migrations by hand.** Edit `shared/schema-simple.ts`, then `npm run db:push`. Files in `/migrations/` are generated.
-- **Never bypass tenant isolation.** Every query on user data filters by `organizationId`. Data access goes through `server/services/storage.ts`, not raw Drizzle in routes.
+- **Never bypass tenant isolation.** Every query on user data filters by `organizationId`. Data access goes through `server/storage.ts`, not raw Drizzle in routes.
 - **Run the relevant tests before committing.** Tests are colocated (`*.test.ts`) and run with `vitest`. After auth changes run `npm run test:auth`; after billing changes run the billing tests; run `npm run check` (tsc) for type safety.
 - **Never commit or push directly to `main`.** Every change — no matter how small — starts on a new branch created *before* touching any code. Branch naming: `feat/GRA-<id>-short-description`, `fix/GRA-<id>-short-description`, or `chore/short-description`. When work is done, open a PR with `gh pr create` (use `/pr`). Code is not shipped until a PR exists. If you find yourself on `main` with uncommitted changes, stop and ask before proceeding.
 - **Never merge an unreviewed PR.** The only path into `main` is `/review`: it triggers **Codex** (`chatgpt-codex-connector`) — an independent external reviewer, GPT not Claude — which posts P1/P2/P3 findings on the PR. You fix every P1/P2, re-trigger, and repeat until Codex is clean, which auto-merges (squash). A clean Codex pass is the *only* thing that clears the gate. Never merge by hand to skip Codex, and never bypass a P1/P2. (The local `pr-reviewer` Claude agent is an optional *free pre-pass* to catch obvious issues before spending Codex rounds — it is **not** the gate, because it's Claude reviewing Claude.)
@@ -63,9 +64,9 @@ Never use Haiku for the generation pipeline, billing/plan logic, or auth.
 **Request → data flow:**
 ```
 client (/api/* via TanStack Query)
-  → Express route in server/routes.ts   (~2,550 lines; guarded by requireSupabaseUser)
+  → Express route in server/routes.ts   (~2,650 lines; guarded by requireSupabaseUser)
     → billingService.checkLimit(...)     (plan enforcement, server/services/billing.ts)
-    → server/services/storage.ts         (the real data-access layer over Drizzle — 83KB)
+    → server/storage.ts                  (the real data-access layer over Drizzle — 83KB)
     → server/services/ai.ts              (AIService: retrieval → generation → citations)
 ```
 
@@ -115,7 +116,7 @@ pgvector columns require the `vector` extension (`enable_vector.sql`).
 - `server/services/billing.ts` — `billingService.checkLimit(userId, limitType, amount, organizationId)` and `checkUsageAgainstLimit(...)`. Limit types in use: `"projects"`, `"documents"`, `"ai_tokens"`.
 - `server/services/stripeBilling.ts` — Stripe integration (checkout, webhooks, subscription state).
 - `usage_events` powers metering; `subscriptions` holds plan state per org.
-- Every route that spends tokens or creates gated resources calls `checkLimit` **before** doing the work (see `routes.ts` lines ~870, 906, 1117, 1455 for the pattern).
+- Every route that spends tokens or creates gated resources calls `checkLimit` **before** doing the work (see `routes.ts` lines ~870, 906, 1117, 1555 for the pattern).
 
 ---
 
@@ -175,8 +176,9 @@ npm run auth:create-test-user     # create a Supabase test user
 
 /server/
   index.ts        # entry (port 5001 dev); wires Vite middleware
-  routes.ts       # ALL API routes (~2,550 lines — navigate by section)
-  services/       # ai.ts (RAG), retrieval.ts, embedding.ts, storage.ts (data access),
+  routes.ts       # ALL API routes (~2,650 lines — navigate by section)
+  storage.ts      # the real data-access layer over Drizzle (83KB)
+  services/       # ai.ts (RAG), retrieval.ts, embedding.ts,
                   # billing.ts, stripeBilling.ts, fileProcessor.ts, metrics.ts
   workers/        # documentProcessor.ts (extract → chunk → embed)
   middleware/     # supabaseAuth.ts (requireSupabaseUser), cors.ts, rateLimiter.ts

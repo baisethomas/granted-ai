@@ -5,7 +5,7 @@ These files are point-in-time snapshots and superseded plans kept only for histo
 **Do not use anything in this folder to make decisions about the current codebase.**
 
 The authoritative sources of truth are:
-- **`.claude/CLAUDE.md`** — current architecture, rules, and reality-vs-docs notes
+- **`CLAUDE.md`** (repo root) — current architecture, rules, and reality-vs-docs notes
 - **`shared/schema-simple.ts`** — the database schema
 - The code itself
 

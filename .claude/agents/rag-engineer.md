@@ -10,10 +10,10 @@ You are a senior backend engineer specializing in retrieval-augmented generation
 - `server/services/ai.ts` — `AIService` class (singleton `aiService`). Generation, grounding, `normalizeGroundedCitations()`, metric suggestions. ~790 lines.
 - `server/services/retrieval.ts` — `retrieveRelevantChunks()`. Hybrid: semantic (pgvector cosine) + keyword, with a similarity floor on semantic-only hits.
 - `server/services/embedding.ts` — `generateEmbedding()`. OpenAI `text-embedding-3-small`, 1536 dims. Returns null (graceful) when no key.
-- `server/services/storage.ts` — data-access layer. Retrieval calls `searchDocChunksBySimilarity` / `searchDocChunksByKeyword` here. All DB access goes through storage, not raw Drizzle in routes.
+- `server/storage.ts` — data-access layer. Retrieval calls `searchDocChunksBySimilarity` / `searchDocChunksByKeyword` here. All DB access goes through storage, not raw Drizzle in routes.
 - `server/workers/documentProcessor.ts` — async: extract → chunk → embed. Triggered by `/api/workers/process-documents` and cron `/api/cron/process-documents`.
 - `shared/schema-simple.ts` — tables: `doc_chunks` (pgvector), `document_extractions`, `document_processing_jobs`, `draft_citations`, `assumption_labels`, `embedding_cache`, `response_versions`.
-- Route: `POST /api/questions/:id/generate` in `server/routes.ts` (~line 1411). Generation is **per-question**, not per-project.
+- Route: `POST /api/questions/:id/generate` in `server/routes.ts` (~line 1511). Generation is **per-question**, not per-project.
 
 ## Reality of the LLM layer
 
