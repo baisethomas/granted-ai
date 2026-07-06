@@ -588,6 +588,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (provisionError) {
         console.error("Stripe sign-up provisioning failed:", provisionError);
       }
+      await storage.ensureDefaultOrganizationForUser(userId);
       const organizations = await storage.getOrganizationsForUser(userId);
       res.json(organizations);
     } catch (error) {
@@ -858,8 +859,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Convert deadline string to Date object if it's a string
-      if (req.body.deadline && typeof req.body.deadline === 'string') {
-        req.body.deadline = new Date(req.body.deadline);
+      if (typeof req.body.deadline === 'string') {
+        req.body.deadline = req.body.deadline ? new Date(req.body.deadline) : undefined;
       }
 
       const validatedData = insertProjectSchema.parse(req.body);
@@ -898,8 +899,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Organization not found" });
       }
 
-      if (req.body.deadline && typeof req.body.deadline === 'string') {
-        req.body.deadline = new Date(req.body.deadline);
+      if (typeof req.body.deadline === 'string') {
+        req.body.deadline = req.body.deadline ? new Date(req.body.deadline) : undefined;
       }
 
       const validatedData = insertProjectSchema.parse(req.body);
