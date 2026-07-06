@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from "vitest";
-import { normalizeGroundedCitations, type RetrievedContextChunk } from "./ai.js";
+import { findUnsupportedSpecifics, normalizeGroundedCitations, type RetrievedContextChunk } from "./ai.js";
 
 const chunks: RetrievedContextChunk[] = [
   {
@@ -87,5 +87,61 @@ describe("normalizeGroundedCitations", () => {
     expect(normalizeGroundedCitations(undefined, chunks)).toEqual([]);
     expect(normalizeGroundedCitations("citations", chunks)).toEqual([]);
     expect(normalizeGroundedCitations([null, 42, "x"], chunks)).toEqual([]);
+  });
+});
+
+describe("findUnsupportedSpecifics (GRA-52 citation-fabrication regression)", () => {
+  // Reproduces the exact GRA-52 repro: a source chunk that mentions "three
+  // counties in the region" without naming them, and a generated sentence
+  // that names three specific, plausible county names next to the citation
+  // for that chunk. The citation's *quote* is 100% accurate (it matches the
+  // source verbatim), but the prose itself fabricates specificity the
+  // source never provided — normalizeGroundedCitations alone cannot catch
+  // this because it only verifies quotes, not surrounding prose.
+  const foodBankChunks: RetrievedContextChunk[] = [
+    {
+      documentName: "Riverside Community Food Bank Overview.pdf",
+      documentId: "doc-foodbank",
+      chunkIndex: 1,
+      content:
+        "Riverside Community Food Bank provides meals to over 850 families each month across three counties in the region, addressing food insecurity through direct distribution, mobile pantries, and partnerships with 40 local agencies.",
+    },
+  ];
+
+  it("flags fabricated county names introduced next to an accurate citation", () => {
+    const text =
+      "We serve over 850 families each month across Riverside, San Bernardino, and Orange counties [#1], addressing food insecurity through direct distribution, mobile pantries, and partnerships with 40 local agencies.";
+
+    const { flaggedAssumptions } = findUnsupportedSpecifics(text, foodBankChunks);
+
+    expect(flaggedAssumptions.length).toBeGreaterThan(0);
+    const joined = flaggedAssumptions.join(" ");
+    expect(joined).toMatch(/San Bernardino|Orange/);
+  });
+
+  it("does not flag specifics that are genuinely present in the cited chunk", () => {
+    const text =
+      "Riverside Community Food Bank serves over 850 families each month [#1].";
+
+    const { flaggedAssumptions } = findUnsupportedSpecifics(text, foodBankChunks);
+
+    expect(flaggedAssumptions).toEqual([]);
+  });
+
+  it("does not flag sentences with no citation marker", () => {
+    const text = "We also work with the Orange County Housing Authority informally.";
+
+    const { flaggedAssumptions } = findUnsupportedSpecifics(text, foodBankChunks);
+
+    expect(flaggedAssumptions).toEqual([]);
+  });
+
+  it("ignores sentence-initial common words while still catching later proper nouns", () => {
+    const text = "The organization partners with Metro Health Alliance to expand reach [#1].";
+
+    const { flaggedAssumptions } = findUnsupportedSpecifics(text, foodBankChunks);
+
+    expect(flaggedAssumptions.length).toBeGreaterThan(0);
+    expect(flaggedAssumptions.join(" ")).toMatch(/Metro Health Alliance/);
   });
 });
