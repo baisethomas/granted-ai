@@ -167,9 +167,10 @@ granted-ai/
 │
 ├── server/                    # Express backend
 │   ├── index.ts              # Server entry point
-│   ├── routes.ts             # API endpoints (40+ routes)
+│   ├── routes.ts             # API endpoints (~2,650 lines)
+│   ├── storage.ts            # Data-access layer over Drizzle (all DB reads/writes go through here)
 │   ├── db.ts                 # Drizzle ORM setup
-│   ├── auth.ts               # Passport authentication
+│   ├── auth.ts               # Passport authentication (secondary fallback to Supabase)
 │   ├── services/
 │   │   ├── ai.ts                # OpenAI integration
 │   │   ├── retrieval.ts         # Hybrid search
@@ -252,7 +253,8 @@ npm run build        # Build for production
 npm run start        # Start production server
 npm run lint         # Run ESLint
 npm run db:push      # Push schema changes to database
-npm run db:studio    # Open Drizzle Studio (database GUI)
+npm run check        # TypeScript typecheck (tsc)
+npm run test:run     # Run test suite (vitest, CI mode)
 npm run doc:process  # Manually trigger document processing
 ```
 
@@ -323,8 +325,11 @@ Or schedule automated processing:
 ### Grant Questions
 - `GET /api/projects/:projectId/questions` - List questions
 - `POST /api/projects/:projectId/questions` - Create question
-- `POST /api/questions/:id/generate` - Generate AI response
-- `PUT /api/questions/:id/response` - Update response
+- `POST /api/questions/:id/generate` - Generate a grounded AI response (per-question, plan-gated)
+- `POST /api/questions/:id/retry` - Retry generation
+- `PUT /api/questions/:id/response` - Manually edit the response
+- `GET /api/questions/:questionId/versions` - List response version history
+- `POST /api/questions/:questionId/versions/:versionId/current` - Restore a version as current
 - `DELETE /api/questions/:id` - Delete question
 
 ### Settings

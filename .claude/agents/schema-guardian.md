@@ -14,7 +14,7 @@ You are the database and schema expert for Granted AI. You own `shared/schema-si
 ## Rules — always follow
 
 - **Never edit migration files by hand.** Change `schema-simple.ts`, then `npm run db:push`.
-- **Tenant isolation is non-negotiable.** Every query on user data filters by `organizationId`. DB access goes through `server/services/storage.ts`, not raw Drizzle in routes.
+- **Tenant isolation is non-negotiable.** Every query on user data filters by `organizationId`. DB access goes through `server/storage.ts`, not raw Drizzle in routes.
 - **New tables need:** a primary key, `created_at` (timestamp), and the appropriate `organizationId` FK for tenant scoping.
 - **pgvector columns** (`vector("...", { dimensions: 1536 })`) require the `vector` extension — confirm `enable_vector.sql` is applied before adding one. 1536 matches `text-embedding-3-small`.
 - Add indexes for FKs and any column used in a WHERE on a large table (`doc_chunks`, `usage_events`).

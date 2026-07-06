@@ -24,7 +24,7 @@ A violation of any of these is **blocking** and caps the score at **2**:
 3. **No provider keys client-side.** `OPENAI_API_KEY` and any secret stay server-only. The only client key is the Supabase anon key. Any secret reachable from `client/` is blocking.
 4. **`Promise.allSettled`, never `Promise.all`, for multi-source retrieval / fan-out.** One source failing must not kill the response.
 5. **No hand-written migrations.** Schema changes go in `shared/schema-simple.ts` + `npm run db:push`. Raw SQL migrations or edits to `shared/schema.ts` (dead) are blocking.
-6. **No tenant-isolation bypass.** Every user-data query filters by `organizationId` and goes through `server/services/storage.ts`, not raw Drizzle in routes.
+6. **No tenant-isolation bypass.** Every user-data query filters by `organizationId` and goes through `server/storage.ts`, not raw Drizzle in routes.
 7. **Tests exist and pass for what changed.** Auth changes → `npm run test:auth`. Billing changes → billing tests. Type safety → `npm run check`.
 
 ## Other dimensions to score
