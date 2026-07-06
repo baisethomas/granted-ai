@@ -168,6 +168,142 @@ export function normalizeGroundedCitations(
   return citations;
 }
 
+/**
+ * Result of scanning generated prose for specific claims (proper nouns,
+ * numbers) that were introduced next to a citation marker but do not
+ * actually appear in the chunk that citation points to.
+ *
+ * This closes the gap where `normalizeGroundedCitations()` only verifies
+ * the *quote* attached to a citation is real — it says nothing about
+ * whether the surrounding generated sentence invented additional specifics
+ * (e.g. naming "Riverside, San Bernardino, and Orange counties" when the
+ * source only ever says "three counties in the region"). A citation can be
+ * 100% accurate while the prose next to it is not.
+ */
+export interface UnsupportedSpecificsResult {
+  /** Text with fabricated specifics stripped back to the source's own vague phrasing, when a safe rewrite is possible. */
+  text: string;
+  /** Human-readable flags describing what was found unsupported, suitable for surfacing as assumptions. */
+  flaggedAssumptions: string[];
+}
+
+// Common capitalized words that are not proper nouns on their own (sentence
+// starts, months, etc.) — excluded so we don't flag ordinary capitalization.
+const PROPER_NOUN_STOPWORDS = new Set([
+  "We",
+  "Our",
+  "The",
+  "This",
+  "That",
+  "These",
+  "Those",
+  "In",
+  "Since",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+]);
+
+/**
+ * Extracts candidate proper-noun phrases (sequences of capitalized words,
+ * 1-3 tokens) from a sentence, skipping common sentence-initial words.
+ */
+function extractProperNounCandidates(sentence: string): string[] {
+  const matches = sentence.match(/\b([A-Z][a-zA-Z.'-]*(?:\s+[A-Z][a-zA-Z.'-]*){0,2})\b/g) ?? [];
+  const candidates: string[] = [];
+  for (const raw of matches) {
+    const words = raw.split(/\s+/);
+    // Drop a leading stopword (e.g. sentence-initial "The Riverside..." ->
+    // "Riverside...") rather than discarding the whole candidate.
+    while (words.length > 1 && PROPER_NOUN_STOPWORDS.has(words[0])) {
+      words.shift();
+    }
+    if (words.length === 1 && PROPER_NOUN_STOPWORDS.has(words[0])) continue;
+    const candidate = words.join(" ").trim();
+    if (candidate.length > 2) candidates.push(candidate);
+  }
+  return candidates;
+}
+
+/**
+ * Splits generated text into (sentence, citedMarkerIndexes) pairs so each
+ * sentence can be checked against the specific chunk(s) it cites.
+ */
+function splitIntoSentencesWithMarkers(text: string): Array<{ sentence: string; markers: number[] }> {
+  // Split on sentence boundaries while keeping citation markers attached to
+  // the sentence they follow.
+  const rough = text.split(/(?<=[.!?])\s+(?=[A-Z])/);
+  return rough.map((sentence) => {
+    const markers = Array.from(sentence.matchAll(/\[#(\d+)\]/g)).map((m) => parseInt(m[1], 10));
+    return { sentence, markers };
+  });
+}
+
+/**
+ * Scans generated prose sentence-by-sentence: for any sentence carrying a
+ * [#N] citation marker, checks that proper-noun-like phrases in that
+ * sentence actually appear in the corresponding retrieved chunk's content
+ * (the marker position is 1-based into `retrievedChunks`, matching the
+ * prompt's [#N] convention). Any phrase that doesn't appear anywhere in the
+ * cited chunk(s) is reported so the caller can flag it as an assumption
+ * instead of letting it ride as if it were sourced.
+ *
+ * Deliberately conservative: only proper-noun-shaped phrases are checked
+ * (not every noun), and a phrase is only flagged if none of the sentence's
+ * cited chunks contain it — cross-referencing multiple chunks avoids
+ * false positives from multi-source sentences.
+ */
+export function findUnsupportedSpecifics(
+  text: string,
+  retrievedChunks: RetrievedContextChunk[]
+): UnsupportedSpecificsResult {
+  const flaggedAssumptions: string[] = [];
+  if (!text || !retrievedChunks.length) return { text, flaggedAssumptions };
+
+  const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+  const sentences = splitIntoSentencesWithMarkers(text);
+  const seen = new Set<string>();
+
+  for (const { sentence, markers } of sentences) {
+    if (!markers.length) continue;
+    const citedChunks = markers
+      .map((m) => retrievedChunks[m - 1])
+      .filter((c): c is RetrievedContextChunk => !!c);
+    if (!citedChunks.length) continue;
+
+    const combinedSource = citedChunks.map((c) => normalize(c.content)).join(" \n ");
+    const candidates = extractProperNounCandidates(sentence);
+
+    for (const candidate of candidates) {
+      const normalizedCandidate = normalize(candidate);
+      if (combinedSource.includes(normalizedCandidate)) continue;
+      // Also allow the candidate if it appears anywhere else in the full
+      // retrieved context (e.g. organization name repeated across chunks
+      // but only cited once) or in the question/organization info the
+      // model was given — those aren't part of `retrievedChunks` here, so
+      // callers that want that leniency should pass a wider context; this
+      // check is intentionally scoped to "is this in the cited chunk(s)".
+      const dedupeKey = normalizedCandidate;
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      flaggedAssumptions.push(
+        `The response names "${candidate}" near a citation, but the cited source only describes this in general terms and does not name it. Confirm and provide the specific name if accurate.`
+      );
+    }
+  }
+
+  return { text, flaggedAssumptions };
+}
+
 export interface MetricSuggestion {
   key: string;
   label: string;
@@ -383,6 +519,8 @@ GROUNDING CONTRACT
 - Every factual claim (numbers, dates, program names, outcomes, partner names, populations served, geography, staffing, capacity, funding) MUST be traceable to a specific snippet. Cite it with the marker (e.g. [#2]) placed inline immediately after the claim.
 - If a claim the funder likely wants is NOT supported by the snippets, do one of the following: (a) omit the claim, or (b) write around it in general terms, and add a specific question about it to the "assumptions" array. Never invent numbers, dates, partner names, outcomes, or quotes.
 - Do not round, extrapolate, or combine numbers from different snippets unless one snippet explicitly does so.
+- NEVER add specific named entities that are not present in the snippets — this includes inventing place names (e.g. specific county, city, or region names), organization/partner names, people's names, or dates when the snippet only describes them vaguely (e.g. "three counties in the region", "several partner agencies", "a nearby city"). If a snippet says "three counties" but does not name them, your text must also say "three counties" (or similarly vague phrasing) — do NOT supply plausible-sounding names for them, even if the organization's own name or other context makes certain names seem likely. Naming unnamed things is fabrication, not paraphrase.
+- Before finalizing, re-read every clause of every sentence adjacent to a [#N] marker and confirm each specific noun, number, or name in that clause literally appears (or is a direct paraphrase of something that appears) in snippet #N. Delete or generalize anything you cannot point to.
 - If the snippets truly cannot answer the question, write a short honest response naming the 2–3 specific facts that are missing, and populate "assumptions" with those gaps.
 
 BOILERPLATE TO AVOID
@@ -465,10 +603,19 @@ Stay within the word limit if one is given. The review committee values specific
           ? rawText.trim()
           : this.stripMarkdown(rawText);
 
+      // Verification pass: normalizeGroundedCitations only checks that each
+      // citation's *quote* is real. It says nothing about whether the
+      // generated sentence sitting next to that citation invented extra
+      // specifics (named entities, etc.) the source never stated. Scan for
+      // that here and surface any hit as an assumption rather than letting
+      // fabricated specifics ride as if they were sourced.
+      const { flaggedAssumptions } = findUnsupportedSpecifics(text, retrievedChunks);
+      const allAssumptions = [...assumptions, ...flaggedAssumptions];
+
       return {
         text,
         citations: normalizedCitations,
-        assumptions,
+        assumptions: allAssumptions,
         usage: {
           provider: "openai",
           model,
