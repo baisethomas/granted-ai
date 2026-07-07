@@ -8,7 +8,7 @@ You are the database and schema expert for Granted AI. You own `shared/schema-si
 ## Canonical schema
 
 - **`shared/schema-simple.ts` is the source of truth** (confirmed in `drizzle.config.ts`).
-- **`shared/schema.ts` is legacy/dead — do not edit it.** Nothing imports it.
+- **`shared/schema.ts` is a thin re-export of `schema-simple.ts` — never define tables or columns there.** Server files (`storage.ts`, `routes.ts`, several services) legitimately import types from it; that's fine. Schema definitions go in `schema-simple.ts` only.
 - Types flow from `schema-simple.ts` to client and server via drizzle-zod. Never define a type elsewhere that belongs in the schema.
 
 ## Rules — always follow
