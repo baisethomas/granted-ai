@@ -15,7 +15,7 @@ export function MobileBottomNav({ activeTab, onTabChange }: MobileBottomNavProps
       className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 md:hidden"
       aria-label="Primary mobile navigation"
     >
-      <div className="grid h-[calc(4rem+env(safe-area-inset-bottom))] grid-cols-5 px-1 pb-[env(safe-area-inset-bottom)]">
+      <div className="grid h-[calc(4rem+env(safe-area-inset-bottom))] grid-cols-3 px-1 pb-[env(safe-area-inset-bottom)]">
         {mobileNavItems.map(item => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -30,7 +30,7 @@ export function MobileBottomNav({ activeTab, onTabChange }: MobileBottomNavProps
               aria-current={isActive ? "page" : undefined}
             >
               <Icon className="h-5 w-5 shrink-0" />
-              <span className="max-w-full truncate">{item.id === "forms" ? "Forms" : item.label}</span>
+              <span className="max-w-full truncate">{item.label}</span>
             </button>
           );
         })}
