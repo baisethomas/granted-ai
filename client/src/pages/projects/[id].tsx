@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation, useParams } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -15,9 +16,10 @@ import { QuestionsPanel } from "./QuestionsPanel";
 import { DraftsPanel } from "./DraftsPanel";
 
 interface ProjectDetailProps {
-  projectId: string;
   onBack: () => void;
 }
+
+const VALID_TABS = ["overview", "metrics", "questions", "drafts"];
 
 // Only terminal lifecycle states get a badge here — "draft" doesn't mean
 // much on its own and is instead represented by the stage chips below.
@@ -27,10 +29,24 @@ const terminalStatusColors: Record<string, string> = {
   declined: "bg-red-100 text-red-800",
 };
 
-export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
+export function ProjectDetail({ onBack }: ProjectDetailProps) {
+  const { id: projectId, tab: tabParam } = useParams<{ id: string; tab?: string }>();
+  const [, setLocation] = useLocation();
   const [editOpen, setEditOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("overview");
-  const { activeOrganizationId } = useWorkspace();
+  const activeTab = tabParam && VALID_TABS.includes(tabParam) ? tabParam : "overview";
+  const handleTabChange = (tab: string) => {
+    setLocation(`/app/applications/${projectId}/${tab}`);
+  };
+  const { activeOrganizationId, setActiveOrganizationId } = useWorkspace();
+
+  // An unrecognized :tab segment (typo, stale link) would otherwise render
+  // Overview while leaving the invalid URL in the address bar — normalize it
+  // so refresh/bookmark/share always match what's on screen.
+  useEffect(() => {
+    if (tabParam && !VALID_TABS.includes(tabParam)) {
+      setLocation(`/app/applications/${projectId}`, { replace: true });
+    }
+  }, [tabParam, projectId, setLocation]);
 
   const { data: project, isLoading } = useQuery<Project>({
     queryKey: ["/api/projects", projectId],
@@ -44,11 +60,31 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
     enabled: Boolean(project),
   });
 
+  // Tracks whether the active workspace has ever matched this project, so a
+  // routed/bookmarked link (workspace mismatch on first load) adopts the
+  // project's workspace instead of bouncing the user straight back out —
+  // reserved for when the workspace changes out from under an already-open
+  // project (e.g. switched via the sidebar while viewing it).
+  const hasMatchedOrgRef = useRef(false);
   useEffect(() => {
-    if (project && activeOrganizationId && project.organizationId !== activeOrganizationId) {
-      onBack();
+    hasMatchedOrgRef.current = false;
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!project?.organizationId) return;
+
+    if (activeOrganizationId === project.organizationId) {
+      hasMatchedOrgRef.current = true;
+      return;
     }
-  }, [activeOrganizationId, onBack, project]);
+
+    if (hasMatchedOrgRef.current) {
+      onBack();
+      return;
+    }
+
+    setActiveOrganizationId(project.organizationId);
+  }, [activeOrganizationId, onBack, project, setActiveOrganizationId]);
 
   const { totalCount, answeredCount } = useMemo(() => {
     return {
@@ -152,7 +188,7 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
         ))}
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
         <TabsList className="min-w-max">
           <TabsTrigger value="overview">Overview</TabsTrigger>
