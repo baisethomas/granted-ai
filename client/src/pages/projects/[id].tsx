@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useParams } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,7 +37,7 @@ export function ProjectDetail({ onBack }: ProjectDetailProps) {
   const handleTabChange = (tab: string) => {
     setLocation(`/app/applications/${projectId}/${tab}`);
   };
-  const { activeOrganizationId } = useWorkspace();
+  const { activeOrganizationId, setActiveOrganizationId } = useWorkspace();
 
   // An unrecognized :tab segment (typo, stale link) would otherwise render
   // Overview while leaving the invalid URL in the address bar — normalize it
@@ -60,11 +60,31 @@ export function ProjectDetail({ onBack }: ProjectDetailProps) {
     enabled: Boolean(project),
   });
 
+  // Tracks whether the active workspace has ever matched this project, so a
+  // routed/bookmarked link (workspace mismatch on first load) adopts the
+  // project's workspace instead of bouncing the user straight back out —
+  // reserved for when the workspace changes out from under an already-open
+  // project (e.g. switched via the sidebar while viewing it).
+  const hasMatchedOrgRef = useRef(false);
   useEffect(() => {
-    if (project && activeOrganizationId && project.organizationId !== activeOrganizationId) {
-      onBack();
+    hasMatchedOrgRef.current = false;
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!project?.organizationId) return;
+
+    if (activeOrganizationId === project.organizationId) {
+      hasMatchedOrgRef.current = true;
+      return;
     }
-  }, [activeOrganizationId, onBack, project]);
+
+    if (hasMatchedOrgRef.current) {
+      onBack();
+      return;
+    }
+
+    setActiveOrganizationId(project.organizationId);
+  }, [activeOrganizationId, onBack, project, setActiveOrganizationId]);
 
   const { totalCount, answeredCount } = useMemo(() => {
     return {

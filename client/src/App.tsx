@@ -209,7 +209,7 @@ function AppContent() {
                 >
                   <Switch>
                     <Route path="/app/applications/:id/:tab?">
-                      <ProjectDetail onBack={() => setLocation("/app")} />
+                      <ProjectDetail onBack={() => window.history.back()} />
                     </Route>
                     <Route path="/app/organization">
                       <Organization />
