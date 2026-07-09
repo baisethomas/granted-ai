@@ -53,7 +53,7 @@ The Grant Writing Platform now includes comprehensive export functionality that 
 ### Core Files
 - `/client/src/lib/export.ts` - Main export functionality
 - `/client/src/types/html2pdf.d.ts` - TypeScript declarations for html2pdf
-- `/client/src/pages/drafts.tsx` - Updated UI with export buttons
+- `/client/src/pages/projects/DraftsPanel.tsx` - Export buttons and options (formerly the standalone `drafts.tsx`; merged into the per-application workspace as a Drafts tab in GRA-57)
 
 ### Export Data Structure
 ```typescript
@@ -95,7 +95,7 @@ interface ExportData {
 ### For Users
 1. Complete at least one grant question response
 2. Save any unsaved changes
-3. Navigate to the "Export Options" section at the bottom of the drafts page
+3. Open the application, go to its Drafts tab, and find the "Export Options" section at the bottom
 4. Choose your preferred export format:
    - **Copy Text**: Copies formatted text to clipboard
    - **Export DOCX**: Downloads Word document

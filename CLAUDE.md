@@ -20,6 +20,7 @@ This repo has ~20 markdown planning docs (`PRD.md`, `PROJECT_ROADMAP.md`, `*_PLA
 - **`zustand` is installed but unused.** Client state is TanStack Query (server state) + React hooks (local). Don't reach for zustand.
 - **`shared/schema.ts` is legacy/dead.** The canonical Drizzle schema is `shared/schema-simple.ts` (confirmed in `drizzle.config.ts`). Don't edit `schema.ts`.
 - **The data-access layer is `server/storage.ts`, not `server/services/storage.ts`.** It lives at the top level of `server/`, alongside `routes.ts` and `db.ts` — not inside `services/`. `server/services/` only holds `ai.ts`, `retrieval.ts`, `embedding.ts`, `fileProcessor.ts`, `billing.ts`, `stripeBilling.ts`, `metrics.ts`. This wrong path had propagated into `.claude/agents/rag-engineer.md`, `schema-guardian.md`, and `pr-reviewer.md` — fixed in this pass.
+- **`README.md` still says the generation model is `GPT-4`** (Tech Stack list, and a whole "Why GPT-4 Instead of GPT-4 Turbo or GPT-3.5?" rationale section). The actual default is `gpt-4o-mini` via `GRANTED_DEFAULT_MODEL` (some paths hardcode `gpt-4o`) — see Architecture above. Not fixed yet — out of scope for the pass that found it. README also carries extensive performance/cost benchmark tables (query latency at scale, cost-per-response, beta-tester satisfaction percentages) with no source in the codebase; treat those as unverified, not measured fact, until someone traces where the numbers came from.
 
 If you find new drift, fix the doc or note it here — don't let it compound.
 
@@ -169,10 +170,13 @@ npm run auth:create-test-user     # create a Supabase test user
 
 ```
 /client/src/
-  pages/          # dashboard, forms, drafts, upload, settings, organization,
-                  # pricing, metrics, privacy, terms  (some split into dirs post-refactor)
+  pages/          # dashboard, upload (nav label "Documents"), settings, organization,
+                  # pricing, metrics, privacy, terms; projects/[id].tsx is the per-application
+                  # workspace — Overview/Metrics/Questions/Drafts tabs, the latter two backed by
+                  # projects/QuestionsPanel.tsx and projects/DraftsPanel.tsx (forms.tsx and
+                  # drafts.tsx were merged into these as tabs in GRA-57 — no longer standalone pages)
   components/ui/  # Radix + shadcn primitives; custom: ClarificationPanel, EvidenceMap, UsageDashboard
-  hooks/  lib/    # API client, export (docx/pdf), usage-tracking
+  hooks/  lib/    # API client, export (docx/pdf), usage-tracking, questions.ts (response-status helpers)
 
 /server/
   index.ts        # entry (port 5001 dev); wires Vite middleware
