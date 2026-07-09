@@ -223,7 +223,7 @@ function AppContent() {
                         onNewProject={() => setIsNewProjectDialogOpen(true)}
                       />
                     </Route>
-                    <Route>
+                    <Route path="*">
                       <Dashboard
                         onOpenProject={handleOpenProject}
                         onNewProject={() => setIsNewProjectDialogOpen(true)}
