@@ -1,4 +1,4 @@
-import { Bell, LogOut, Plus, Settings as SettingsIcon } from "lucide-react";
+import { Bell, Building2, LogOut, Plus, Settings as SettingsIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,6 +16,7 @@ interface MainHeaderProps {
   subtitle?: string;
   onNewProject?: () => void;
   onNavigateToSettings?: () => void;
+  onNavigateToOrganization?: () => void;
 }
 
 export function MainHeader({
@@ -23,6 +24,7 @@ export function MainHeader({
   subtitle = "Welcome to your new project",
   onNewProject,
   onNavigateToSettings,
+  onNavigateToOrganization,
 }: MainHeaderProps) {
   const { user } = useAuth();
   const handleLogout = useLogout();
@@ -76,6 +78,12 @@ export function MainHeader({
                 )}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              {onNavigateToOrganization && (
+                <DropdownMenuItem onSelect={onNavigateToOrganization} className="md:hidden">
+                  <Building2 className="w-4 h-4 mr-2" />
+                  Organization
+                </DropdownMenuItem>
+              )}
               {onNavigateToSettings && (
                 <DropdownMenuItem onSelect={onNavigateToSettings}>
                   <SettingsIcon className="w-4 h-4 mr-2" />

@@ -293,6 +293,7 @@ function AppLayoutWithTabs({
             setIsNewProjectDialogOpen(true);
           } : undefined}
           onNavigateToSettings={() => onTabChange("settings")}
+          onNavigateToOrganization={() => onTabChange("organization")}
         />
         
         {/* Main Content Area */}
