@@ -29,8 +29,6 @@ import { ErrorBoundary, AuthErrorFallback } from "@/components/error-boundary";
 // Import pages
 import Dashboard from "@/pages/dashboard";
 import Upload from "@/pages/upload";
-import Forms from "@/pages/forms";
-import Drafts from "@/pages/drafts";
 import Settings from "@/pages/settings";
 import Organization from "@/pages/organization";
 import Pricing from "@/pages/pricing";
@@ -94,16 +92,17 @@ function AppContent() {
         return <Organization />;
       case "upload":
         return <Upload />;
-      case "forms":
-        return <Forms />;
-      case "drafts":
-        return <Drafts />;
       case "metrics":
         return <PortfolioMetrics onOpenProject={handleOpenProject} />;
       case "settings":
         return <Settings />;
       default:
-        return <Dashboard onOpenProject={handleOpenProject} />;
+        return (
+          <Dashboard
+            onOpenProject={handleOpenProject}
+            onNewProject={() => setIsNewProjectDialogOpen(true)}
+          />
+        );
     }
   };
 
@@ -250,11 +249,7 @@ function AppLayoutWithTabs({
       case "organization":
         return "Organization";
       case "upload":
-        return "Upload Documents";
-      case "forms":
-        return "Grant Forms";
-      case "drafts":
-        return "Drafts";
+        return "Documents";
       case "settings":
         return "Settings";
       case "metrics":
@@ -271,11 +266,7 @@ function AppLayoutWithTabs({
       case "organization":
         return "View and edit the active workspace profile";
       case "upload":
-        return "Upload and manage your documents";
-      case "forms":
-        return "Manage your grant application forms";
-      case "drafts":
-        return "Review and edit your draft responses";
+        return "Source material for your grant applications";
       case "settings":
         return "Manage your account and preferences";
       case "metrics":

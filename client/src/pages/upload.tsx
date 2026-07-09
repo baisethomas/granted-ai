@@ -298,7 +298,6 @@ export default function Upload() {
     <div className="space-y-6 md:space-y-8">
       <Card className="shadow-sm border border-slate-200">
         <CardContent className="p-4 md:p-6">
-          <h2 className="text-xl font-bold text-slate-900 mb-2 md:text-2xl">Upload Documents</h2>
           <p className="text-slate-600 mb-8">
             Add documents for {activeOrganization?.name || "this workspace"} — mission statements, budgets, past
             proposals. Granted drafts from these, with a citation back to the source for every claim.

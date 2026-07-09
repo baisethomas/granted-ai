@@ -1,8 +1,6 @@
 import {
   LayoutDashboard,
-  CloudUpload,
-  FileText,
-  Eye,
+  FolderOpen,
   Settings,
   LogOut,
   BarChart3,
@@ -51,9 +49,7 @@ interface SidebarProps {
 export const mainNavItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "organization", label: "Organization", icon: Building2 },
-  { id: "upload", label: "Upload", icon: CloudUpload },
-  { id: "forms", label: "Grant Forms", icon: FileText },
-  { id: "drafts", label: "Drafts", icon: Eye },
+  { id: "upload", label: "Documents", icon: FolderOpen },
   { id: "metrics", label: "Metrics", icon: BarChart3 },
   { id: "settings", label: "Settings", icon: Settings },
 ];

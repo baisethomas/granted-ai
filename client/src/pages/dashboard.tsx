@@ -8,6 +8,7 @@ import { api, type Project } from "@/lib/api";
 import { workspaceKeys } from "@/lib/workspace-query-keys";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { isQuestionAnswered } from "@/lib/questions";
 import { FolderOpen, Plus } from "lucide-react";
 
 interface DashboardProps {
@@ -46,9 +47,7 @@ export default function Dashboard({ onOpenProject, onNewProject }: DashboardProp
       const questions = result?.data ?? [];
       map[project.id] = {
         total: questions.length,
-        answered: questions.filter(
-          (q) => q.responseStatus === "complete" || q.responseStatus === "edited",
-        ).length,
+        answered: questions.filter((q) => isQuestionAnswered(q.responseStatus)).length,
         loading: result?.isLoading ?? false,
       };
     });

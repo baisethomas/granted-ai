@@ -1,22 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Pencil } from "lucide-react";
+import { ArrowLeft, Check, Pencil } from "lucide-react";
 import { api, type Project } from "@/lib/api";
 import { EditProjectDialog } from "@/components/edit-project-dialog";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { workspaceKeys } from "@/lib/workspace-query-keys";
+import { isQuestionAnswered } from "@/lib/questions";
 import { MetricsTab } from "./metrics";
+import { QuestionsPanel } from "./QuestionsPanel";
+import { DraftsPanel } from "./DraftsPanel";
 
 interface ProjectDetailProps {
   projectId: string;
   onBack: () => void;
 }
 
-const statusColors: Record<string, string> = {
-  draft: "bg-yellow-100 text-yellow-800",
+// Only terminal lifecycle states get a badge here — "draft" doesn't mean
+// much on its own and is instead represented by the stage chips below.
+const terminalStatusColors: Record<string, string> = {
   submitted: "bg-green-100 text-green-800",
   awarded: "bg-emerald-100 text-emerald-800",
   declined: "bg-red-100 text-red-800",
@@ -33,11 +38,24 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
     enabled: Boolean(projectId),
   });
 
+  const { data: questions = [] } = useQuery({
+    queryKey: workspaceKeys.projectQuestions(project?.organizationId, projectId),
+    queryFn: () => api.getQuestions(projectId),
+    enabled: Boolean(project),
+  });
+
   useEffect(() => {
     if (project && activeOrganizationId && project.organizationId !== activeOrganizationId) {
       onBack();
     }
   }, [activeOrganizationId, onBack, project]);
+
+  const { totalCount, answeredCount } = useMemo(() => {
+    return {
+      totalCount: questions.length,
+      answeredCount: questions.filter((q) => isQuestionAnswered(q.responseStatus)).length,
+    };
+  }, [questions]);
 
   if (isLoading) {
     return (
@@ -62,6 +80,27 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
   }
 
   const deadline = project.deadline ? new Date(project.deadline) : null;
+  const terminalBadgeClass = terminalStatusColors[project.status];
+
+  const stages = [
+    { key: "setup", label: "Set up", done: true },
+    {
+      key: "questions",
+      label: totalCount > 0 ? `Questions ${totalCount}` : "Questions",
+      done: totalCount > 0,
+    },
+    {
+      key: "drafts",
+      label: totalCount > 0 ? `Drafts ${answeredCount}/${totalCount}` : "Drafts",
+      done: totalCount > 0 && answeredCount >= totalCount,
+    },
+    { key: "review", label: "Review", done: project.status !== "draft" },
+    {
+      key: "export",
+      label: "Export",
+      done: project.status === "submitted" || project.status === "awarded" || project.status === "declined",
+    },
+  ];
 
   return (
     <div className="space-y-5 md:space-y-6">
@@ -73,9 +112,11 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
           </Button>
           <div className="flex items-center gap-3 flex-wrap">
             <h2 className="text-xl font-bold text-slate-900 md:text-2xl">{project.title}</h2>
-            <Badge className={statusColors[project.status] ?? statusColors.draft}>
-              {project.status}
-            </Badge>
+            {terminalBadgeClass && (
+              <Badge className={terminalBadgeClass}>
+                {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-slate-600 mt-1">
             {project.funder}
@@ -93,6 +134,22 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
           <Pencil className="h-4 w-4 mr-2" />
           Edit project
         </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+        {stages.map((stage, index) => (
+          <div key={stage.key} className="flex items-center gap-1.5 sm:gap-2">
+            <span
+              className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${
+                stage.done ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              {stage.done && <Check className="h-3 w-3" />}
+              {stage.label}
+            </span>
+            {index < stages.length - 1 && <span className="text-slate-300">—</span>}
+          </div>
+        ))}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -151,19 +208,11 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
         </TabsContent>
 
         <TabsContent value="questions" className="mt-4">
-          <Card>
-            <CardContent className="p-8 text-center text-slate-600">
-              <p>Use the <span className="font-medium">Grant Forms</span> tab to manage questions.</p>
-            </CardContent>
-          </Card>
+          <QuestionsPanel projectId={projectId} project={project} />
         </TabsContent>
 
         <TabsContent value="drafts" className="mt-4">
-          <Card>
-            <CardContent className="p-8 text-center text-slate-600">
-              <p>Use the <span className="font-medium">Drafts</span> tab to review generated responses.</p>
-            </CardContent>
-          </Card>
+          <DraftsPanel projectId={projectId} project={project} />
         </TabsContent>
       </Tabs>
 
