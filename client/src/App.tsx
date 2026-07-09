@@ -59,6 +59,12 @@ function tabForLocation(location: string): string {
   return "";
 }
 
+// Exact "/app" or "/app/..." — a plain startsWith("/app") would also match
+// unrelated paths like "/apple" or "/application".
+function isAppRoute(location: string): boolean {
+  return location === "/app" || location.startsWith("/app/");
+}
+
 function AppContent() {
   const [location, setLocation] = useLocation();
   const { user, loading } = useAuth();
@@ -71,14 +77,14 @@ function AppContent() {
 
   // Handle redirect to /app when user logs in
   useEffect(() => {
-    if (user && !location.startsWith("/app") && !isPublicPath) {
+    if (user && !isAppRoute(location) && !isPublicPath) {
       setLocation("/app");
     }
   }, [user, location, setLocation, isPublicPath]);
 
   // Handle redirect to landing when user logs out from an authenticated route
   useEffect(() => {
-    if (!loading && !user && location.startsWith("/app")) {
+    if (!loading && !user && isAppRoute(location)) {
       setLocation("/");
     }
   }, [user, loading, location, setLocation]);
@@ -177,7 +183,7 @@ function AppContent() {
   }
 
   // Show loading during redirect
-  if (user && !location.startsWith("/app")) {
+  if (user && !isAppRoute(location)) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center">
         <div className="text-center">

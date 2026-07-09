@@ -39,6 +39,15 @@ export function ProjectDetail({ onBack }: ProjectDetailProps) {
   };
   const { activeOrganizationId } = useWorkspace();
 
+  // An unrecognized :tab segment (typo, stale link) would otherwise render
+  // Overview while leaving the invalid URL in the address bar — normalize it
+  // so refresh/bookmark/share always match what's on screen.
+  useEffect(() => {
+    if (tabParam && !VALID_TABS.includes(tabParam)) {
+      setLocation(`/app/applications/${projectId}`, { replace: true });
+    }
+  }, [tabParam, projectId, setLocation]);
+
   const { data: project, isLoading } = useQuery<Project>({
     queryKey: ["/api/projects", projectId],
     queryFn: () => api.getProject(projectId),
