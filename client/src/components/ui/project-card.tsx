@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -12,28 +12,48 @@ import { MoreHorizontal, Edit, Trash2, ExternalLink } from "lucide-react";
 import { type Project } from "@/lib/api";
 import { formatCurrencyDisplay } from "@/lib/currency";
 
+export interface ProjectQuestionCounts {
+  total: number;
+  answered: number;
+  loading: boolean;
+}
+
 interface ProjectCardProps {
   project: Project;
+  questionCounts?: ProjectQuestionCounts;
   onDelete?: (projectId: string) => void;
   onEdit?: (projectId: string) => void;
   onOpen?: (projectId: string) => void;
 }
 
-const statusColors = {
-  draft: "bg-yellow-100 text-yellow-800",
-  submitted: "bg-green-100 text-green-800",
-  awarded: "bg-emerald-100 text-emerald-800",
-  declined: "bg-red-100 text-red-800",
+// Terminal lifecycle states are explicit user actions (Edit dialog / future
+// submit flow) and always win once set — they mean more than draft progress.
+const lifecycleStatus: Record<string, { label: string; className: string }> = {
+  submitted: { label: "Submitted", className: "bg-green-100 text-green-800" },
+  awarded: { label: "Awarded", className: "bg-emerald-100 text-emerald-800" },
+  declined: { label: "Declined", className: "bg-red-100 text-red-800" },
 };
 
-const statusLabels = {
-  draft: "Draft Review",
-  submitted: "Submitted", 
-  awarded: "Awarded",
-  declined: "Declined",
-};
+function getDisplayStatus(project: Project, counts?: ProjectQuestionCounts) {
+  const terminal = lifecycleStatus[project.status];
+  if (terminal) return terminal;
 
-export function ProjectCard({ project, onDelete, onEdit, onOpen }: ProjectCardProps) {
+  if (!counts || counts.loading) {
+    return { label: "Setting up", className: "bg-slate-100 text-slate-600" };
+  }
+  if (counts.total === 0) {
+    return { label: "Setting up", className: "bg-slate-100 text-slate-600" };
+  }
+  if (counts.answered >= counts.total) {
+    return { label: "Ready to review", className: "bg-emerald-100 text-emerald-800" };
+  }
+  return {
+    label: `Drafting ${counts.answered}/${counts.total}`,
+    className: "bg-yellow-100 text-yellow-800",
+  };
+}
+
+export function ProjectCard({ project, questionCounts, onDelete, onEdit, onOpen }: ProjectCardProps) {
   const formatDate = (date: string | undefined) => {
     if (!date) return "No deadline";
     return new Date(date).toLocaleDateString("en-US", {
@@ -44,6 +64,13 @@ export function ProjectCard({ project, onDelete, onEdit, onOpen }: ProjectCardPr
   };
 
   const clickable = Boolean(onOpen);
+  const displayStatus = getDisplayStatus(project, questionCounts);
+  const showProgress =
+    !lifecycleStatus[project.status] &&
+    questionCounts &&
+    !questionCounts.loading &&
+    questionCounts.total > 0 &&
+    questionCounts.answered < questionCounts.total;
 
   return (
     <Card
@@ -71,12 +98,25 @@ export function ProjectCard({ project, onDelete, onEdit, onOpen }: ProjectCardPr
             className="flex flex-wrap items-center gap-2 sm:gap-4"
             onClick={e => e.stopPropagation()}
           >
-            <Badge 
-              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                statusColors[project.status as keyof typeof statusColors] || statusColors.draft
-              }`}
+            {showProgress && (
+              <div
+                className="hidden h-1.5 w-16 overflow-hidden rounded-full bg-slate-200 sm:block"
+                role="progressbar"
+                aria-valuenow={questionCounts!.answered}
+                aria-valuemin={0}
+                aria-valuemax={questionCounts!.total}
+                aria-label={`${questionCounts!.answered} of ${questionCounts!.total} questions drafted`}
+              >
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{ width: `${(questionCounts!.answered / questionCounts!.total) * 100}%` }}
+                />
+              </div>
+            )}
+            <Badge
+              className={`inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium ${displayStatus.className}`}
             >
-              {statusLabels[project.status as keyof typeof statusLabels] || project.status}
+              {displayStatus.label}
             </Badge>
             <span className="text-sm text-slate-500">
               Due: {formatDate(project.deadline)}

@@ -300,8 +300,8 @@ export default function Upload() {
         <CardContent className="p-4 md:p-6">
           <h2 className="text-xl font-bold text-slate-900 mb-2 md:text-2xl">Upload Documents</h2>
           <p className="text-slate-600 mb-8">
-            Add documents for {activeOrganization?.name || "this workspace"} to build context for AI-powered grant writing.
-            These files help the AI understand your mission, capabilities, and past successes.
+            Add documents for {activeOrganization?.name || "this workspace"} — mission statements, budgets, past
+            proposals. Granted drafts from these, with a citation back to the source for every claim.
           </p>
 
           <div className="mb-6 max-w-xl space-y-2">
@@ -327,7 +327,7 @@ export default function Upload() {
               </SelectContent>
             </Select>
             <p className="text-xs text-slate-500">
-              Workspace files apply to every grant in this workspace. Grant-specific sources are retrieved only while drafting that grant.
+              Workspace files apply to every grant in this workspace. Grant-specific files are only used when drafting that grant.
             </p>
           </div>
 
@@ -391,7 +391,7 @@ export default function Upload() {
                 <FileText className="h-8 w-8 text-slate-400" />
               </div>
               <h3 className="text-lg font-medium text-slate-900 mb-2">No documents uploaded yet</h3>
-              <p className="text-slate-600">Upload your first document to get started.</p>
+              <p className="text-slate-600">Upload your first document above.</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-200">

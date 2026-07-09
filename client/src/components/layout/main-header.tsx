@@ -49,7 +49,7 @@ export function MainHeader({
               className="flex items-center"
             >
               <Plus className="h-4 w-4 md:mr-2" />
-              <span className="hidden md:inline">New Project</span>
+              <span className="hidden md:inline">New application</span>
             </Button>
           )}
 

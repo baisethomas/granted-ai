@@ -595,7 +595,7 @@ export default function Drafts() {
 
       toast({
         title: "Copied to clipboard",
-        description: "All completed responses have been copied with professional formatting.",
+        description: "All completed responses have been copied, formatted and ready to paste.",
       });
     } catch (error: any) {
       toast({
@@ -798,7 +798,7 @@ export default function Drafts() {
             <div className="min-w-0">
               <h2 className="text-xl font-bold text-slate-900 md:text-2xl">Generated Draft Preview</h2>
               <p className="text-slate-600 mt-1">
-                Review and edit your AI-generated grant responses
+                Review each drafted answer, check its citations, and edit before you export
                 {hasUnsavedChanges && (
                   <span className="ml-2 text-amber-600 font-medium">• Unsaved changes</span>
                 )}
@@ -1259,7 +1259,7 @@ export default function Drafts() {
                         <div className="flex items-center justify-center py-12">
                           <div className="text-center">
                             <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-                            <p className="text-slate-600">AI is generating your response...</p>
+                            <p className="text-slate-600">Generating your response…</p>
                             <p className="text-sm text-slate-500 mt-2">Using uploaded documents and organization data</p>
                           </div>
                         </div>
@@ -1278,7 +1278,7 @@ export default function Drafts() {
                               <p className="mt-1 text-sm text-red-700">
                                 {normalizedQuestion.errorMessage ||
                                   (normalizedQuestion.responseStatus === "timeout"
-                                    ? "The AI service took too long to respond. Your question is saved — try again."
+                                    ? "Granted took too long to respond. Your question is saved — try again."
                                     : "Something went wrong while generating this response. Your question is saved — try again.")}
                               </p>
                               <Button
@@ -1308,7 +1308,7 @@ export default function Drafts() {
                             {generatingQuestionId === normalizedQuestion.id ? (
                               <>
                                 <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-                                <p className="text-slate-600">AI is generating your response...</p>
+                                <p className="text-slate-600">Generating your response…</p>
                                 <p className="text-sm text-slate-500 mt-2">This may take up to 60 seconds</p>
                               </>
                             ) : (
@@ -1360,7 +1360,7 @@ export default function Drafts() {
                       <p className="text-sm text-slate-600">
                         {selectedProjectData.status === 'final' 
                           ? "Export your finalized grant application ready for submission"
-                          : "Export your draft grant application with professional formatting"
+                          : "Export your draft grant application, formatted for submission"
                         }
                         {hasUnsavedChanges && (
                           <span className="text-amber-600"> (Save changes before exporting)</span>

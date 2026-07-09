@@ -84,7 +84,12 @@ function AppContent() {
     }
     switch (activeTab) {
       case "dashboard":
-        return <Dashboard onOpenProject={handleOpenProject} />;
+        return (
+          <Dashboard
+            onOpenProject={handleOpenProject}
+            onNewProject={() => setIsNewProjectDialogOpen(true)}
+          />
+        );
       case "organization":
         return <Organization />;
       case "upload":
@@ -241,7 +246,7 @@ function AppLayoutWithTabs({
   const getHeaderTitle = () => {
     switch (activeTab) {
       case "dashboard":
-        return "Dashboard";
+        return activeOrganization?.name || "Select a client workspace";
       case "organization":
         return "Organization";
       case "upload":
@@ -262,7 +267,7 @@ function AppLayoutWithTabs({
   const getHeaderSubtitle = () => {
     switch (activeTab) {
       case "dashboard":
-        return "Welcome to your grant writing workspace";
+        return "Your grant applications, soonest deadline first";
       case "organization":
         return "View and edit the active workspace profile";
       case "upload":

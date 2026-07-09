@@ -582,7 +582,7 @@ export default function Forms() {
                 <SelectItem value="new">
                   <div className="flex items-center">
                     <Plus className="mr-2 h-4 w-4 text-blue-600" />
-                    <span className="font-medium">Create New Project</span>
+                    <span className="font-medium">New application</span>
                   </div>
                 </SelectItem>
                 {projects.length > 0 && (
