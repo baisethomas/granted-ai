@@ -10,6 +10,7 @@ import {
   Building2,
   Check,
   Trash2,
+  MoreHorizontal,
 } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -29,6 +30,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -112,7 +120,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
       setWorkspaceName("");
       setIsCreateWorkspaceOpen(false);
     } catch (error: any) {
-      setWorkspaceError(error?.message || "Could not create workspace.");
+      setWorkspaceError(error?.message || "Could not create workspace. Try again.");
     } finally {
       setIsCreatingWorkspace(false);
     }
@@ -127,7 +135,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
       await deleteOrganization(activeOrganizationId);
       setIsDeleteWorkspaceOpen(false);
     } catch (error: any) {
-      setDeleteWorkspaceError(error?.message || "Could not delete workspace.");
+      setDeleteWorkspaceError(error?.message || "Could not delete workspace. Try again.");
     } finally {
       setIsDeletingWorkspace(false);
     }
@@ -156,41 +164,54 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
               ))}
             </SelectContent>
           </Select>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-2 h-8 w-full justify-start text-xs"
-            onClick={() => {
-              setWorkspaceError(null);
-              setIsCreateWorkspaceOpen(true);
-            }}
-          >
-            <Plus className="mr-2 h-3.5 w-3.5" />
-            Create client workspace
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="mt-1 h-8 w-full justify-start text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
-            disabled={!canDeleteActiveWorkspace}
-            onClick={() => {
-              setDeleteWorkspaceError(null);
-              setIsDeleteWorkspaceOpen(true);
-            }}
-            title={
-              activeOrganizationId === user?.id
-                ? "The default workspace cannot be deleted."
-                : organizations.length <= 1
-                  ? "Create another workspace before deleting this one."
-                  : "Delete selected workspace"
-            }
-            data-testid="button-delete-workspace"
-          >
-            <Trash2 className="mr-2 h-3.5 w-3.5" />
-            Delete selected workspace
-          </Button>
+          <div className="mt-2 flex justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-gray-500 hover:text-gray-700"
+                  aria-label="Manage workspaces"
+                >
+                  <MoreHorizontal className="mr-1 h-3.5 w-3.5" />
+                  Manage workspaces
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={() => {
+                    setWorkspaceError(null);
+                    setIsCreateWorkspaceOpen(true);
+                  }}
+                >
+                  <Plus className="mr-2 h-3.5 w-3.5" />
+                  Create client workspace
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
+                  disabled={!canDeleteActiveWorkspace}
+                  onClick={() => {
+                    setDeleteWorkspaceError(null);
+                    setIsDeleteWorkspaceOpen(true);
+                  }}
+                  title={
+                    activeOrganizationId === user?.id
+                      ? "The default workspace cannot be deleted."
+                      : organizations.length <= 1
+                        ? "Create another workspace before deleting this one."
+                        : "Delete selected workspace"
+                  }
+                  data-testid="button-delete-workspace"
+                >
+                  <Trash2 className="mr-2 h-3.5 w-3.5" />
+                  Delete selected workspace
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
 

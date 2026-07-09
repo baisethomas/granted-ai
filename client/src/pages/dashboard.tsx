@@ -1,10 +1,9 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { useQueries, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ProjectCard } from "@/components/ui/project-card";
+import { ProjectCard, type ProjectQuestionCounts } from "@/components/ui/project-card";
 import { EditProjectDialog } from "@/components/edit-project-dialog";
-import { NewProjectDialog } from "@/components/new-project-dialog";
 import { api, type Project } from "@/lib/api";
 import { workspaceKeys } from "@/lib/workspace-query-keys";
 import { useToast } from "@/hooks/use-toast";
@@ -13,21 +12,48 @@ import { FolderOpen, Plus } from "lucide-react";
 
 interface DashboardProps {
   onOpenProject?: (projectId: string) => void;
+  onNewProject?: () => void;
 }
 
-export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
+export default function Dashboard({ onOpenProject, onNewProject }: DashboardProps = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { activeOrganization, activeOrganizationId } = useWorkspace();
+  const { activeOrganizationId } = useWorkspace();
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
 
   const { data: projects = [], isLoading: projectsLoading } = useQuery<Project[]>({
     queryKey: workspaceKeys.projects(activeOrganizationId),
     queryFn: () => activeOrganizationId ? api.getOrganizationProjects(activeOrganizationId) : Promise.resolve([]),
     enabled: !!activeOrganizationId,
   });
+
+  // Real progress instead of the raw lifecycle status — a brand-new project
+  // with zero questions shouldn't read as "Draft Review".
+  const questionQueries = useQueries({
+    queries: projects.map((project) => ({
+      queryKey: workspaceKeys.projectQuestions(activeOrganizationId, project.id),
+      queryFn: () => api.getQuestions(project.id),
+      enabled: !!activeOrganizationId,
+      staleTime: 60_000,
+    })),
+  });
+
+  const questionCountsByProjectId = useMemo(() => {
+    const map: Record<string, ProjectQuestionCounts> = {};
+    projects.forEach((project, index) => {
+      const result = questionQueries[index];
+      const questions = result?.data ?? [];
+      map[project.id] = {
+        total: questions.length,
+        answered: questions.filter(
+          (q) => q.responseStatus === "complete" || q.responseStatus === "edited",
+        ).length,
+        loading: result?.isLoading ?? false,
+      };
+    });
+    return map;
+  }, [projects, questionQueries]);
 
   const deleteProjectMutation = useMutation({
     mutationFn: (projectId: string) => api.deleteProject(projectId),
@@ -89,22 +115,6 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h2 className="text-xl font-bold text-slate-900 md:text-2xl">
-            {activeOrganization?.name || "Select a client workspace"}
-          </h2>
-          <p className="text-slate-600 mt-1">Your grant applications, soonest deadline first.</p>
-        </div>
-        <Button
-          className="w-full sm:w-auto"
-          onClick={() => setIsNewProjectDialogOpen(true)}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          New Grant Application
-        </Button>
-      </div>
-
       {sortedProjects.length === 0 ? (
         <Card className="shadow-sm border border-slate-200">
           <CardContent className="p-4 md:p-6">
@@ -114,35 +124,37 @@ export default function Dashboard({ onOpenProject }: DashboardProps = {}) {
               </div>
               <h3 className="text-lg font-medium text-slate-900 mb-2">Start your first grant application</h3>
               <p className="text-slate-600 mb-4">
-                Create a project, add your grant questions, and Granted will draft answers from your documents.
+                Add a project, attach your grant questions, and Granted will draft answers from your documents.
               </p>
-              <Button onClick={() => setIsNewProjectDialogOpen(true)}>
+              <Button onClick={() => onNewProject?.()}>
                 <Plus className="mr-2 h-4 w-4" />
-                Create Project
+                New application
               </Button>
             </div>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {sortedProjects.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              onDelete={handleDeleteProject}
-              onEdit={handleEditProject}
-              onOpen={onOpenProject}
-            />
-          ))}
-        </div>
+        <>
+          <div className="flex justify-end">
+            <Button className="w-full sm:w-auto" onClick={() => onNewProject?.()}>
+              <Plus className="mr-2 h-4 w-4" />
+              New application
+            </Button>
+          </div>
+          <div className="space-y-4">
+            {sortedProjects.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                questionCounts={questionCountsByProjectId[project.id]}
+                onDelete={handleDeleteProject}
+                onEdit={handleEditProject}
+                onOpen={onOpenProject}
+              />
+            ))}
+          </div>
+        </>
       )}
-
-      <NewProjectDialog
-        open={isNewProjectDialogOpen}
-        onOpenChange={setIsNewProjectDialogOpen}
-        organizationId={activeOrganizationId}
-        organizationName={activeOrganization?.name}
-      />
 
       {editingProject && (
         <EditProjectDialog
