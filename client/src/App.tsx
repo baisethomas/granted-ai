@@ -4,7 +4,7 @@ import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { Route, useLocation } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { usePostSignupCheckout } from "@/hooks/usePostSignupCheckout";
 import { LogoutProvider } from "@/hooks/useLogout";
@@ -38,9 +38,28 @@ import PortfolioMetrics from "@/pages/metrics";
 import { ProjectDetail } from "@/pages/projects/[id]";
 import { NewProjectDialog } from "@/components/new-project-dialog";
 
+// Maps a sidebar/mobile-nav tab id to its real route.
+const TAB_PATHS: Record<string, string> = {
+  dashboard: "/app",
+  organization: "/app/organization",
+  upload: "/app/documents",
+  metrics: "/app/metrics",
+  settings: "/app/settings",
+};
+
+// Inverse of TAB_PATHS, for highlighting the active nav item from the URL.
+// Application-detail routes intentionally match nothing here — no top-level
+// nav item is "active" while viewing a specific application.
+function tabForLocation(location: string): string {
+  if (location === "/app/organization" || location.startsWith("/app/organization/")) return "organization";
+  if (location === "/app/documents" || location.startsWith("/app/documents/")) return "upload";
+  if (location === "/app/metrics" || location.startsWith("/app/metrics/")) return "metrics";
+  if (location === "/app/settings" || location.startsWith("/app/settings/")) return "settings";
+  if (location === "/app" || location === "/app/") return "dashboard";
+  return "";
+}
+
 function AppContent() {
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [location, setLocation] = useLocation();
   const { user, loading } = useAuth();
   const checkoutRedirecting = usePostSignupCheckout(user, loading);
@@ -48,62 +67,28 @@ function AppContent() {
 
   const PUBLIC_PATHS = ["/privacy", "/terms", "/pricing"];
   const isPublicPath = PUBLIC_PATHS.includes(location);
+  const activeTab = tabForLocation(location);
 
   // Handle redirect to /app when user logs in
   useEffect(() => {
-    if (user && location !== "/app" && !isPublicPath) {
+    if (user && !location.startsWith("/app") && !isPublicPath) {
       setLocation("/app");
     }
   }, [user, location, setLocation, isPublicPath]);
 
   // Handle redirect to landing when user logs out from an authenticated route
   useEffect(() => {
-    if (!loading && !user && location === "/app") {
+    if (!loading && !user && location.startsWith("/app")) {
       setLocation("/");
     }
   }, [user, loading, location, setLocation]);
 
   const handleOpenProject = (projectId: string) => {
-    setSelectedProjectId(projectId);
-  };
-
-  const handleCloseProject = () => {
-    setSelectedProjectId(null);
+    setLocation(`/app/applications/${projectId}`);
   };
 
   const handleTabChange = (tab: string) => {
-    setSelectedProjectId(null);
-    setActiveTab(tab);
-  };
-
-  const renderActiveView = () => {
-    if (selectedProjectId) {
-      return <ProjectDetail projectId={selectedProjectId} onBack={handleCloseProject} />;
-    }
-    switch (activeTab) {
-      case "dashboard":
-        return (
-          <Dashboard
-            onOpenProject={handleOpenProject}
-            onNewProject={() => setIsNewProjectDialogOpen(true)}
-          />
-        );
-      case "organization":
-        return <Organization />;
-      case "upload":
-        return <Upload />;
-      case "metrics":
-        return <PortfolioMetrics onOpenProject={handleOpenProject} />;
-      case "settings":
-        return <Settings />;
-      default:
-        return (
-          <Dashboard
-            onOpenProject={handleOpenProject}
-            onNewProject={() => setIsNewProjectDialogOpen(true)}
-          />
-        );
-    }
+    setLocation(TAB_PATHS[tab] ?? "/app");
   };
 
   if (loading || checkoutRedirecting) {
@@ -192,7 +177,7 @@ function AppContent() {
   }
 
   // Show loading during redirect
-  if (user && location !== "/app") {
+  if (user && !location.startsWith("/app")) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center">
         <div className="text-center">
@@ -216,7 +201,35 @@ function AppContent() {
                   isNewProjectDialogOpen={isNewProjectDialogOpen}
                   setIsNewProjectDialogOpen={setIsNewProjectDialogOpen}
                 >
-                  {renderActiveView()}
+                  <Switch>
+                    <Route path="/app/applications/:id/:tab?">
+                      <ProjectDetail onBack={() => setLocation("/app")} />
+                    </Route>
+                    <Route path="/app/organization">
+                      <Organization />
+                    </Route>
+                    <Route path="/app/documents">
+                      <Upload />
+                    </Route>
+                    <Route path="/app/metrics">
+                      <PortfolioMetrics onOpenProject={handleOpenProject} />
+                    </Route>
+                    <Route path="/app/settings">
+                      <Settings />
+                    </Route>
+                    <Route path="/app">
+                      <Dashboard
+                        onOpenProject={handleOpenProject}
+                        onNewProject={() => setIsNewProjectDialogOpen(true)}
+                      />
+                    </Route>
+                    <Route>
+                      <Dashboard
+                        onOpenProject={handleOpenProject}
+                        onNewProject={() => setIsNewProjectDialogOpen(true)}
+                      />
+                    </Route>
+                  </Switch>
                 </AppLayoutWithTabs>
                 <Toaster />
               </div>

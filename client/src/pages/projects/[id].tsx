@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation, useParams } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -15,9 +16,10 @@ import { QuestionsPanel } from "./QuestionsPanel";
 import { DraftsPanel } from "./DraftsPanel";
 
 interface ProjectDetailProps {
-  projectId: string;
   onBack: () => void;
 }
+
+const VALID_TABS = ["overview", "metrics", "questions", "drafts"];
 
 // Only terminal lifecycle states get a badge here — "draft" doesn't mean
 // much on its own and is instead represented by the stage chips below.
@@ -27,9 +29,14 @@ const terminalStatusColors: Record<string, string> = {
   declined: "bg-red-100 text-red-800",
 };
 
-export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
+export function ProjectDetail({ onBack }: ProjectDetailProps) {
+  const { id: projectId, tab: tabParam } = useParams<{ id: string; tab?: string }>();
+  const [, setLocation] = useLocation();
   const [editOpen, setEditOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("overview");
+  const activeTab = tabParam && VALID_TABS.includes(tabParam) ? tabParam : "overview";
+  const handleTabChange = (tab: string) => {
+    setLocation(`/app/applications/${projectId}/${tab}`);
+  };
   const { activeOrganizationId } = useWorkspace();
 
   const { data: project, isLoading } = useQuery<Project>({
@@ -152,7 +159,7 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
         ))}
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
         <TabsList className="min-w-max">
           <TabsTrigger value="overview">Overview</TabsTrigger>
