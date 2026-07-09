@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
@@ -70,6 +70,14 @@ function AppContent() {
   const { user, loading } = useAuth();
   const checkoutRedirecting = usePostSignupCheckout(user, loading);
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
+  // Where a project was opened from (Dashboard, Metrics, ...), so the
+  // in-page Back button returns there directly instead of using raw browser
+  // history — tab clicks inside a project also push history entries (so the
+  // native browser Back button can step through them one at a time), which
+  // would make history.back() from the project's Back button just undo the
+  // last tab click instead of leaving the project. Defaults to the
+  // dashboard for a cold-start deep link with no recorded origin.
+  const projectOriginRef = useRef("/app");
 
   const PUBLIC_PATHS = ["/privacy", "/terms", "/pricing"];
   const isPublicPath = PUBLIC_PATHS.includes(location);
@@ -90,6 +98,7 @@ function AppContent() {
   }, [user, loading, location, setLocation]);
 
   const handleOpenProject = (projectId: string) => {
+    projectOriginRef.current = location;
     setLocation(`/app/applications/${projectId}`);
   };
 
@@ -209,7 +218,7 @@ function AppContent() {
                 >
                   <Switch>
                     <Route path="/app/applications/:id/:tab?">
-                      <ProjectDetail onBack={() => window.history.back()} />
+                      <ProjectDetail onBack={() => setLocation(projectOriginRef.current)} />
                     </Route>
                     <Route path="/app/organization">
                       <Organization />
