@@ -22,3 +22,7 @@ This document tracks execution across the phased plan to align the Express + Vit
 - [x] Add clarifier stub to log missing context for future Phase 4 work.
 
 _Update this checklist as subtasks complete to keep the team in sync._
+
+## Related initiatives
+
+A parallel UI/IA initiative (dashboard navigation and the per-application workspace) is tracked separately in `docs/dashboard-redesign-plan.md` and Linear's "Dashboard & flow redesign" milestone — it doesn't map onto the numbered phases above. Its Phase 1 and Phase 2 have shipped (GRA-56, GRA-57).

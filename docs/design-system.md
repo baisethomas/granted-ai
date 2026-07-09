@@ -89,7 +89,7 @@ Shared component: `client/src/components/ui/file-upload.tsx`
 
 **Do not** add a separate "Choose Files" button — the whole drop zone is clickable and supports drag-and-drop.
 
-Current usages: `upload.tsx`, `forms.tsx` (grant form import dialog), `ExtractFromFileDialog.tsx`.
+Current usages: `upload.tsx`, `projects/QuestionsPanel.tsx` (grant form import dialog), `projects/metrics/ExtractFromFileDialog.tsx`.
 
 ### Visual spec (implemented)
 

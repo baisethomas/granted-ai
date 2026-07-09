@@ -151,11 +151,12 @@ granted-ai/
 ├── client/                    # React frontend (Vite)
 │   └── src/
 │       ├── pages/            # Application pages
-│       │   ├── dashboard.tsx    # Projects overview
-│       │   ├── upload.tsx       # Document upload
-│       │   ├── forms.tsx        # Grant question builder
-│       │   ├── drafts.tsx       # Response editor
-│       │   └── settings.tsx     # User preferences
+│       │   ├── dashboard.tsx        # Projects overview
+│       │   ├── upload.tsx           # Document library ("Documents" in nav)
+│       │   ├── projects/[id].tsx    # Per-application workspace (Overview/Metrics/Questions/Drafts tabs)
+│       │   │   ├── QuestionsPanel.tsx  # Question list/editor (formerly the standalone forms.tsx)
+│       │   │   └── DraftsPanel.tsx     # Draft review/export (formerly the standalone drafts.tsx)
+│       │   └── settings.tsx         # User preferences
 │       ├── components/       # React components
 │       │   ├── ui/             # Reusable UI components
 │       │   └── layout/         # Layout components

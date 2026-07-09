@@ -26,7 +26,7 @@ Legacy data assumes a **default workspace** whose `organizations.id` matches the
 - [ ] Sidebar workspace selector lists at least one workspace; **`My Organization`** (or prior org name from user profile) is present.
 - [ ] **Dashboard** shows expected project count; projects open without error.
 - [ ] **Uploads** lists documents previously tied to this user; summaries/processing statuses look intact.
-- [ ] **Forms / Drafts** can load existing projects and questions.
+- [ ] Opening an application's **Questions** / **Drafts** tabs loads its existing questions and generated responses.
 - [ ] *(Optional DB spot-check)* For the test user, `organizations.id = users.id` for the migrated default row and memberships link `user_id` to that organization.
 
 ---
@@ -56,9 +56,9 @@ Use **two** workspaces **A** and **B**. Create identifiable fixture data only in
 | Area | Steps | Done |
 | --- | --- | --- |
 | **Dashboard** | Project list + aggregate stats (`/api/organizations/:id/stats`) match selected workspace only. | [ ] |
-| **Upload** | Upload workspace-wide (`Workspace memory`). Optionally choose a grant; row shows Grant vs Workspace-wide badges. Confirm doc only scopes to intended grant at generation time. Other workspace unchanged. | [ ] |
-| **Forms** | Create/select project scoped to workspace; submit or save without cross-workspace leakage. | [ ] |
-| **Drafts / generation** | Run generation for workspace **A**; switch to **B** — drafts/questions for **A** not shown as **B**’s data (project picker only lists **B**’s projects). | [ ] |
+| **Upload** (nav label "Documents") | Upload workspace-wide (`Workspace memory`). Optionally choose a grant; row shows Grant vs Workspace-wide badges. Confirm doc only scopes to intended grant at generation time. Other workspace unchanged. | [ ] |
+| **Questions** | Open an application inside workspace **A** and add/edit questions from its Questions tab; submit or save without cross-workspace leakage. | [ ] |
+| **Drafts / generation** | Run generation from an application's Drafts tab in workspace **A**; switch to **B** — **A**'s applications (and their questions/drafts) don't appear in **B**'s dashboard and aren't reachable by opening **B**'s applications. | [ ] |
 | **Portfolio metrics** | Metrics overview lists projects only from active workspace; date filters behave normally. | [ ] |
 | **Organization** | Profile fields (`mission`, contact fields, etc.) save per workspace; reviewing profile suggestions scopes to active org. | [ ] |
 | **Settings → usage** | **UsageDashboard** reflects **`GET /api/organizations/:id/billing/usage`** for active org id; totals change when switching orgs after usage-producing actions. | [ ] |

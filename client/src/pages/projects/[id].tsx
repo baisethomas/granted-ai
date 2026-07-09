@@ -9,7 +9,7 @@ import { api, type Project } from "@/lib/api";
 import { EditProjectDialog } from "@/components/edit-project-dialog";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { workspaceKeys } from "@/lib/workspace-query-keys";
-import { isQuestionAnswered } from "@/lib/questions";
+import { isQuestionAnswered, resolveResponseStatus } from "@/lib/questions";
 import { MetricsTab } from "./metrics";
 import { QuestionsPanel } from "./QuestionsPanel";
 import { DraftsPanel } from "./DraftsPanel";
@@ -53,7 +53,7 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
   const { totalCount, answeredCount } = useMemo(() => {
     return {
       totalCount: questions.length,
-      answeredCount: questions.filter((q) => isQuestionAnswered(q.responseStatus)).length,
+      answeredCount: questions.filter((q) => isQuestionAnswered(resolveResponseStatus(q))).length,
     };
   }, [questions]);
 

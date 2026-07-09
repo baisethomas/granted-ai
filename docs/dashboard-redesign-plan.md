@@ -1,6 +1,6 @@
 # Dashboard & Flow Redesign — Implementation Plan
 
-Status: **approved, in progress**. Tracked in Linear under the "Dashboard & flow redesign" milestone (GRA — see linked sub-issues). This doc is the handoff spec for whoever picks up each phase; each phase is scoped to ship as its own branch/PR through the normal `/review` gate.
+Status: **in progress — Phase 1 and Phase 2 shipped**. Tracked in Linear under the "Dashboard & flow redesign" milestone (GRA — see linked sub-issues). This doc is the handoff spec for whoever picks up each phase; each phase is scoped to ship as its own branch/PR through the normal `/review` gate.
 
 ## Problem
 
@@ -32,7 +32,7 @@ Each phase is a separate branch/PR. Do not combine phases — the point of phasi
 
 ---
 
-### Phase 1 — Copy, honest status, nav cleanup
+### Phase 1 — Copy, honest status, nav cleanup ✅ Shipped (GRA-56, #25)
 
 No structural change. No schema change. Safe to ship alone.
 
@@ -59,7 +59,7 @@ No structural change. No schema change. Safe to ship alone.
 
 ---
 
-### Phase 2 — Application workspace
+### Phase 2 — Application workspace ✅ Shipped (GRA-57, #26)
 
 Structural, client-only. Merges `forms.tsx` and `drafts.tsx` content into the project detail page as tabs, instead of standalone nav destinations that force a re-pick of "which project."
 
@@ -140,4 +140,4 @@ Client + likely one or two small read endpoints if the counts aren't already che
 
 ## Workflow reminder
 
-Each phase: `/start` with its Linear issue ID → implement → `npm run lint && npm run check && npm run test:run` → `/pr` → `/review` (Codex gate, loops until clean, auto-merges). Never combine phases into one PR. After Phase 2 and Phase 3 ship (both touch navigation structure), run `/sync-docs` — the file structure section of `CLAUDE.md` and the sidebar nav description will be stale.
+Each phase: `/start` with its Linear issue ID → implement → `npm run lint && npm run check && npm run test:run` → `/pr` → `/review` (Codex gate, loops until clean, auto-merges). Never combine phases into one PR. Phase 2 shipped and its `/sync-docs` pass is done — `CLAUDE.md`'s file structure section and `README.md`'s project structure tree now reflect the `forms.tsx`/`drafts.tsx` → `QuestionsPanel.tsx`/`DraftsPanel.tsx` merge. After Phase 3 ships (it also touches navigation structure — real routes replace the `activeTab` React state), run `/sync-docs` again.
