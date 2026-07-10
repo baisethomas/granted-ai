@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeUpNext } from "./home-guidance";
+import { computeChecklistProgress, computeUpNext } from "./home-guidance";
 import { type Project } from "@/lib/api";
 import { type ProjectQuestionCounts } from "@/components/ui/project-card";
 
@@ -155,5 +155,80 @@ describe("computeUpNext", () => {
     };
     const result = computeUpNext([submitted, draft], counts, true);
     expect(result).toMatchObject({ message: "Active Grant doesn't have any questions yet." });
+  });
+});
+
+describe("computeChecklistProgress", () => {
+  it("treats a brand-new workspace (no projects) as needing setup, with no target", () => {
+    const result = computeChecklistProgress([], {});
+    expect(result).toEqual({
+      hasAnyQuestion: false,
+      hasAnyAnsweredQuestion: false,
+      questionsTarget: undefined,
+      draftsTarget: undefined,
+    });
+  });
+
+  it("points at the draft project when one exists and needs questions", () => {
+    const draft = makeProject({ id: "p1", title: "Active Grant", status: "draft" });
+    const counts: Record<string, ProjectQuestionCounts> = {
+      p1: { total: 0, answered: 0, loading: false },
+    };
+    const result = computeChecklistProgress([draft], counts);
+    expect(result.hasAnyQuestion).toBe(false);
+    expect(result.questionsTarget).toBe(draft);
+    expect(result.draftsTarget).toBe(draft);
+  });
+
+  it("marks both steps satisfied when the only project is terminal with no question history", () => {
+    // A project marked submitted/final/awarded/declined with zero questions
+    // ever added shouldn't leave the checklist permanently stuck — there's
+    // no draft project left to point the "add questions"/"generate a draft"
+    // actions at, so computeUpNext should get a chance to report caught-up.
+    const submitted = makeProject({ id: "p1", title: "Submitted Grant", status: "submitted" });
+    const counts: Record<string, ProjectQuestionCounts> = {
+      p1: { total: 0, answered: 0, loading: false },
+    };
+    const result = computeChecklistProgress([submitted], counts);
+    expect(result.hasAnyQuestion).toBe(true);
+    expect(result.hasAnyAnsweredQuestion).toBe(true);
+    expect(result.questionsTarget).toBeUndefined();
+    expect(result.draftsTarget).toBeUndefined();
+  });
+
+  it("still reports incomplete when a draft project coexists with a terminal one that has no history", () => {
+    const submitted = makeProject({ id: "p1", title: "Submitted Grant", status: "submitted" });
+    const draft = makeProject({ id: "p2", title: "Active Grant", status: "draft" });
+    const counts: Record<string, ProjectQuestionCounts> = {
+      p1: { total: 0, answered: 0, loading: false },
+      p2: { total: 0, answered: 0, loading: false },
+    };
+    const result = computeChecklistProgress([submitted, draft], counts);
+    expect(result.hasAnyQuestion).toBe(false);
+    expect(result.questionsTarget).toBe(draft);
+  });
+
+  it("still credits history from a terminal project once it has questions answered", () => {
+    // The checklist is an ever-done-this-before milestone, not a per-project
+    // tracker — a finalized project's own history should still satisfy it.
+    const finalized = makeProject({ id: "p1", title: "Finalized Grant", status: "final" });
+    const counts: Record<string, ProjectQuestionCounts> = {
+      p1: { total: 2, answered: 2, loading: false },
+    };
+    const result = computeChecklistProgress([finalized], counts);
+    expect(result.hasAnyQuestion).toBe(true);
+    expect(result.hasAnyAnsweredQuestion).toBe(true);
+  });
+
+  it("prefers a draft project needing questions as the draftsTarget fallback", () => {
+    const draftNoQuestions = makeProject({ id: "p1", title: "Empty Draft", status: "draft" });
+    const draftWithQuestions = makeProject({ id: "p2", title: "Started Draft", status: "draft" });
+    const counts: Record<string, ProjectQuestionCounts> = {
+      p1: { total: 0, answered: 0, loading: false },
+      p2: { total: 2, answered: 0, loading: false },
+    };
+    const result = computeChecklistProgress([draftNoQuestions, draftWithQuestions], counts);
+    expect(result.questionsTarget).toBe(draftNoQuestions);
+    expect(result.draftsTarget).toBe(draftWithQuestions);
   });
 });

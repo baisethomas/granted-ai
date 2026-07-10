@@ -2,7 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { type Project } from "@/lib/api";
 import { type ProjectQuestionCounts } from "@/components/ui/project-card";
-import { computeUpNext, isDraftProject } from "@/lib/home-guidance";
+import { computeChecklistProgress, computeUpNext } from "@/lib/home-guidance";
 import { Check, ArrowRight, FileUp, FileQuestion, Wand2, CheckCircle2 } from "lucide-react";
 
 interface HomeGuidanceProps {
@@ -41,18 +41,13 @@ export function HomeGuidance({
   onNewProject,
 }: HomeGuidanceProps) {
   const sortedProjects = [...projects].sort(byDeadlineSoonest);
-  const hasAnyQuestion = sortedProjects.some((p) => (questionCountsByProjectId[p.id]?.total ?? 0) > 0);
-  const hasAnyAnsweredQuestion = sortedProjects.some((p) => (questionCountsByProjectId[p.id]?.answered ?? 0) > 0);
 
-  // Only draft-lifecycle projects are valid checklist targets — a submitted/
-  // final/awarded/declined project shouldn't get the "add questions" or
-  // "generate a draft" nudge. Falls back to "New application" (via the
-  // action ternaries below) when no draft project exists.
-  const draftLifecycleProjects = sortedProjects.filter(isDraftProject);
-  const questionsTarget = draftLifecycleProjects[0];
-  const draftsTarget =
-    draftLifecycleProjects.find((p) => (questionCountsByProjectId[p.id]?.total ?? 0) > 0) ??
-    draftLifecycleProjects[0];
+  // Target selection falls back to "New application" (via the action
+  // ternaries below) when no draft-lifecycle project exists to point at.
+  const { hasAnyQuestion, hasAnyAnsweredQuestion, questionsTarget, draftsTarget } = computeChecklistProgress(
+    sortedProjects,
+    questionCountsByProjectId,
+  );
 
   const steps: ChecklistStep[] = [
     {

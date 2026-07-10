@@ -13,6 +13,36 @@ export function isDraftProject(project: Project): boolean {
   return project.status === "draft";
 }
 
+export interface ChecklistProgress {
+  hasAnyQuestion: boolean;
+  hasAnyAnsweredQuestion: boolean;
+  questionsTarget: Project | undefined;
+  draftsTarget: Project | undefined;
+}
+
+export function computeChecklistProgress(
+  sortedProjects: Project[],
+  questionCountsByProjectId: Record<string, ProjectQuestionCounts>,
+): ChecklistProgress {
+  const draftLifecycleProjects = sortedProjects.filter(isDraftProject);
+  const questionsTarget = draftLifecycleProjects[0];
+  const draftsTarget =
+    draftLifecycleProjects.find((p) => (questionCountsByProjectId[p.id]?.total ?? 0) > 0) ??
+    draftLifecycleProjects[0];
+
+  // If projects exist but none remain in the draft lifecycle, there's no
+  // more setup work possible for these two steps — treat them as satisfied
+  // so checklistComplete can hand off to computeUpNext, which correctly
+  // reports "caught up" instead of nagging forever with no real target.
+  const noDraftProjectsToSetUp = sortedProjects.length > 0 && draftLifecycleProjects.length === 0;
+  const hasAnyQuestion =
+    noDraftProjectsToSetUp || sortedProjects.some((p) => (questionCountsByProjectId[p.id]?.total ?? 0) > 0);
+  const hasAnyAnsweredQuestion =
+    noDraftProjectsToSetUp || sortedProjects.some((p) => (questionCountsByProjectId[p.id]?.answered ?? 0) > 0);
+
+  return { hasAnyQuestion, hasAnyAnsweredQuestion, questionsTarget, draftsTarget };
+}
+
 export function computeUpNext(
   sortedProjects: Project[],
   questionCountsByProjectId: Record<string, ProjectQuestionCounts>,

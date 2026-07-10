@@ -35,7 +35,11 @@ export default function Dashboard({ onOpenProject, onNewProject, onNavigateToDoc
     enabled: !!activeOrganizationId,
   });
 
-  const { data: documents = [], isLoading: documentsLoading } = useQuery({
+  const {
+    data: documents = [],
+    isLoading: documentsLoading,
+    isError: documentsErrored,
+  } = useQuery({
     queryKey: workspaceKeys.documents(activeOrganizationId),
     queryFn: () =>
       activeOrganizationId ? api.getOrganizationDocuments(activeOrganizationId) : Promise.resolve([]),
@@ -69,9 +73,13 @@ export default function Dashboard({ onOpenProject, onNewProject, onNavigateToDoc
 
   // Home guidance reads completion booleans (hasDocuments, question counts)
   // straight from these queries' defaults — render it only once they've
-  // actually settled, so a returning workspace never flashes a "get set up"
-  // checklist for data that's simply still loading.
-  const guidanceDataLoading = documentsLoading || questionQueries.some((q) => q.isLoading);
+  // settled successfully, so a returning workspace never flashes (or gets
+  // permanently stuck showing) a "get set up" checklist for data that's
+  // simply still loading or failed to load.
+  const guidanceDataUnsettled =
+    documentsLoading ||
+    documentsErrored ||
+    questionQueries.some((q) => q.isLoading || q.isError);
 
   const deleteProjectMutation = useMutation({
     mutationFn: (projectId: string) => api.deleteProject(projectId),
@@ -140,7 +148,7 @@ export default function Dashboard({ onOpenProject, onNewProject, onNavigateToDoc
         </Button>
       </div>
 
-      {!guidanceDataLoading && (
+      {!guidanceDataUnsettled && (
         <HomeGuidance
           projects={projects}
           questionCountsByProjectId={questionCountsByProjectId}
