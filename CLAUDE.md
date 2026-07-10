@@ -62,6 +62,17 @@ Never use Haiku for the generation pipeline, billing/plan logic, or auth.
 
 **Dev server runs on port 5001** locally (5000 avoided — macOS AirPlay). Entry: `server/index.ts`.
 
+**Client navigation:** `wouter`-based real routing (`client/src/App.tsx`) — not React state. Sidebar is 5 items: Dashboard, Organization, Documents, Metrics, Settings.
+```
+/app                              Dashboard (home)
+/app/documents                    Upload page, nav-labeled "Documents"
+/app/metrics                      Portfolio metrics
+/app/settings                     Settings
+/app/organization                 Organization profile
+/app/applications/:id/:tab?       Application workspace — tab: overview (default) | questions | drafts | metrics
+```
+`Sidebar` / `MobileBottomNav` / `MainHeader` / `OnboardingDialog` still take an `activeTab`/`onTabChange` tab-id prop pair for simplicity; `App.tsx` derives `activeTab` from the URL and translates `onTabChange` into `setLocation` — those components don't know routing exists. `projects/[id].tsx` reads its own `:id`/`:tab` via wouter's `useParams()` (not a `projectId` prop) and renders `QuestionsPanel`/`DraftsPanel` as its Questions/Drafts tabs, above which sits a stage-progress header (Set up → Questions → Drafts → Review → Export) computed from real question/answer counts. The in-page "Back" button on an application returns to wherever it was opened from (tracked via a ref, not raw browser history) since in-app tab clicks also push history entries for the native back button to step through.
+
 **Request → data flow:**
 ```
 client (/api/* via TanStack Query)
