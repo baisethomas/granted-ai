@@ -1,6 +1,6 @@
 # Dashboard & Flow Redesign — Implementation Plan
 
-Status: **in progress — Phase 1 and Phase 2 shipped**. Tracked in Linear under the "Dashboard & flow redesign" milestone (GRA — see linked sub-issues). This doc is the handoff spec for whoever picks up each phase; each phase is scoped to ship as its own branch/PR through the normal `/review` gate.
+Status: **in progress — Phases 1–3 shipped, Phase 4 remaining**. Tracked in Linear under the "Dashboard & flow redesign" milestone (GRA-55 — see linked sub-issues). This doc is the handoff spec for whoever picks up each phase; each phase is scoped to ship as its own branch/PR through the normal `/review` gate.
 
 ## Problem
 
@@ -86,7 +86,7 @@ Structural, client-only. Merges `forms.tsx` and `drafts.tsx` content into the pr
 
 ---
 
-### Phase 3 — Real routes
+### Phase 3 — Real routes ✅ Shipped (GRA-60, #28)
 
 Client-only. Replaces `activeTab` React state (`App.tsx`) with real `wouter` routes, so back/refresh/bookmarks work. `wouter` is already a dependency and already used for the public marketing pages (`/pricing`, `/privacy`, `/terms`) — this phase extends the same pattern to the authenticated app shell, which currently manages navigation entirely via `useState` instead.
 
@@ -140,4 +140,4 @@ Client + likely one or two small read endpoints if the counts aren't already che
 
 ## Workflow reminder
 
-Each phase: `/start` with its Linear issue ID → implement → `npm run lint && npm run check && npm run test:run` → `/pr` → `/review` (Codex gate, loops until clean, auto-merges). Never combine phases into one PR. Phase 2 shipped and its `/sync-docs` pass is done — `CLAUDE.md`'s file structure section and `README.md`'s project structure tree now reflect the `forms.tsx`/`drafts.tsx` → `QuestionsPanel.tsx`/`DraftsPanel.tsx` merge. After Phase 3 ships (it also touches navigation structure — real routes replace the `activeTab` React state), run `/sync-docs` again.
+Each phase: `/start` with its Linear issue ID → implement → `npm run lint && npm run check && npm run test:run` → `/pr` → `/review` (Codex gate, loops until clean, auto-merges). Never combine phases into one PR. Phases 1–3 have shipped and each has had its `/sync-docs` pass — `CLAUDE.md`'s Architecture section now describes the real `wouter` routes and the application workspace's stage header, its file structure section and `README.md`'s project structure tree reflect the `forms.tsx`/`drafts.tsx` → `QuestionsPanel.tsx`/`DraftsPanel.tsx` merge. Phase 4 is the only phase left — run `/sync-docs` again once it ships (it changes the onboarding flow, which several docs reference).
