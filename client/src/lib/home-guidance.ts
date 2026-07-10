@@ -6,6 +6,13 @@ export type UpNextResult =
   | { kind: "caught-up" }
   | null;
 
+// Once a project leaves the draft lifecycle (finalized, or manually marked
+// submitted/awarded/declined via the edit dialog), it's done — nothing in
+// the home guidance should point the user back at it for more setup work.
+export function isDraftProject(project: Project): boolean {
+  return project.status === "draft";
+}
+
 export function computeUpNext(
   sortedProjects: Project[],
   questionCountsByProjectId: Record<string, ProjectQuestionCounts>,
@@ -13,10 +20,7 @@ export function computeUpNext(
 ): UpNextResult {
   if (!hasDocuments) return null; // checklist covers this; avoid saying it twice
 
-  // Once a project leaves the draft lifecycle (finalized, or manually marked
-  // submitted/awarded/declined via the edit dialog), it's done — never nudge
-  // the user to keep adding questions or drafting answers for it.
-  const draftProjects = sortedProjects.filter((p) => p.status === "draft");
+  const draftProjects = sortedProjects.filter(isDraftProject);
 
   const needsQuestions = draftProjects.find((p) => (questionCountsByProjectId[p.id]?.total ?? 0) === 0);
   if (needsQuestions) {
