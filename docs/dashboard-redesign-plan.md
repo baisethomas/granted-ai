@@ -1,6 +1,6 @@
 # Dashboard & Flow Redesign — Implementation Plan
 
-Status: **in progress — Phases 1–3 shipped, Phase 4 remaining**. Tracked in Linear under the "Dashboard & flow redesign" milestone (GRA-55 — see linked sub-issues). This doc is the handoff spec for whoever picks up each phase; each phase is scoped to ship as its own branch/PR through the normal `/review` gate.
+Status: **Complete — all 4 phases shipped.** Tracked in Linear under the "Dashboard & flow redesign" milestone (GRA-55, closed — see linked sub-issues GRA-56–59). This doc was the handoff spec for whoever picked up each phase; each phase shipped as its own branch/PR through the normal `/review` gate.
 
 ## Problem
 
@@ -109,9 +109,9 @@ Client-only. Replaces `activeTab` React state (`App.tsx`) with real `wouter` rou
 
 ---
 
-### Phase 4 — Home intelligence
+### Phase 4 — Home intelligence ✅ Shipped (GRA-59, #30)
 
-Client + likely one or two small read endpoints if the counts aren't already cheaply queryable in bulk (check `storage.ts` before adding anything new — prefer extending an existing method).
+Shipped client-only — no new backend endpoints were needed; the checklist and "up next" suggestion are plain logic over data the dashboard already fetches (`client/src/lib/home-guidance.ts`). Replaced the deleted `onboarding-dialog.tsx` tour modal with `HomeGuidance.tsx` — see `CLAUDE.md`'s Client navigation section for the current behavior. Went through 4 Codex review rounds, each catching a real terminal-project-status or loading-race bug — see the PR #30 commit history for specifics.
 
 **Tasks:**
 1. **Setup checklist replaces the tour modal.** `client/src/components/onboarding-dialog.tsx`'s 5-screen modal (localStorage flag `granted:onboarding:v1`) is replaced by a persistent checklist card on the Home page: upload documents → add questions → generate first draft. Each row is a verb-labeled deep link (not a description) directly into the relevant workspace action. Progress persists server-side or via the same localStorage-completion pattern per step, not as an all-or-nothing "seen it" flag.
@@ -140,4 +140,4 @@ Client + likely one or two small read endpoints if the counts aren't already che
 
 ## Workflow reminder
 
-Each phase: `/start` with its Linear issue ID → implement → `npm run lint && npm run check && npm run test:run` → `/pr` → `/review` (Codex gate, loops until clean, auto-merges). Never combine phases into one PR. Phases 1–3 have shipped and each has had its `/sync-docs` pass — `CLAUDE.md`'s Architecture section now describes the real `wouter` routes and the application workspace's stage header, its file structure section and `README.md`'s project structure tree reflect the `forms.tsx`/`drafts.tsx` → `QuestionsPanel.tsx`/`DraftsPanel.tsx` merge. Phase 4 is the only phase left — run `/sync-docs` again once it ships (it changes the onboarding flow, which several docs reference).
+Each phase: `/start` with its Linear issue ID → implement → `npm run lint && npm run check && npm run test:run` → `/pr` → `/review` (Codex gate, loops until clean, auto-merges). Never combine phases into one PR. All 4 phases have shipped and each has had its `/sync-docs` pass — `CLAUDE.md`'s Architecture section describes the real `wouter` routes, the application workspace's stage header, and `HomeGuidance`'s setup checklist / "up next" card on Home; its file structure section and `README.md`'s project structure tree reflect the `forms.tsx`/`drafts.tsx` → `QuestionsPanel.tsx`/`DraftsPanel.tsx` merge. This initiative (GRA-55) is complete — no phases remain.

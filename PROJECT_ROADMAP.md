@@ -25,4 +25,4 @@ _Update this checklist as subtasks complete to keep the team in sync._
 
 ## Related initiatives
 
-A parallel UI/IA initiative (dashboard navigation and the per-application workspace) is tracked separately in `docs/dashboard-redesign-plan.md` and Linear's "Dashboard & flow redesign" milestone — it doesn't map onto the numbered phases above. Its Phase 1 and Phase 2 have shipped (GRA-56, GRA-57).
+A parallel UI/IA initiative (dashboard navigation and the per-application workspace) is tracked separately in `docs/dashboard-redesign-plan.md` and Linear's "Dashboard & flow redesign" milestone (GRA-55) — it doesn't map onto the numbered phases above. All 4 of its phases have shipped (GRA-56, GRA-57, GRA-60, GRA-59) and the initiative is complete.
