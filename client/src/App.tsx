@@ -14,7 +14,7 @@ import { isMarketingDomain, getAuthUrl, APP_DOMAIN } from "@/lib/domains";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MainHeader } from "@/components/layout/main-header";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
-import { OnboardingDialog } from "@/components/onboarding-dialog";
+import { LAST_OPENED_PROJECT_STORAGE_KEY } from "@/lib/recent-project";
 
 // Import landing page components
 import { HeroSection } from "@/components/landing/hero-section";
@@ -97,9 +97,10 @@ function AppContent() {
     }
   }, [user, loading, location, setLocation]);
 
-  const handleOpenProject = (projectId: string) => {
+  const handleOpenProject = (projectId: string, tab?: string) => {
     projectOriginRef.current = location;
-    setLocation(`/app/applications/${projectId}`);
+    window.localStorage.setItem(LAST_OPENED_PROJECT_STORAGE_KEY, projectId);
+    setLocation(`/app/applications/${projectId}${tab ? `/${tab}` : ""}`);
   };
 
   const handleTabChange = (tab: string) => {
@@ -236,12 +237,14 @@ function AppContent() {
                       <Dashboard
                         onOpenProject={handleOpenProject}
                         onNewProject={() => setIsNewProjectDialogOpen(true)}
+                        onNavigateToDocuments={() => setLocation("/app/documents")}
                       />
                     </Route>
                     <Route path="*">
                       <Dashboard
                         onOpenProject={handleOpenProject}
                         onNewProject={() => setIsNewProjectDialogOpen(true)}
+                        onNavigateToDocuments={() => setLocation("/app/documents")}
                       />
                     </Route>
                   </Switch>
@@ -339,7 +342,6 @@ function AppLayoutWithTabs({
         organizationId={activeOrganizationId}
         organizationName={activeOrganization?.name}
       />
-      <OnboardingDialog onNavigate={onTabChange} />
     </div>
   );
 }
