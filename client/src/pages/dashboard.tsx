@@ -35,7 +35,7 @@ export default function Dashboard({ onOpenProject, onNewProject, onNavigateToDoc
     enabled: !!activeOrganizationId,
   });
 
-  const { data: documents = [] } = useQuery({
+  const { data: documents = [], isLoading: documentsLoading } = useQuery({
     queryKey: workspaceKeys.documents(activeOrganizationId),
     queryFn: () =>
       activeOrganizationId ? api.getOrganizationDocuments(activeOrganizationId) : Promise.resolve([]),
@@ -66,6 +66,12 @@ export default function Dashboard({ onOpenProject, onNewProject, onNavigateToDoc
     });
     return map;
   }, [projects, questionQueries]);
+
+  // Home guidance reads completion booleans (hasDocuments, question counts)
+  // straight from these queries' defaults — render it only once they've
+  // actually settled, so a returning workspace never flashes a "get set up"
+  // checklist for data that's simply still loading.
+  const guidanceDataLoading = documentsLoading || questionQueries.some((q) => q.isLoading);
 
   const deleteProjectMutation = useMutation({
     mutationFn: (projectId: string) => api.deleteProject(projectId),
@@ -134,15 +140,17 @@ export default function Dashboard({ onOpenProject, onNewProject, onNavigateToDoc
         </Button>
       </div>
 
-      <HomeGuidance
-        projects={projects}
-        questionCountsByProjectId={questionCountsByProjectId}
-        hasDocuments={documents.length > 0}
-        lastOpenedProjectId={lastOpenedProjectId}
-        onOpenProject={(projectId, tab) => onOpenProject?.(projectId, tab)}
-        onNavigateToDocuments={() => onNavigateToDocuments?.()}
-        onNewProject={() => onNewProject?.()}
-      />
+      {!guidanceDataLoading && (
+        <HomeGuidance
+          projects={projects}
+          questionCountsByProjectId={questionCountsByProjectId}
+          hasDocuments={documents.length > 0}
+          lastOpenedProjectId={lastOpenedProjectId}
+          onOpenProject={(projectId, tab) => onOpenProject?.(projectId, tab)}
+          onNavigateToDocuments={() => onNavigateToDocuments?.()}
+          onNewProject={() => onNewProject?.()}
+        />
+      )}
 
       {sortedProjects.length === 0 ? (
         <Card className="shadow-sm border border-slate-200">
