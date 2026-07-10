@@ -13,7 +13,12 @@ export function computeUpNext(
 ): UpNextResult {
   if (!hasDocuments) return null; // checklist covers this; avoid saying it twice
 
-  const needsQuestions = sortedProjects.find((p) => (questionCountsByProjectId[p.id]?.total ?? 0) === 0);
+  // Once a project leaves the draft lifecycle (finalized, or manually marked
+  // submitted/awarded/declined via the edit dialog), it's done — never nudge
+  // the user to keep adding questions or drafting answers for it.
+  const draftProjects = sortedProjects.filter((p) => p.status === "draft");
+
+  const needsQuestions = draftProjects.find((p) => (questionCountsByProjectId[p.id]?.total ?? 0) === 0);
   if (needsQuestions) {
     return {
       kind: "action",
@@ -24,7 +29,7 @@ export function computeUpNext(
     };
   }
 
-  const needsAnswers = sortedProjects.find((p) => {
+  const needsAnswers = draftProjects.find((p) => {
     const c = questionCountsByProjectId[p.id];
     return c && c.total > 0 && c.answered < c.total;
   });
@@ -40,9 +45,9 @@ export function computeUpNext(
     };
   }
 
-  const readyToReview = sortedProjects.find((p) => {
+  const readyToReview = draftProjects.find((p) => {
     const c = questionCountsByProjectId[p.id];
-    return c && c.total > 0 && c.answered >= c.total && p.status === "draft";
+    return c && c.total > 0 && c.answered >= c.total;
   });
   if (readyToReview) {
     return {

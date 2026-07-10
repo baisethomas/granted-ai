@@ -119,4 +119,41 @@ describe("computeUpNext", () => {
     const result = computeUpNext([finalProject, readyProject], counts, true);
     expect(result).toMatchObject({ message: "Ready Grant is fully drafted and ready to review." });
   });
+
+  it("never nudges to add questions on a project marked submitted with zero questions", () => {
+    const projects = [makeProject({ id: "p1", title: "Submitted Grant", status: "submitted" })];
+    const counts: Record<string, ProjectQuestionCounts> = {
+      p1: { total: 0, answered: 0, loading: false },
+    };
+    expect(computeUpNext(projects, counts, true)).toEqual({ kind: "caught-up" });
+  });
+
+  it("never nudges to keep drafting a finalized project with unanswered questions", () => {
+    const projects = [makeProject({ id: "p1", title: "Finalized Grant", status: "final" })];
+    const counts: Record<string, ProjectQuestionCounts> = {
+      p1: { total: 3, answered: 1, loading: false },
+    };
+    expect(computeUpNext(projects, counts, true)).toEqual({ kind: "caught-up" });
+  });
+
+  it("never nudges an awarded or declined project with unanswered questions", () => {
+    const awarded = makeProject({ id: "p1", title: "Awarded Grant", status: "awarded" });
+    const declined = makeProject({ id: "p2", title: "Declined Grant", status: "declined" });
+    const counts: Record<string, ProjectQuestionCounts> = {
+      p1: { total: 3, answered: 0, loading: false },
+      p2: { total: 3, answered: 1, loading: false },
+    };
+    expect(computeUpNext([awarded, declined], counts, true)).toEqual({ kind: "caught-up" });
+  });
+
+  it("skips a submitted project with zero questions in favor of a draft project that needs them", () => {
+    const submitted = makeProject({ id: "p1", title: "Submitted Grant", status: "submitted" });
+    const draft = makeProject({ id: "p2", title: "Active Grant", status: "draft" });
+    const counts: Record<string, ProjectQuestionCounts> = {
+      p1: { total: 0, answered: 0, loading: false },
+      p2: { total: 0, answered: 0, loading: false },
+    };
+    const result = computeUpNext([submitted, draft], counts, true);
+    expect(result).toMatchObject({ message: "Active Grant doesn't have any questions yet." });
+  });
 });
