@@ -71,7 +71,9 @@ Never use Haiku for the generation pipeline, billing/plan logic, or auth.
 /app/organization                 Organization profile
 /app/applications/:id/:tab?       Application workspace — tab: overview (default) | questions | drafts | metrics
 ```
-`Sidebar` / `MobileBottomNav` / `MainHeader` / `OnboardingDialog` still take an `activeTab`/`onTabChange` tab-id prop pair for simplicity; `App.tsx` derives `activeTab` from the URL and translates `onTabChange` into `setLocation` — those components don't know routing exists. `projects/[id].tsx` reads its own `:id`/`:tab` via wouter's `useParams()` (not a `projectId` prop) and renders `QuestionsPanel`/`DraftsPanel` as its Questions/Drafts tabs, above which sits a stage-progress header (Set up → Questions → Drafts → Review → Export) computed from real question/answer counts. The in-page "Back" button on an application returns to wherever it was opened from (tracked via a ref, not raw browser history) since in-app tab clicks also push history entries for the native back button to step through.
+`Sidebar` / `MobileBottomNav` / `MainHeader` still take an `activeTab`/`onTabChange` tab-id prop pair for simplicity; `App.tsx` derives `activeTab` from the URL and translates `onTabChange` into `setLocation` — those components don't know routing exists. `projects/[id].tsx` reads its own `:id`/`:tab` via wouter's `useParams()` (not a `projectId` prop) and renders `QuestionsPanel`/`DraftsPanel` as its Questions/Drafts tabs, above which sits a stage-progress header (Set up → Questions → Drafts → Review → Export) computed from real question/answer counts. The in-page "Back" button on an application returns to wherever it was opened from (tracked via a ref, not raw browser history) since in-app tab clicks also push history entries for the native back button to step through.
+
+There is no first-run tour modal anymore (the old `onboarding-dialog.tsx` 5-step modal was deleted in GRA-59). Instead `HomeGuidance` (`client/src/components/HomeGuidance.tsx`) renders at the top of Dashboard: a "Get set up" checklist (upload documents → add questions → generate a first draft) while incomplete, then a priority-ordered "Up next" card once it's done, plus an independent "Continue {title}" row sourced from a `lastOpenedProjectId` written to `localStorage` on every project open (`client/src/lib/recent-project.ts`). The checklist/up-next logic itself is pure and colocated in `client/src/lib/home-guidance.ts` (`isDraftProject`, `computeChecklistProgress`, `computeUpNext`) — projects with a non-`"draft"` status (submitted/awarded/declined/final) are never nudged. `dashboard.tsx` withholds `HomeGuidance` entirely until the documents and per-project question queries it depends on have settled (`isLoading` or `isError`), so it never flashes a wrong state.
 
 **Request → data flow:**
 ```
@@ -186,8 +188,12 @@ npm run auth:create-test-user     # create a Supabase test user
                   # workspace — Overview/Metrics/Questions/Drafts tabs, the latter two backed by
                   # projects/QuestionsPanel.tsx and projects/DraftsPanel.tsx (forms.tsx and
                   # drafts.tsx were merged into these as tabs in GRA-57 — no longer standalone pages)
-  components/ui/  # Radix + shadcn primitives; custom: ClarificationPanel, EvidenceMap, UsageDashboard
-  hooks/  lib/    # API client, export (docx/pdf), usage-tracking, questions.ts (response-status helpers)
+  components/     # custom, top-level (not components/ui/): ClarificationPanel, EvidenceMap,
+                  # UsageDashboard, HomeGuidance (Home's setup checklist + "up next" card, GRA-59)
+  components/ui/  # Radix + shadcn primitives
+  hooks/  lib/    # API client, export (docx/pdf), usage-tracking, questions.ts (response-status
+                  # helpers), home-guidance.ts + recent-project.ts (Home guidance logic and the
+                  # "continue where you left off" localStorage key, GRA-59)
 
 /server/
   index.ts        # entry (port 5001 dev); wires Vite middleware
