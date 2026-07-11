@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -151,44 +151,69 @@ export default function Settings() {
     savedSnapshot.current = JSON.stringify({ ...nextAi, ...nextAccount });
   }, [settings]);
 
-  const updateSettingsMutation = useMutation({
-    mutationFn: api.updateSettings,
-    onMutate: () => setSaveState("saving"),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceKeys.userSettings() });
-      setSaveState("saved");
-      if (savedBadgeTimer.current) clearTimeout(savedBadgeTimer.current);
-      savedBadgeTimer.current = setTimeout(() => setSaveState("idle"), 2000);
-    },
-    onError: () => {
-      // Roll the snapshot back so the retry (next edit) re-sends this payload.
-      savedSnapshot.current = null;
-      setSaveState("idle");
-      toast({
-        title: "Couldn't save your settings",
-        description: "Your last change wasn't saved. Adjust any setting to retry.",
-        variant: "destructive",
-      });
-    },
-  });
+  // Serialized write loop: at most one PUT in flight, and edits made while a
+  // write is pending coalesce into pendingJson (latest wins) to be sent when
+  // the current write settles — so an older response can never land after,
+  // and silently overwrite, a newer one. Uses api.updateSettings directly
+  // (not useMutation) so a flush started during unmount still completes.
+  const pendingJson = useRef<string | null>(null);
+  const writing = useRef(false);
+
+  const flush = async () => {
+    if (writing.current) return; // the active loop below picks up pendingJson
+    writing.current = true;
+    try {
+      while (pendingJson.current && pendingJson.current !== savedSnapshot.current) {
+        const json = pendingJson.current;
+        setSaveState("saving");
+        try {
+          await api.updateSettings(JSON.parse(json));
+          savedSnapshot.current = json;
+          if (pendingJson.current === json) pendingJson.current = null;
+          queryClient.invalidateQueries({ queryKey: workspaceKeys.userSettings() });
+          setSaveState("saved");
+          if (savedBadgeTimer.current) clearTimeout(savedBadgeTimer.current);
+          savedBadgeTimer.current = setTimeout(() => setSaveState("idle"), 2000);
+        } catch {
+          // Drop the pending payload (no automatic retry loop) but leave the
+          // snapshot stale, so the next edit re-sends the full current state.
+          if (pendingJson.current === json) pendingJson.current = null;
+          setSaveState("idle");
+          toast({
+            title: "Couldn't save your settings",
+            description: "Your last change wasn't saved. Adjust any setting to retry.",
+            variant: "destructive",
+          });
+          break;
+        }
+      }
+    } finally {
+      writing.current = false;
+    }
+  };
+  const flushRef = useRef(flush);
+  flushRef.current = flush;
 
   // Auto-save: whenever settings drift from the last persisted snapshot,
   // debounce briefly (absorbs slider drags) and persist.
   useEffect(() => {
     if (!hydrated.current) return;
-    const payload = { ...aiSettings, ...accountSettings };
-    const json = JSON.stringify(payload);
+    const json = JSON.stringify({ ...aiSettings, ...accountSettings });
     if (json === savedSnapshot.current) return;
-    const timer = setTimeout(() => {
-      savedSnapshot.current = json;
-      updateSettingsMutation.mutate(payload);
-    }, 700);
+    pendingJson.current = json;
+    const timer = setTimeout(() => void flushRef.current(), 700);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aiSettings, accountSettings]);
 
+  // An edit still inside the debounce window must survive leaving the page:
+  // flush immediately on unmount (in-app navigation) and best-effort on
+  // pagehide (tab close — the browser may still cancel the request).
   useEffect(() => {
+    const onPageHide = () => void flushRef.current();
+    window.addEventListener("pagehide", onPageHide);
     return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      void flushRef.current();
       if (savedBadgeTimer.current) clearTimeout(savedBadgeTimer.current);
     };
   }, []);
