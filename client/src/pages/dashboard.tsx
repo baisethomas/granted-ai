@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQueries, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { ProjectCard, type ProjectQuestionCounts } from "@/components/ui/project-card";
 import { EditProjectDialog } from "@/components/edit-project-dialog";
 import { HomeGuidance } from "@/components/HomeGuidance";
@@ -11,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { isQuestionAnswered, resolveResponseStatus } from "@/lib/questions";
 import { LAST_OPENED_PROJECT_STORAGE_KEY } from "@/lib/recent-project";
-import { FolderOpen, Plus } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 
 interface DashboardProps {
   onOpenProject?: (projectId: string, tab?: string) => void;
@@ -141,13 +140,6 @@ export default function Dashboard({ onOpenProject, onNewProject, onNavigateToDoc
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <Button className="w-full sm:w-auto" onClick={() => onNewProject?.()}>
-          <Plus className="mr-2 h-4 w-4" />
-          New application
-        </Button>
-      </div>
-
       {!guidanceDataUnsettled && (
         <HomeGuidance
           projects={projects}

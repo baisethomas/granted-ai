@@ -30,7 +30,7 @@ import {
 } from "../shared/schema.js";
 import { randomUUID } from "crypto";
 import { db, schema, sql as rawSql } from "./db.js";
-import { eq, and, asc, desc, inArray, ne, sql as drizzleSql, type SQL } from "drizzle-orm";
+import { eq, and, asc, desc, inArray, ne, gte, lt, sql as drizzleSql, type SQL } from "drizzle-orm";
 import { parseAmountToNumber, formatCurrencyCompact } from "../shared/currency.js";
 
 /** Escape `%`, `_`, and `\` for use inside a PostgreSQL LIKE pattern literal. */
@@ -1676,8 +1676,8 @@ export class DbStorage implements IStorage {
       .where(
         and(
           eq(schema.usageEvents.organizationId, organizationId),
-          drizzleSql`${schema.usageEvents.createdAt} >= ${start}`,
-          drizzleSql`${schema.usageEvents.createdAt} < ${end}`,
+          gte(schema.usageEvents.createdAt, start),
+          lt(schema.usageEvents.createdAt, end),
         )
       );
     return rows || [];
