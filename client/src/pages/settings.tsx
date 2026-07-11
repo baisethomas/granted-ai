@@ -11,9 +11,8 @@ import { workspaceKeys } from "@/lib/workspace-query-keys";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useState, useEffect } from "react";
-import { 
-  Save, 
-  Info,
+import {
+  Save,
   BarChart3,
   LogOut
 } from "lucide-react";
@@ -250,62 +249,13 @@ export default function Settings() {
       {/* LLM Configuration */}
       <Card className="shadow-sm border border-slate-200">
         <CardHeader className="p-4 border-b border-slate-200 md:p-6">
-          <CardTitle className="text-lg font-semibold text-slate-900">AI Model Configuration</CardTitle>
+          <CardTitle className="text-lg font-semibold text-slate-900">Model Performance Settings</CardTitle>
           <p className="text-sm text-slate-600 mt-1">
-            Choose your preferred AI model and configure API settings
+            Tune how Granted drafts your responses
           </p>
         </CardHeader>
         <CardContent className="p-4 space-y-6 md:p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label>Primary AI Model</Label>
-              <Select value={aiSettings.aiModel} onValueChange={(value) => 
-                setAiSettings({ ...aiSettings, aiModel: value })
-              }>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="gpt-4o">OpenAI GPT-4o</SelectItem>
-                  <SelectItem value="gpt-4">OpenAI GPT-4</SelectItem>
-                  <SelectItem value="gpt-3.5-turbo">OpenAI GPT-3.5 Turbo</SelectItem>
-                  <SelectItem value="claude-3">Anthropic Claude 3</SelectItem>
-                  <SelectItem value="claude-2">Anthropic Claude 2</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Fallback Model</Label>
-              <Select value={aiSettings.fallbackModel} onValueChange={(value) => 
-                setAiSettings({ ...aiSettings, fallbackModel: value })
-              }>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="gpt-3.5-turbo">OpenAI GPT-3.5 Turbo</SelectItem>
-                  <SelectItem value="claude-2">Anthropic Claude 2</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-start">
-              <Info className="text-blue-600 mt-1 mr-3 h-4 w-4" />
-              <div>
-                <p className="text-sm font-medium text-blue-900 mb-1">API Configuration</p>
-                <p className="text-sm text-blue-800">
-                  API keys are managed securely in your account settings. The system automatically 
-                  switches to fallback models if the primary model is unavailable.
-                </p>
-              </div>
-            </div>
-          </div>
-
           <div className="space-y-6">
-            <Label className="text-sm font-medium text-slate-700">Model Performance Settings</Label>
             <div className="space-y-6">
               <div className="space-y-3">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
