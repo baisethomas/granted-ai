@@ -185,16 +185,20 @@ export default function Settings() {
           if (savedBadgeTimer.current) clearTimeout(savedBadgeTimer.current);
           savedBadgeTimer.current = setTimeout(() => setSaveState("idle"), 2000);
         } catch {
-          // Drop the pending payload (no automatic retry loop) but leave the
-          // snapshot stale, so the next edit re-sends the full current state.
-          if (pendingJson.current === json) pendingJson.current = null;
+          // If a newer edit was queued while this request was failing, keep
+          // looping so it gets its own attempt — breaking here would strand
+          // it with no timer left to flush it. Otherwise drop the payload
+          // (no automatic retry) but leave the snapshot stale, so the next
+          // edit re-sends the full current state.
+          const newerQueued = pendingJson.current !== null && pendingJson.current !== json;
+          if (!newerQueued) pendingJson.current = null;
           setSaveState("idle");
           toast({
             title: "Couldn't save your settings",
             description: "Your last change wasn't saved. Adjust any setting to retry.",
             variant: "destructive",
           });
-          break;
+          if (!newerQueued) break;
         }
       }
     } finally {
