@@ -124,41 +124,51 @@ export default function Settings() {
   const savedSnapshot = useRef<string | null>(null);
   const savedBadgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hydrated = useRef(false);
+  // Write-loop state (used by flush below): the latest unsaved payload, and
+  // whether a PUT is currently in flight.
+  const pendingJson = useRef<string | null>(null);
+  const writing = useRef(false);
 
+  // Hydrate from the server, and RE-hydrate whenever a fresh copy arrives
+  // (background refetch after remount, or changes made from another
+  // tab/device) — but never while the user has unsaved local edits or a
+  // write in flight, since those are newer than whatever the server holds.
   useEffect(() => {
-    if (!settings || hydrated.current) return;
-    hydrated.current = true;
+    if (!settings) return;
     const nextAi = {
-      defaultTone: settings.defaultTone || DEFAULT_AI_SETTINGS.defaultTone,
-      lengthPreference: settings.lengthPreference || DEFAULT_AI_SETTINGS.lengthPreference,
-      emphasisAreas: settings.emphasisAreas || DEFAULT_AI_SETTINGS.emphasisAreas,
-      aiModel: settings.aiModel || DEFAULT_AI_SETTINGS.aiModel,
-      fallbackModel: settings.fallbackModel || DEFAULT_AI_SETTINGS.fallbackModel,
-      creativity: settings.creativity || DEFAULT_AI_SETTINGS.creativity,
-      contextUsage: settings.contextUsage || DEFAULT_AI_SETTINGS.contextUsage,
-      autoDetection: settings.autoDetection !== undefined ? settings.autoDetection : DEFAULT_AI_SETTINGS.autoDetection,
+      defaultTone: settings.defaultTone ?? DEFAULT_AI_SETTINGS.defaultTone,
+      lengthPreference: settings.lengthPreference ?? DEFAULT_AI_SETTINGS.lengthPreference,
+      emphasisAreas: settings.emphasisAreas ?? DEFAULT_AI_SETTINGS.emphasisAreas,
+      aiModel: settings.aiModel ?? DEFAULT_AI_SETTINGS.aiModel,
+      fallbackModel: settings.fallbackModel ?? DEFAULT_AI_SETTINGS.fallbackModel,
+      creativity: settings.creativity ?? DEFAULT_AI_SETTINGS.creativity,
+      contextUsage: settings.contextUsage ?? DEFAULT_AI_SETTINGS.contextUsage,
+      autoDetection: settings.autoDetection ?? DEFAULT_AI_SETTINGS.autoDetection,
     };
     const nextAccount = {
-      emailNotifications:
-        settings.emailNotifications !== undefined
-          ? settings.emailNotifications
-          : DEFAULT_ACCOUNT_SETTINGS.emailNotifications,
-      autoSave: settings.autoSave !== undefined ? settings.autoSave : DEFAULT_ACCOUNT_SETTINGS.autoSave,
-      analytics: settings.analytics !== undefined ? settings.analytics : DEFAULT_ACCOUNT_SETTINGS.analytics,
+      emailNotifications: settings.emailNotifications ?? DEFAULT_ACCOUNT_SETTINGS.emailNotifications,
+      autoSave: settings.autoSave ?? DEFAULT_ACCOUNT_SETTINGS.autoSave,
+      analytics: settings.analytics ?? DEFAULT_ACCOUNT_SETTINGS.analytics,
     };
+    const serverJson = JSON.stringify({ ...nextAi, ...nextAccount });
+
+    if (hydrated.current) {
+      const localJson = JSON.stringify({ ...aiSettings, ...accountSettings });
+      const hasUnsavedEdits =
+        localJson !== savedSnapshot.current || pendingJson.current !== null || writing.current;
+      if (hasUnsavedEdits || serverJson === savedSnapshot.current) return;
+    }
+    hydrated.current = true;
     setAiSettings(nextAi);
     setAccountSettings(nextAccount);
-    savedSnapshot.current = JSON.stringify({ ...nextAi, ...nextAccount });
-  }, [settings]);
+    savedSnapshot.current = serverJson;
+  }, [settings, aiSettings, accountSettings]);
 
   // Serialized write loop: at most one PUT in flight, and edits made while a
   // write is pending coalesce into pendingJson (latest wins) to be sent when
   // the current write settles — so an older response can never land after,
   // and silently overwrite, a newer one. Uses api.updateSettings directly
   // (not useMutation) so a flush started during unmount still completes.
-  const pendingJson = useRef<string | null>(null);
-  const writing = useRef(false);
-
   const flush = async () => {
     if (writing.current) return; // the active loop below picks up pendingJson
     writing.current = true;
