@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/api";
 import { workspaceKeys } from "@/lib/workspace-query-keys";
+import { prepareExplicitProCheckout } from "@/lib/signup-plan";
+import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { SettingsRow, SettingsRowStacked, SettingsSection } from "./rows";
 import { ArrowUpRight, CreditCard } from "lucide-react";
@@ -35,6 +37,7 @@ function UsageMeter({ used, limit }: { used: number; limit: number }) {
 
 export function PlanBilling({ organizationId }: { organizationId?: string | null }) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [redirecting, setRedirecting] = useState<"portal" | "upgrade" | null>(null);
 
   const {
@@ -45,6 +48,13 @@ export function PlanBilling({ organizationId }: { organizationId?: string | null
     queryKey: workspaceKeys.billingUsage(organizationId),
     queryFn: () => api.getOrganizationBillingUsage(organizationId!),
     enabled: !!organizationId,
+    // Plan usage moves whenever the user creates applications, uploads
+    // documents, or drafts — none of which invalidate this key. Radix
+    // unmounts inactive tab content, so refetching on mount keeps the
+    // meters fresh on every visit to this tab instead of inheriting the
+    // app-wide staleTime: Infinity.
+    staleTime: 30_000,
+    refetchOnMount: "always",
   });
 
   const openBillingPortal = async () => {
@@ -65,6 +75,17 @@ export function PlanBilling({ organizationId }: { organizationId?: string | null
   const startUpgrade = async () => {
     setRedirecting("upgrade");
     try {
+      // Clear any pending signup-plan intent first (same as Pricing), so a
+      // stale intent can't relaunch checkout when Stripe returns to /app.
+      if (user) {
+        const { error: cleanupError } = await prepareExplicitProCheckout(user.id);
+        if (cleanupError) {
+          console.warn(
+            "[settings] Failed to clear signup_plan metadata before checkout:",
+            cleanupError.message,
+          );
+        }
+      }
       const { url } = await api.createProCheckout(organizationId ?? undefined);
       window.location.href = url;
     } catch {
