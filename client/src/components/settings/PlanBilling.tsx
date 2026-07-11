@@ -118,13 +118,19 @@ export function PlanBilling({ organizationId }: { organizationId?: string | null
 
   const planLabel = PLAN_LABELS[billing.plan] ?? billing.plan;
   const renewalDate = formatDate(billing.period.end);
-  const planDescription = billing.billing.cancelAtPeriodEnd
-    ? renewalDate
-      ? `Your plan ends on ${renewalDate}.`
-      : "Your plan ends at the close of this billing period."
-    : renewalDate
-      ? `Renews on ${renewalDate}.`
-      : undefined;
+  // A fully canceled subscription keeps its paid plan name on the row with
+  // status "canceled" — treat it like Starter: no renewal copy, upgrade open.
+  const subscriptionCanceled = billing.status === "canceled";
+  const canUpgrade = billing.plan === "starter" || subscriptionCanceled;
+  const planDescription = subscriptionCanceled
+    ? "Your subscription has ended."
+    : billing.billing.cancelAtPeriodEnd
+      ? renewalDate
+        ? `Your plan ends on ${renewalDate}.`
+        : "Your plan ends at the close of this billing period."
+      : renewalDate
+        ? `Renews on ${renewalDate}.`
+        : undefined;
 
   return (
     <div>
@@ -132,9 +138,9 @@ export function PlanBilling({ organizationId }: { organizationId?: string | null
         <SettingsRow title="Current plan" description={planDescription}>
           <span className="text-sm font-semibold text-slate-900">{planLabel}</span>
         </SettingsRow>
-        {billing.plan === "starter" && (
+        {canUpgrade && (
           <SettingsRow
-            title="Upgrade to Pro"
+            title={subscriptionCanceled ? "Restart Pro" : "Upgrade to Pro"}
             description="Room for more applications, documents, and drafting each month."
           >
             <Button size="sm" onClick={startUpgrade} disabled={redirecting !== null}>
