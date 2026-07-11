@@ -25,6 +25,7 @@ export interface UsageSummary {
   plan: PlanName;
   status: string;
   stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
   cancelAtPeriodEnd: boolean;
   period: {
     start: Date;
@@ -222,6 +223,7 @@ export class BillingService {
       plan,
       status: subscription.status,
       stripeCustomerId,
+      stripeSubscriptionId: subscription.stripeSubscriptionId ?? null,
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd ?? false,
       period: { start, end },
       usage: {
@@ -280,7 +282,11 @@ export class BillingService {
     return {
       ...summary,
       billing: {
-        canManageInStripe: Boolean(summary.stripeCustomerId),
+        // A Stripe CUSTOMER is auto-provisioned for every workspace, so its
+        // presence doesn't mean there's anything to manage — gate the portal
+        // on an actual Stripe subscription (paid plan, current or winding
+        // down), which is when payment methods and invoices exist.
+        canManageInStripe: Boolean(summary.stripeSubscriptionId && summary.stripeCustomerId),
         cancelAtPeriodEnd: summary.cancelAtPeriodEnd,
       },
       currentPeriod: {
