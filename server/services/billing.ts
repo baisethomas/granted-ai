@@ -25,6 +25,7 @@ export interface UsageSummary {
   plan: PlanName;
   status: string;
   stripeCustomerId: string | null;
+  cancelAtPeriodEnd: boolean;
   period: {
     start: Date;
     end: Date;
@@ -221,6 +222,7 @@ export class BillingService {
       plan,
       status: subscription.status,
       stripeCustomerId,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd ?? false,
       period: { start, end },
       usage: {
         projects: projectsUsed,
@@ -277,6 +279,10 @@ export class BillingService {
   formatLimits(summary: UsageSummary) {
     return {
       ...summary,
+      billing: {
+        canManageInStripe: Boolean(summary.stripeCustomerId),
+        cancelAtPeriodEnd: summary.cancelAtPeriodEnd,
+      },
       currentPeriod: {
         tokensUsed: summary.usage.aiTokens,
         costUsd: summary.usage.costCents / 100,

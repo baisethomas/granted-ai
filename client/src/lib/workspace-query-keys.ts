@@ -10,6 +10,8 @@ export const workspaceKeys = {
     ["organizations", organizationId, "profile-suggestions"] as const,
   stats: (organizationId: string | null | undefined) =>
     ["organizations", organizationId, "stats"] as const,
+  billingUsage: (organizationId: string | null | undefined) =>
+    ["organizations", organizationId, "billing", "usage"] as const,
   portfolioMetrics: (
     organizationId: string | null | undefined,
     periodStart: string,
