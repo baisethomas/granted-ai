@@ -209,7 +209,16 @@ export default function Settings() {
   useEffect(() => {
     if (!hydrated.current) return;
     const json = JSON.stringify({ ...aiSettings, ...accountSettings });
-    if (json === savedSnapshot.current) return;
+    if (json === savedSnapshot.current && !writing.current) {
+      // The user reverted to the persisted state before the save fired —
+      // drop any queued intermediate payload so a later flush can't send it.
+      pendingJson.current = null;
+      return;
+    }
+    // Always queue the CURRENT state, replacing any stale intermediate value.
+    // If a write is in flight this also covers reverting to the snapshot:
+    // once that write commits a now-obsolete payload, the loop compares this
+    // queued state against the new snapshot and writes the revert back.
     pendingJson.current = json;
     const timer = setTimeout(() => void flushRef.current(), 700);
     return () => clearTimeout(timer);
