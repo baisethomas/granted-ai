@@ -1,16 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { 
+import {
   TrendingUp,
   DollarSign,
   FileText,
-  Users,
   AlertTriangle,
   Zap,
-  BarChart3
 } from "lucide-react";
 import { UsageStats, UsageTracker } from "@/lib/usage-tracking";
 
@@ -37,7 +33,7 @@ export function UsageDashboard({ organizationId, className = "" }: UsageDashboar
     };
 
     fetchUsageStats();
-    
+
     // Refresh every 30 seconds
     const interval = setInterval(fetchUsageStats, 30000);
     return () => clearInterval(interval);
@@ -45,25 +41,19 @@ export function UsageDashboard({ organizationId, className = "" }: UsageDashboar
 
   if (loading) {
     return (
-      <Card className={className}>
-        <CardContent className="p-6">
-          <div className="animate-pulse space-y-4">
-            <div className="h-4 bg-slate-200 rounded w-1/2"></div>
-            <div className="h-20 bg-slate-200 rounded"></div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className={`animate-pulse space-y-4 ${className}`}>
+        <div className="h-4 w-1/2 rounded bg-slate-200"></div>
+        <div className="h-20 rounded bg-slate-200"></div>
+      </div>
     );
   }
 
   if (!usageStats) {
     return (
-      <Card className={className}>
-        <CardContent className="p-6 text-center">
-          <AlertTriangle className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-          <p className="text-slate-600">Unable to load usage statistics</p>
-        </CardContent>
-      </Card>
+      <div className={`py-8 text-center ${className}`}>
+        <AlertTriangle className="mx-auto mb-2 h-8 w-8 text-slate-400" />
+        <p className="text-slate-600">Usage statistics aren't available right now. Refresh to try again.</p>
+      </div>
     );
   }
 
@@ -72,13 +62,6 @@ export function UsageDashboard({ organizationId, className = "" }: UsageDashboar
     if (percentage >= 75) return 'text-orange-600';
     if (percentage >= 50) return 'text-yellow-600';
     return 'text-green-600';
-  };
-
-  const _getProgressColor = (percentage: number) => {
-    if (percentage >= 90) return 'bg-red-500';
-    if (percentage >= 75) return 'bg-orange-500';
-    if (percentage >= 50) return 'bg-yellow-500';
-    return 'bg-green-500';
   };
 
   const getAlertSeverityColor = (severity: string) => {
@@ -96,137 +79,102 @@ export function UsageDashboard({ organizationId, className = "" }: UsageDashboar
       {usageStats.alerts.length > 0 && (
         <div className="space-y-3">
           {usageStats.alerts.map((alert, index) => (
-            <Card key={index} className={`border ${getAlertSeverityColor(alert.severity)}`}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <AlertTriangle className="h-4 w-4" />
-                    <span className="font-medium">{alert.message}</span>
-                  </div>
-                  <Badge variant="outline" className="text-xs">
-                    {alert.severity} priority
-                  </Badge>
+            <div key={index} className={`rounded-lg border p-4 ${getAlertSeverityColor(alert.severity)}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span className="font-medium">{alert.message}</span>
                 </div>
-              </CardContent>
-            </Card>
+                <Badge variant="outline" className="text-xs">
+                  {alert.severity} priority
+                </Badge>
+              </div>
+            </div>
           ))}
         </div>
       )}
 
-      {/* Usage Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <BarChart3 className="h-5 w-5 text-blue-600" />
-            <span>Usage Overview</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* AI Credits */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Zap className="h-4 w-4 text-purple-600" />
-                  <span className="text-sm font-medium">AI Credits</span>
-                </div>
-                <span className={`text-sm font-bold ${getUsageColor(usageStats.percentUsed.tokens)}`}>
-                  {usageStats.percentUsed.tokens}%
-                </span>
-              </div>
-              <div className="space-y-2">
-                <Progress value={usageStats.percentUsed.tokens} className="h-2" />
-                <div className="text-xs text-slate-600">
-                  {usageStats.currentPeriod.tokensUsed.toLocaleString()} / {usageStats.limits.aiCredits.toLocaleString()} tokens
-                </div>
-              </div>
+      {/* Usage meters */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+        {/* AI Credits */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Zap className="h-4 w-4 text-slate-400" />
+              <span className="text-sm font-medium">AI Credits</span>
             </div>
-
-            {/* Projects */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <FileText className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm font-medium">Projects</span>
-                </div>
-                <span className={`text-sm font-bold ${getUsageColor(usageStats.percentUsed.projects)}`}>
-                  {usageStats.percentUsed.projects}%
-                </span>
-              </div>
-              <div className="space-y-2">
-                <Progress value={usageStats.percentUsed.projects} className="h-2" />
-                <div className="text-xs text-slate-600">
-                  {usageStats.currentPeriod.projectsCreated} / {usageStats.limits.projects} projects
-                </div>
-              </div>
-            </div>
-
-            {/* Documents */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <FileText className="h-4 w-4 text-green-600" />
-                  <span className="text-sm font-medium">Documents</span>
-                </div>
-                <span className={`text-sm font-bold ${getUsageColor(usageStats.percentUsed.documents)}`}>
-                  {usageStats.percentUsed.documents}%
-                </span>
-              </div>
-              <div className="space-y-2">
-                <Progress value={usageStats.percentUsed.documents} className="h-2" />
-                <div className="text-xs text-slate-600">
-                  {usageStats.currentPeriod.documentsUploaded} / {usageStats.limits.documents} documents
-                </div>
-              </div>
-            </div>
-
-            {/* Cost */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <DollarSign className="h-4 w-4 text-emerald-600" />
-                  <span className="text-sm font-medium">Monthly Cost</span>
-                </div>
-                <span className="text-sm font-bold text-emerald-600">
-                  ${usageStats.currentPeriod.costUsd.toFixed(2)}
-                </span>
-              </div>
-              <div className="space-y-2">
-                <div className="text-xs text-slate-600">
-                  {usageStats.currentPeriod.eventsCount} API calls this month
-                </div>
-                <div className="flex items-center space-x-1">
-                  <TrendingUp className="h-3 w-3 text-green-600" />
-                  <span className="text-xs text-green-600">Tracking enabled</span>
-                </div>
-              </div>
+            <span className={`text-sm font-bold ${getUsageColor(usageStats.percentUsed.tokens)}`}>
+              {usageStats.percentUsed.tokens}%
+            </span>
+          </div>
+          <div className="space-y-2">
+            <Progress value={usageStats.percentUsed.tokens} className="h-2" />
+            <div className="text-xs text-slate-600">
+              {usageStats.currentPeriod.tokensUsed.toLocaleString()} / {usageStats.limits.aiCredits.toLocaleString()} tokens
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3">
-            <Button variant="outline" size="sm">
-              <TrendingUp className="mr-2 h-4 w-4" />
-              View Detailed Analytics
-            </Button>
-            <Button variant="outline" size="sm">
-              <DollarSign className="mr-2 h-4 w-4" />
-              Billing Settings
-            </Button>
-            <Button variant="outline" size="sm">
-              <Users className="mr-2 h-4 w-4" />
-              Upgrade Plan
-            </Button>
+        {/* Projects */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <FileText className="h-4 w-4 text-slate-400" />
+              <span className="text-sm font-medium">Projects</span>
+            </div>
+            <span className={`text-sm font-bold ${getUsageColor(usageStats.percentUsed.projects)}`}>
+              {usageStats.percentUsed.projects}%
+            </span>
           </div>
-        </CardContent>
-      </Card>
+          <div className="space-y-2">
+            <Progress value={usageStats.percentUsed.projects} className="h-2" />
+            <div className="text-xs text-slate-600">
+              {usageStats.currentPeriod.projectsCreated} / {usageStats.limits.projects} projects
+            </div>
+          </div>
+        </div>
+
+        {/* Documents */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <FileText className="h-4 w-4 text-slate-400" />
+              <span className="text-sm font-medium">Documents</span>
+            </div>
+            <span className={`text-sm font-bold ${getUsageColor(usageStats.percentUsed.documents)}`}>
+              {usageStats.percentUsed.documents}%
+            </span>
+          </div>
+          <div className="space-y-2">
+            <Progress value={usageStats.percentUsed.documents} className="h-2" />
+            <div className="text-xs text-slate-600">
+              {usageStats.currentPeriod.documentsUploaded} / {usageStats.limits.documents} documents
+            </div>
+          </div>
+        </div>
+
+        {/* Cost */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <DollarSign className="h-4 w-4 text-slate-400" />
+              <span className="text-sm font-medium">Monthly Cost</span>
+            </div>
+            <span className="text-sm font-bold text-emerald-600">
+              ${usageStats.currentPeriod.costUsd.toFixed(2)}
+            </span>
+          </div>
+          <div className="space-y-2">
+            <div className="text-xs text-slate-600">
+              {usageStats.currentPeriod.eventsCount} API calls this month
+            </div>
+            <div className="flex items-center space-x-1">
+              <TrendingUp className="h-3 w-3 text-green-600" />
+              <span className="text-xs text-green-600">Tracking enabled</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

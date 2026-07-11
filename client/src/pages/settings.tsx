@@ -1,23 +1,108 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { api, type UserSettings } from "@/lib/api";
 import { workspaceKeys } from "@/lib/workspace-query-keys";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { useState, useEffect } from "react";
-import {
-  Save,
-  BarChart3,
-  LogOut
-} from "lucide-react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
+import { Check, Loader2, LogOut } from "lucide-react";
 import UsageDashboard from "@/components/UsageDashboard";
 import { useLogout } from "@/hooks/useLogout";
+
+const EMPHASIS_OPTIONS = [
+  "Impact & Outcomes",
+  "Innovation",
+  "Collaboration",
+  "Sustainability",
+  "Cost-Effectiveness",
+  "Community Engagement",
+  "Research & Evidence",
+  "Scalability",
+];
+
+const DEFAULT_AI_SETTINGS = {
+  defaultTone: "professional",
+  lengthPreference: "balanced",
+  emphasisAreas: ["Impact & Outcomes", "Innovation", "Sustainability", "Community Engagement"],
+  aiModel: "gpt-4o",
+  fallbackModel: "gpt-3.5-turbo",
+  creativity: 30,
+  contextUsage: 80,
+  autoDetection: true,
+};
+
+const DEFAULT_ACCOUNT_SETTINGS = {
+  emailNotifications: true,
+  autoSave: true,
+  analytics: true,
+};
+
+// One consistent row: label + description on the left, control on the right.
+function SettingsRow({
+  title,
+  description,
+  htmlFor,
+  children,
+}: {
+  title: string;
+  description?: string;
+  htmlFor?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-6 py-4">
+      <div className="min-w-0">
+        <Label htmlFor={htmlFor} className="text-sm font-medium text-slate-900">
+          {title}
+        </Label>
+        {description && <p className="mt-0.5 text-sm text-slate-500">{description}</p>}
+      </div>
+      <div className="shrink-0">{children}</div>
+    </div>
+  );
+}
+
+// Variant for wide controls (sliders, chip groups) that need the full row width.
+function SettingsRowStacked({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="py-4">
+      <p className="text-sm font-medium text-slate-900">{title}</p>
+      {description && <p className="mt-0.5 text-sm text-slate-500">{description}</p>}
+      <div className="mt-3">{children}</div>
+    </div>
+  );
+}
+
+function SettingsSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="py-6 first:pt-2">
+      <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+      {description && <p className="mt-0.5 text-sm text-slate-500">{description}</p>}
+      <div className="mt-2 divide-y divide-slate-100">{children}</div>
+    </section>
+  );
+}
 
 export default function Settings() {
   const { toast } = useToast();
@@ -30,355 +115,321 @@ export default function Settings() {
     queryFn: api.getSettings,
   });
 
-  const [aiSettings, setAiSettings] = useState({
-    defaultTone: "professional",
-    lengthPreference: "balanced",
-    emphasisAreas: [] as string[],
-    aiModel: "gpt-4o",
-    fallbackModel: "gpt-3.5-turbo",
-    creativity: 30,
-    contextUsage: 80,
-    autoDetection: true,
-  });
+  const [aiSettings, setAiSettings] = useState(DEFAULT_AI_SETTINGS);
+  const [accountSettings, setAccountSettings] = useState(DEFAULT_ACCOUNT_SETTINGS);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
 
-  const [accountSettings, setAccountSettings] = useState({
-    emailNotifications: true,
-    autoSave: true,
-    analytics: true,
-  });
+  // Snapshot of the last persisted payload. null until server settings hydrate,
+  // which also gates auto-save so we never fire a save for the initial load.
+  const savedSnapshot = useRef<string | null>(null);
+  const savedBadgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hydrated = useRef(false);
 
   useEffect(() => {
-    if (settings) {
-      setAiSettings({
-        defaultTone: settings.defaultTone || "professional",
-        lengthPreference: settings.lengthPreference || "balanced",
-        emphasisAreas: settings.emphasisAreas || ["Impact & Outcomes", "Innovation", "Sustainability", "Community Engagement"],
-        aiModel: settings.aiModel || "gpt-4o",
-        fallbackModel: settings.fallbackModel || "gpt-3.5-turbo",
-        creativity: settings.creativity || 30,
-        contextUsage: settings.contextUsage || 80,
-        autoDetection: settings.autoDetection !== undefined ? settings.autoDetection : true,
-      });
-
-      setAccountSettings({
-        emailNotifications: settings.emailNotifications !== undefined ? settings.emailNotifications : true,
-        autoSave: settings.autoSave !== undefined ? settings.autoSave : true,
-        analytics: settings.analytics !== undefined ? settings.analytics : true,
-      });
-    }
+    if (!settings || hydrated.current) return;
+    hydrated.current = true;
+    const nextAi = {
+      defaultTone: settings.defaultTone || DEFAULT_AI_SETTINGS.defaultTone,
+      lengthPreference: settings.lengthPreference || DEFAULT_AI_SETTINGS.lengthPreference,
+      emphasisAreas: settings.emphasisAreas || DEFAULT_AI_SETTINGS.emphasisAreas,
+      aiModel: settings.aiModel || DEFAULT_AI_SETTINGS.aiModel,
+      fallbackModel: settings.fallbackModel || DEFAULT_AI_SETTINGS.fallbackModel,
+      creativity: settings.creativity || DEFAULT_AI_SETTINGS.creativity,
+      contextUsage: settings.contextUsage || DEFAULT_AI_SETTINGS.contextUsage,
+      autoDetection: settings.autoDetection !== undefined ? settings.autoDetection : DEFAULT_AI_SETTINGS.autoDetection,
+    };
+    const nextAccount = {
+      emailNotifications:
+        settings.emailNotifications !== undefined
+          ? settings.emailNotifications
+          : DEFAULT_ACCOUNT_SETTINGS.emailNotifications,
+      autoSave: settings.autoSave !== undefined ? settings.autoSave : DEFAULT_ACCOUNT_SETTINGS.autoSave,
+      analytics: settings.analytics !== undefined ? settings.analytics : DEFAULT_ACCOUNT_SETTINGS.analytics,
+    };
+    setAiSettings(nextAi);
+    setAccountSettings(nextAccount);
+    savedSnapshot.current = JSON.stringify({ ...nextAi, ...nextAccount });
   }, [settings]);
 
   const updateSettingsMutation = useMutation({
     mutationFn: api.updateSettings,
+    onMutate: () => setSaveState("saving"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.userSettings() });
-      toast({
-        title: "Settings saved",
-        description: "Your preferences have been updated successfully.",
-      });
+      setSaveState("saved");
+      if (savedBadgeTimer.current) clearTimeout(savedBadgeTimer.current);
+      savedBadgeTimer.current = setTimeout(() => setSaveState("idle"), 2000);
     },
     onError: () => {
+      // Roll the snapshot back so the retry (next edit) re-sends this payload.
+      savedSnapshot.current = null;
+      setSaveState("idle");
       toast({
-        title: "Failed to save settings",
-        description: "Please try again later.",
+        title: "Couldn't save your settings",
+        description: "Your last change wasn't saved. Adjust any setting to retry.",
         variant: "destructive",
       });
     },
   });
 
-  const handleSaveSettings = () => {
-    updateSettingsMutation.mutate({
-      ...aiSettings,
-      ...accountSettings,
-    });
+  // Auto-save: whenever settings drift from the last persisted snapshot,
+  // debounce briefly (absorbs slider drags) and persist.
+  useEffect(() => {
+    if (!hydrated.current) return;
+    const payload = { ...aiSettings, ...accountSettings };
+    const json = JSON.stringify(payload);
+    if (json === savedSnapshot.current) return;
+    const timer = setTimeout(() => {
+      savedSnapshot.current = json;
+      updateSettingsMutation.mutate(payload);
+    }, 700);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiSettings, accountSettings]);
+
+  useEffect(() => {
+    return () => {
+      if (savedBadgeTimer.current) clearTimeout(savedBadgeTimer.current);
+    };
+  }, []);
+
+  const toggleEmphasisArea = (area: string) => {
+    setAiSettings((prev) => ({
+      ...prev,
+      emphasisAreas: prev.emphasisAreas.includes(area)
+        ? prev.emphasisAreas.filter((a) => a !== area)
+        : [...prev.emphasisAreas, area],
+    }));
   };
 
   const handleResetDefaults = () => {
-    setAiSettings({
-      defaultTone: "professional",
-      lengthPreference: "balanced",
-      emphasisAreas: ["Impact & Outcomes", "Innovation", "Sustainability", "Community Engagement"],
-      aiModel: "gpt-4o",
-      fallbackModel: "gpt-3.5-turbo",
-      creativity: 30,
-      contextUsage: 80,
-      autoDetection: true,
-    });
-
-    setAccountSettings({
-      emailNotifications: true,
-      autoSave: true,
-      analytics: true,
-    });
-  };
-
-  const addEmphasisArea = (area: string) => {
-    if (area && !aiSettings.emphasisAreas.includes(area)) {
-      setAiSettings({
-        ...aiSettings,
-        emphasisAreas: [...aiSettings.emphasisAreas, area],
-      });
-    }
-  };
-
-  const removeEmphasisArea = (area: string) => {
-    setAiSettings({
-      ...aiSettings,
-      emphasisAreas: aiSettings.emphasisAreas.filter(a => a !== area),
-    });
+    setAiSettings((prev) => ({
+      ...DEFAULT_AI_SETTINGS,
+      // Reset covers drafting preferences only — leave whatever model config
+      // the account already has untouched.
+      aiModel: prev.aiModel,
+      fallbackModel: prev.fallbackModel,
+    }));
   };
 
   if (isLoading) {
     return (
-      <div className="space-y-8">
-        <div className="animate-pulse">
-          <div className="h-8 bg-slate-200 rounded w-1/3 mb-4"></div>
-          <div className="space-y-6">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-48 bg-slate-200 rounded"></div>
-            ))}
-          </div>
+      <div className="animate-pulse rounded-xl border border-slate-200 bg-white p-6">
+        <div className="h-9 w-72 rounded-lg bg-slate-100" />
+        <div className="mt-6 space-y-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-14 rounded bg-slate-50" />
+          ))}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 md:space-y-8">
-      {/* Usage & Billing Dashboard */}
-      <Card className="shadow-sm border border-slate-200">
-        <CardHeader className="p-4 md:p-6">
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-blue-600" />
-            <span>Usage & Billing</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-4 md:p-6">
-          <UsageDashboard organizationId={activeOrganizationId} />
-        </CardContent>
-      </Card>
-
-      {/* AI Preferences */}
-      <Card className="shadow-sm border border-slate-200">
-        <CardHeader className="p-4 border-b border-slate-200 md:p-6">
-          <CardTitle className="text-lg font-semibold text-slate-900">AI Generation Preferences</CardTitle>
-          <p className="text-sm text-slate-600 mt-1">Customize how the AI generates grant responses</p>
-        </CardHeader>
-        <CardContent className="p-4 space-y-6 md:p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label>Default Writing Tone</Label>
-              <Select value={aiSettings.defaultTone} onValueChange={(value) => 
-                setAiSettings({ ...aiSettings, defaultTone: value })
-              }>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="professional">Professional</SelectItem>
-                  <SelectItem value="data-driven">Data-Driven</SelectItem>
-                  <SelectItem value="storytelling">Storytelling</SelectItem>
-                  <SelectItem value="academic">Academic</SelectItem>
-                  <SelectItem value="persuasive">Persuasive</SelectItem>
-                </SelectContent>
-              </Select>
+    <div className="mx-auto max-w-3xl">
+      <Tabs defaultValue="drafting">
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 md:px-6">
+            <div className="overflow-x-auto">
+              <TabsList className="min-w-max">
+                <TabsTrigger value="drafting">Drafting</TabsTrigger>
+                <TabsTrigger value="general">General</TabsTrigger>
+                <TabsTrigger value="usage">Usage &amp; billing</TabsTrigger>
+              </TabsList>
             </div>
-            <div className="space-y-2">
-              <Label>Response Length Preference</Label>
-              <Select value={aiSettings.lengthPreference} onValueChange={(value) => 
-                setAiSettings({ ...aiSettings, lengthPreference: value })
-              }>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="concise">Concise</SelectItem>
-                  <SelectItem value="balanced">Balanced</SelectItem>
-                  <SelectItem value="comprehensive">Comprehensive</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex h-5 shrink-0 items-center text-xs text-slate-400" aria-live="polite">
+              {saveState === "saving" && (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Saving
+                </span>
+              )}
+              {saveState === "saved" && (
+                <span className="flex items-center gap-1.5 text-emerald-600">
+                  <Check className="h-3 w-3" />
+                  Saved
+                </span>
+              )}
             </div>
           </div>
 
-          <div className="space-y-3">
-            <Label>Emphasis Areas (Check all that apply)</Label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 md:gap-4">
-              {[
-                "Impact & Outcomes",
-                "Innovation", 
-                "Collaboration",
-                "Sustainability",
-                "Cost-Effectiveness",
-                "Community Engagement",
-                "Research & Evidence",
-                "Scalability"
-              ].map((area) => (
-                <div key={area} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={area}
-                    checked={aiSettings.emphasisAreas.includes(area)}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        addEmphasisArea(area);
-                      } else {
-                        removeEmphasisArea(area);
-                      }
-                    }}
+          <div className="px-4 pb-6 md:px-6">
+            <TabsContent value="drafting" className="mt-0">
+              <SettingsSection
+                title="Voice"
+                description="The tone and priorities Granted uses when drafting your responses."
+              >
+                <SettingsRow title="Writing tone" description="The default voice for generated drafts.">
+                  <Select
+                    value={aiSettings.defaultTone}
+                    onValueChange={(value) => setAiSettings({ ...aiSettings, defaultTone: value })}
+                  >
+                    <SelectTrigger className="w-44">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="professional">Professional</SelectItem>
+                      <SelectItem value="data-driven">Data-driven</SelectItem>
+                      <SelectItem value="storytelling">Storytelling</SelectItem>
+                      <SelectItem value="academic">Academic</SelectItem>
+                      <SelectItem value="persuasive">Persuasive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </SettingsRow>
+                <SettingsRow title="Response length" description="How detailed drafts should be by default.">
+                  <Select
+                    value={aiSettings.lengthPreference}
+                    onValueChange={(value) => setAiSettings({ ...aiSettings, lengthPreference: value })}
+                  >
+                    <SelectTrigger className="w-44">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="concise">Concise</SelectItem>
+                      <SelectItem value="balanced">Balanced</SelectItem>
+                      <SelectItem value="comprehensive">Comprehensive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </SettingsRow>
+                <SettingsRowStacked
+                  title="Emphasis areas"
+                  description="Themes to highlight when your source material supports them."
+                >
+                  <div className="flex flex-wrap gap-2">
+                    {EMPHASIS_OPTIONS.map((area) => {
+                      const selected = aiSettings.emphasisAreas.includes(area);
+                      return (
+                        <button
+                          key={area}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => toggleEmphasisArea(area)}
+                          className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                            selected
+                              ? "border-primary bg-[#EAF2FE] font-medium text-primary"
+                              : "border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900"
+                          }`}
+                        >
+                          {area}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </SettingsRowStacked>
+              </SettingsSection>
+
+              <div className="border-t border-slate-200" />
+
+              <SettingsSection
+                title="Drafting behavior"
+                description="How Granted balances your source material against fresh phrasing."
+              >
+                <SettingsRowStacked
+                  title="Response creativity"
+                  description="Conservative sticks closely to your documents; creative allows more original phrasing."
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="w-24 shrink-0 text-xs text-slate-500">Conservative</span>
+                    <Slider
+                      value={[aiSettings.creativity]}
+                      onValueChange={(value) => setAiSettings({ ...aiSettings, creativity: value[0] })}
+                      max={100}
+                      step={1}
+                      className="flex-1"
+                    />
+                    <span className="w-24 shrink-0 text-right text-xs text-slate-500">Creative</span>
+                  </div>
+                </SettingsRowStacked>
+                <SettingsRowStacked
+                  title="Context usage"
+                  description="How much of your uploaded material to draw on for each draft."
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="w-24 shrink-0 text-xs text-slate-500">Minimal</span>
+                    <Slider
+                      value={[aiSettings.contextUsage]}
+                      onValueChange={(value) => setAiSettings({ ...aiSettings, contextUsage: value[0] })}
+                      max={100}
+                      step={1}
+                      className="flex-1"
+                    />
+                    <span className="w-24 shrink-0 text-right text-xs text-slate-500">Maximum</span>
+                  </div>
+                </SettingsRowStacked>
+                <SettingsRow
+                  title="Automatic question detection"
+                  description="Identify and parse questions from uploaded grant documents."
+                >
+                  <Switch
+                    checked={aiSettings.autoDetection}
+                    onCheckedChange={(checked) => setAiSettings({ ...aiSettings, autoDetection: checked })}
                   />
-                  <Label htmlFor={area} className="text-sm">{area}</Label>
-                </div>
-              ))}
-            </div>
-          </div>
+                </SettingsRow>
+              </SettingsSection>
 
-          <div className="flex items-start justify-between gap-4 p-4 bg-slate-50 rounded-lg">
-            <div className="min-w-0">
-              <p className="font-medium text-slate-900">Automatic Question Detection</p>
-              <p className="text-sm text-slate-600">
-                Automatically identify and parse questions from uploaded grant documents
-              </p>
-            </div>
-            <Switch
-              checked={aiSettings.autoDetection}
-              onCheckedChange={(checked) => setAiSettings({ ...aiSettings, autoDetection: checked })}
-            />
-          </div>
-        </CardContent>
-      </Card>
+              <button
+                type="button"
+                onClick={handleResetDefaults}
+                className="text-sm text-slate-400 underline-offset-4 transition-colors hover:text-slate-600 hover:underline"
+              >
+                Reset drafting preferences to defaults
+              </button>
+            </TabsContent>
 
-      {/* LLM Configuration */}
-      <Card className="shadow-sm border border-slate-200">
-        <CardHeader className="p-4 border-b border-slate-200 md:p-6">
-          <CardTitle className="text-lg font-semibold text-slate-900">Model Performance Settings</CardTitle>
-          <p className="text-sm text-slate-600 mt-1">
-            Tune how Granted drafts your responses
-          </p>
-        </CardHeader>
-        <CardContent className="p-4 space-y-6 md:p-6">
-          <div className="space-y-6">
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900">Response Creativity</p>
-                    <p className="text-xs text-slate-600">Higher values produce more creative responses</p>
-                  </div>
-                  <div className="flex w-full items-center gap-3 sm:w-auto sm:space-x-4">
-                    <span className="text-xs text-slate-500">Conservative</span>
-                    <div className="min-w-0 flex-1 sm:w-32 sm:flex-none">
-                      <Slider
-                        value={[aiSettings.creativity]}
-                        onValueChange={(value) => setAiSettings({ ...aiSettings, creativity: value[0] })}
-                        max={100}
-                        step={1}
-                        className="w-full"
-                      />
-                    </div>
-                    <span className="text-xs text-slate-500">Creative</span>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900">Context Usage</p>
-                    <p className="text-xs text-slate-600">How much of your uploaded context to use</p>
-                  </div>
-                  <div className="flex w-full items-center gap-3 sm:w-auto sm:space-x-4">
-                    <span className="text-xs text-slate-500">Minimal</span>
-                    <div className="min-w-0 flex-1 sm:w-32 sm:flex-none">
-                      <Slider
-                        value={[aiSettings.contextUsage]}
-                        onValueChange={(value) => setAiSettings({ ...aiSettings, contextUsage: value[0] })}
-                        max={100}
-                        step={1}
-                        className="w-full"
-                      />
-                    </div>
-                    <span className="text-xs text-slate-500">Maximum</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            <TabsContent value="general" className="mt-0">
+              <SettingsSection title="Workspace" description="Notifications and day-to-day behavior.">
+                <SettingsRow
+                  title="Email notifications"
+                  description="Updates on generation status and deadlines."
+                >
+                  <Switch
+                    checked={accountSettings.emailNotifications}
+                    onCheckedChange={(checked) =>
+                      setAccountSettings({ ...accountSettings, emailNotifications: checked })
+                    }
+                  />
+                </SettingsRow>
+                <SettingsRow title="Auto-save drafts" description="Save changes as you edit responses.">
+                  <Switch
+                    checked={accountSettings.autoSave}
+                    onCheckedChange={(checked) => setAccountSettings({ ...accountSettings, autoSave: checked })}
+                  />
+                </SettingsRow>
+                <SettingsRow
+                  title="Usage analytics"
+                  description="Track your grant writing progress and success metrics."
+                >
+                  <Switch
+                    checked={accountSettings.analytics}
+                    onCheckedChange={(checked) => setAccountSettings({ ...accountSettings, analytics: checked })}
+                  />
+                </SettingsRow>
+              </SettingsSection>
 
-      {/* Account Settings */}
-      <Card className="shadow-sm border border-slate-200">
-        <CardHeader className="p-4 border-b border-slate-200 md:p-6">
-          <CardTitle className="text-lg font-semibold text-slate-900">Account Settings</CardTitle>
-          <p className="text-sm text-slate-600 mt-1">Manage your account preferences and notifications</p>
-        </CardHeader>
-        <CardContent className="p-4 space-y-4 md:p-6">
-          <div className="flex items-start justify-between gap-4 p-4 bg-slate-50 rounded-lg">
-            <div className="min-w-0">
-              <p className="font-medium text-slate-900">Email Notifications</p>
-              <p className="text-sm text-slate-600">Receive updates on generation status and deadlines</p>
-            </div>
-            <Switch
-              checked={accountSettings.emailNotifications}
-              onCheckedChange={(checked) => setAccountSettings({ ...accountSettings, emailNotifications: checked })}
-            />
-          </div>
-          <div className="flex items-start justify-between gap-4 p-4 bg-slate-50 rounded-lg">
-            <div className="min-w-0">
-              <p className="font-medium text-slate-900">Auto-Save Drafts</p>
-              <p className="text-sm text-slate-600">Automatically save changes as you edit responses</p>
-            </div>
-            <Switch
-              checked={accountSettings.autoSave}
-              onCheckedChange={(checked) => setAccountSettings({ ...accountSettings, autoSave: checked })}
-            />
-          </div>
-          <div className="flex items-start justify-between gap-4 p-4 bg-slate-50 rounded-lg">
-            <div className="min-w-0">
-              <p className="font-medium text-slate-900">Usage Analytics</p>
-              <p className="text-sm text-slate-600">Track your grant writing progress and success metrics</p>
-            </div>
-            <Switch
-              checked={accountSettings.analytics}
-              onCheckedChange={(checked) => setAccountSettings({ ...accountSettings, analytics: checked })}
-            />
-          </div>
-        </CardContent>
-      </Card>
+              <div className="border-t border-slate-200" />
 
-      {/* Sign Out */}
-      <Card className="shadow-sm border border-slate-200">
-        <CardHeader className="p-4 border-b border-slate-200 md:p-6">
-          <CardTitle className="text-lg font-semibold text-slate-900">Sign Out</CardTitle>
-          <p className="text-sm text-slate-600 mt-1">
-            End your session on this device. You'll need to log in again to access your account.
-          </p>
-        </CardHeader>
-        <CardContent className="p-4 md:p-6">
-          <Button
-            variant="outline"
-            onClick={handleLogout}
-            className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-            data-testid="button-logout-settings"
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            Log out
-          </Button>
-        </CardContent>
-      </Card>
+              <SettingsSection title="Session">
+                <SettingsRow title="Sign out" description="End your session on this device.">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLogout}
+                    className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                    data-testid="button-logout-settings"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Log out
+                  </Button>
+                </SettingsRow>
+              </SettingsSection>
+            </TabsContent>
 
-      {/* Save Changes */}
-      <div className="flex flex-col-reverse gap-3 pt-6 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
-        <Button variant="outline" onClick={handleResetDefaults} className="w-full sm:w-auto">
-          Reset to Defaults
-        </Button>
-        <Button 
-          onClick={handleSaveSettings}
-          disabled={updateSettingsMutation.isPending}
-          className="w-full bg-[var(--brand-a)] hover:bg-[color-mix(in_srgb,var(--brand-a) 85%,black)] sm:w-auto"
-        >
-          <Save className="mr-2 h-4 w-4" />
-          {updateSettingsMutation.isPending ? "Saving..." : "Save Changes"}
-        </Button>
-      </div>
+            <TabsContent value="usage" className="mt-0 pt-6">
+              <UsageDashboard organizationId={activeOrganizationId} />
+            </TabsContent>
+          </div>
+        </div>
+      </Tabs>
     </div>
   );
 }
