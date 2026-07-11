@@ -183,17 +183,26 @@ npm run auth:create-test-user     # create a Supabase test user
 
 ```
 /client/src/
-  pages/          # dashboard, upload (nav label "Documents"), settings, organization,
-                  # pricing, metrics, privacy, terms; projects/[id].tsx is the per-application
+  pages/          # dashboard, upload (nav label "Documents"), settings (three tabs —
+                  # Drafting / General / Plan & billing — auto-saves on a 700ms debounce,
+                  # no Save/Reset buttons; the AI model picker was removed from the UI
+                  # though aiModel/fallbackModel remain in state + payload),
+                  # organization, pricing, metrics, privacy, terms; projects/[id].tsx is the per-application
                   # workspace — Overview/Metrics/Questions/Drafts tabs, the latter two backed by
                   # projects/QuestionsPanel.tsx and projects/DraftsPanel.tsx (forms.tsx and
                   # drafts.tsx were merged into these as tabs in GRA-57 — no longer standalone pages)
   components/     # custom, top-level (not components/ui/): ClarificationPanel, EvidenceMap,
-                  # UsageDashboard, HomeGuidance (Home's setup checklist + "up next" card, GRA-59)
+                  # HomeGuidance (Home's setup checklist + "up next" card, GRA-59)
+  components/settings/  # Settings page pieces (GRA-63): rows.tsx (SettingsRow /
+                  # SettingsRowStacked / SettingsSection layout primitives) and
+                  # PlanBilling.tsx (Plan & billing tab — plan status, Pro checkout,
+                  # Stripe billing portal, usage meters). UsageDashboard.tsx and
+                  # lib/usage-tracking.ts were deleted in this rework
   components/ui/  # Radix + shadcn primitives
-  hooks/  lib/    # API client, export (docx/pdf), usage-tracking, questions.ts (response-status
+  hooks/  lib/    # API client, export (docx/pdf), questions.ts (response-status
                   # helpers), home-guidance.ts + recent-project.ts (Home guidance logic and the
-                  # "continue where you left off" localStorage key, GRA-59)
+                  # "continue where you left off" localStorage key, GRA-59),
+                  # workspace-query-keys.ts (per-workspace TanStack Query keys, incl. billingUsage)
 
 /server/
   index.ts        # entry (port 5001 dev); wires Vite middleware

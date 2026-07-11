@@ -62,7 +62,7 @@ Use **two** workspaces **A** and **B**. Create identifiable fixture data only in
 | **Application deep links** | With **B** active, paste/load a direct URL to an application in **A** (`/app/applications/:id`) — active workspace auto-syncs to **A** and the application opens (doesn't bounce to dashboard). While it's open, switch the sidebar workspace to **B** — application view navigates away (workspace changed out from under it). | [ ] |
 | **Portfolio metrics** | Metrics overview lists projects only from active workspace; date filters behave normally. | [ ] |
 | **Organization** | Profile fields (`mission`, contact fields, etc.) save per workspace; reviewing profile suggestions scopes to active org. | [ ] |
-| **Settings → usage** | **UsageDashboard** reflects **`GET /api/organizations/:id/billing/usage`** for active org id; totals change when switching orgs after usage-producing actions. | [ ] |
+| **Settings → Plan & billing** | The **Plan & billing** tab (`client/src/components/settings/PlanBilling.tsx`) reflects **`GET /api/organizations/:id/billing/usage`** for the active org id; usage meters change when switching orgs after usage-producing actions. | [ ] |
 | **Billing / pricing** | If Stripe is enabled: from **pricing** (`/pricing`), **Try Pro** starts checkout (`POST /api/billing/checkout`); completing or canceling returns to app cleanly. Returning user still sees workspace-scoped usage in settings. *(Skip if Stripe not wired in env.)* | [ ] |
 
 ---
