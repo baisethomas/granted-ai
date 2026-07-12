@@ -65,10 +65,18 @@ export function HeroSection({ onClickSeeHow, onNavigateToAuth }: HeroSectionProp
         <div className="w-full lg:w-1/2">
           <div className="relative">
             <div className="absolute inset-6 rounded-3xl bg-gradient-to-br from-[var(--brand-a)]/10 via-[var(--brand-b)]/10 to-[var(--brand-c)]/20 blur-2xl" />
-            <img
-              src="/generated-graphics/grant-abstract-1.png"
-              alt="Illustration of a nonprofit professional reviewing grant materials"
-              className="relative w-full rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
+            {/* Autoplay requires muted; controls let visitors unmute the soundtrack. */}
+            <video
+              src="/granted-promo.mp4"
+              poster="/granted-promo-poster.jpg"
+              autoPlay
+              muted
+              loop
+              playsInline
+              controls
+              preload="metadata"
+              aria-label="Product tour: uploading documents, adding funder questions, and reviewing a cited draft in Granted"
+              className="relative w-full rounded-2xl border border-slate-200 bg-white shadow-xl"
             />
           </div>
         </div>
