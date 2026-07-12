@@ -64,7 +64,7 @@ Granted helps nonprofits streamline their grant application process by intellige
 
 3. **Set up environment variables**
 
-   Copy `.env.example` to `.env` and fill in the values below. The server accepts `VITE_SUPABASE_URL` or the legacy `NEXT_PUBLIC_SUPABASE_URL` fallback — prefer the `VITE_*` names for new setups.
+   Copy `.env.example` to `.env` and fill in the values below. The server loads `.env.local` first, then `.env` (values in `.env.local` win) via `server/env.ts`. Note: `drizzle.config.ts` reads only `.env`, so keep `DATABASE_URL` there for `npm run db:push`. The server accepts `VITE_SUPABASE_URL` or the legacy `NEXT_PUBLIC_SUPABASE_URL` fallback — prefer the `VITE_*` names for new setups.
 
    ```bash
    # Client (Vite) — anon key + URL for the browser Supabase client
