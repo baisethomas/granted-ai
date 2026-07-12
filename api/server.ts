@@ -8,6 +8,8 @@ loadDotenv();
 import express, {
   type Express,
   type NextFunction,
+  type Request,
+  type Response,
 } from "express";
 import { registerRoutes } from "../server/routes.js";
 import { setupAuth } from "../server/auth.js";
