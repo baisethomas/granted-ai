@@ -34,6 +34,7 @@ import Organization from "@/pages/organization";
 import Pricing from "@/pages/pricing";
 import Privacy from "@/pages/privacy";
 import Terms from "@/pages/terms";
+import ResetPassword from "@/pages/reset-password";
 import PortfolioMetrics from "@/pages/metrics";
 import { ProjectDetail } from "@/pages/projects/[id]";
 import { NewProjectDialog } from "@/components/new-project-dialog";
@@ -67,8 +68,15 @@ function isAppRoute(location: string): boolean {
 
 function AppContent() {
   const [location, setLocation] = useLocation();
-  const { user, loading } = useAuth();
-  const checkoutRedirecting = usePostSignupCheckout(user, loading);
+  const { user, loading, isPasswordRecovery, clearPasswordRecovery } = useAuth();
+  // Also check window.location directly, not just wouter's location state —
+  // this is a security-sensitive gate (it decides whether the marketing-
+  // domain redirect below can fire), so it must not depend on wouter having
+  // finished syncing after a hard cross-domain navigation to this route.
+  const isPasswordResetRoute =
+    location === "/auth/reset" ||
+    (typeof window !== "undefined" && window.location.pathname === "/auth/reset");
+  const checkoutRedirecting = usePostSignupCheckout(isPasswordResetRoute ? null : user, loading);
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
   // Where a project was opened from (Dashboard, Metrics, ...), so the
   // in-page Back button returns there directly instead of using raw browser
@@ -85,10 +93,10 @@ function AppContent() {
 
   // Handle redirect to /app when user logs in
   useEffect(() => {
-    if (user && !isAppRoute(location) && !isPublicPath) {
+    if (user && !isAppRoute(location) && !isPublicPath && !isPasswordResetRoute) {
       setLocation("/app");
     }
-  }, [user, location, setLocation, isPublicPath]);
+  }, [user, location, setLocation, isPublicPath, isPasswordResetRoute]);
 
   // Handle redirect to landing when user logs out from an authenticated route
   useEffect(() => {
@@ -120,8 +128,17 @@ function AppContent() {
     );
   }
 
-  // Authenticated users on marketing domain → send to the app
-  if (!loading && user && isMarketingDomain()) {
+  if (isPasswordResetRoute) {
+    return <QueryClientProvider client={queryClient}><TooltipProvider><ResetPassword canReset={isPasswordRecovery} onComplete={clearPasswordRecovery} /></TooltipProvider></QueryClientProvider>;
+  }
+
+  // Authenticated users on marketing domain → send to the app.
+  // isPasswordResetRoute is already handled above and this is unreachable
+  // when it's true, but the check is repeated explicitly rather than relied
+  // on implicitly — a reset link must never bounce to /app before the user
+  // can set a new password, so this invariant should hold regardless of
+  // branch ordering above.
+  if (!loading && user && isMarketingDomain() && !isPasswordResetRoute) {
     window.location.href = `${APP_DOMAIN}/app`;
     return null;
   }

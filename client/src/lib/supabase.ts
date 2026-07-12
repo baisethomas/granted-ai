@@ -45,6 +45,17 @@ export const signIn = async (email: string, password: string) => {
   })
 }
 
+export const resendSignupConfirmation = (email: string) =>
+  supabase.auth.resend({ type: 'signup', email })
+
+export const sendPasswordReset = async (email: string) => {
+  const base = getOAuthRedirectOrigin()
+  if (!base) throw new Error('Password reset cannot be started from this page.')
+  return supabase.auth.resetPasswordForEmail(email, { redirectTo: `${base}/auth/reset` })
+}
+
+export const updatePassword = (password: string) => supabase.auth.updateUser({ password })
+
 /**
  * OAuth redirect target: localhost stays local even when Vite injects a
  * production `VITE_APP_DOMAIN`; deployed builds can still use the configured
