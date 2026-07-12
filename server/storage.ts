@@ -1318,7 +1318,7 @@ export class DbStorage implements IStorage {
         .from(schema.memberships)
         .where(and(eq(schema.memberships.userId, userId), eq(schema.memberships.organizationId, userId)));
       if (!membership?.length) {
-        await db?.insert(schema.memberships).values({ userId, organizationId: userId, role: "owner" } as any);
+        await db?.insert(schema.memberships).values({ userId, organizationId: userId, role: "owner" } as any).onConflictDoNothing();
       }
       return existing;
     }
@@ -1342,7 +1342,7 @@ export class DbStorage implements IStorage {
       // now exists — re-enter the existing-org path to backfill membership.
       return this.ensureDefaultOrganizationForUser(userId, displayName);
     }
-    await db?.insert(schema.memberships).values({ userId, organizationId: userId, role: "owner" } as any);
+    await db?.insert(schema.memberships).values({ userId, organizationId: userId, role: "owner" } as any).onConflictDoNothing();
     return rows[0];
   }
 
