@@ -7,6 +7,7 @@ interface AuthContextType {
   user: User | null
   session: Session | null
   loading: boolean
+  isPasswordRecovery: boolean
   signIn: (email: string, password: string) => Promise<any>
   signUp: (email: string, password: string, metadata?: any) => Promise<any>
   signInWithGoogle: () => Promise<any>
@@ -32,6 +33,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
 
   useEffect(() => {
     // Get initial session
@@ -47,9 +49,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setSession(session)
         setUser(session?.user ?? null)
         setLoading(false)
+        if (event === 'PASSWORD_RECOVERY') {
+          setIsPasswordRecovery(true)
+        }
         // Clear cached API data when the session ends so stale data
         // is never shown to the next user or after a token expiry.
         if (event === 'SIGNED_OUT') {
+          setIsPasswordRecovery(false)
           queryClient.clear()
         }
       }
@@ -62,6 +68,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     user,
     session,
     loading,
+    isPasswordRecovery,
     signIn,
     signUp,
     signInWithGoogle,

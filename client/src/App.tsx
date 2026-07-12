@@ -68,7 +68,7 @@ function isAppRoute(location: string): boolean {
 
 function AppContent() {
   const [location, setLocation] = useLocation();
-  const { user, loading } = useAuth();
+  const { user, loading, isPasswordRecovery } = useAuth();
   const isPasswordResetRoute = location === "/auth/reset";
   const checkoutRedirecting = usePostSignupCheckout(isPasswordResetRoute ? null : user, loading);
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
@@ -122,14 +122,14 @@ function AppContent() {
     );
   }
 
+  if (isPasswordResetRoute) {
+    return <QueryClientProvider client={queryClient}><TooltipProvider><ResetPassword canReset={isPasswordRecovery} /></TooltipProvider></QueryClientProvider>;
+  }
+
   // Authenticated users on marketing domain → send to the app
   if (!loading && user && isMarketingDomain()) {
     window.location.href = `${APP_DOMAIN}/app`;
     return null;
-  }
-
-  if (isPasswordResetRoute) {
-    return <QueryClientProvider client={queryClient}><TooltipProvider><ResetPassword canReset={Boolean(user)} /></TooltipProvider></QueryClientProvider>;
   }
 
   // Logged-out routes: "/" (landing) and "/auth" (login/signup)
