@@ -1318,7 +1318,7 @@ export class DbStorage implements IStorage {
         .from(schema.memberships)
         .where(and(eq(schema.memberships.userId, userId), eq(schema.memberships.organizationId, userId)));
       if (!membership?.length) {
-        await db?.insert(schema.memberships).values({ userId, organizationId: userId, role: "owner" } as any);
+        await db?.insert(schema.memberships).values({ userId, organizationId: userId, role: "owner" } as any).onConflictDoNothing();
       }
       return existing;
     }
@@ -1334,9 +1334,16 @@ export class DbStorage implements IStorage {
       mission: user?.mission ?? null,
       focusAreas: user?.focusAreas ?? null,
       plan: "starter",
-    } as any).returning();
-    await db?.insert(schema.memberships).values({ userId, organizationId: userId, role: "owner" } as any);
-    return rows![0];
+    } as any).onConflictDoNothing().returning();
+    if (!rows?.length) {
+      // Lost a provisioning race: a concurrent request inserted the org
+      // between our existence check and this insert (typical on first load,
+      // when several API calls fire at once for a brand-new user). The org
+      // now exists — re-enter the existing-org path to backfill membership.
+      return this.ensureDefaultOrganizationForUser(userId, displayName);
+    }
+    await db?.insert(schema.memberships).values({ userId, organizationId: userId, role: "owner" } as any).onConflictDoNothing();
+    return rows[0];
   }
 
   async createOrganization(userId: string, insertOrganization: InsertOrganization): Promise<Organization> {

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, vector } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, vector, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -46,7 +46,11 @@ export const memberships = pgTable("memberships", {
   role: text("role").notNull().default("writer"), // admin, writer, reviewer
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  // A user belongs to an organization at most once. Concurrent provisioning
+  // relies on this constraint + onConflictDoNothing instead of check-then-insert.
+  uniqueIndex("memberships_user_org_unique").on(table.userId, table.organizationId),
+]);
 
 export const subscriptions = pgTable("subscriptions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
