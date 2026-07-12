@@ -32,6 +32,10 @@ Handoff plan for taking the billing integration and signup flow from "built in t
 
 Ordered by launch impact. Mobbin references describe the pattern to follow.
 
+### 2.0 Production webhook is broken: raw body never reaches signature verification — **P0, blocks billing entirely** (GRA-66)
+`server/index.ts:31` scopes `express.raw()` to `/api/billing/webhook` — but the **Vercel production entry `api/server.ts` applies `express.json()` globally with no raw-body carve-out**. `stripe.webhooks.constructEvent` requires the exact raw bytes, so in production every webhook fails signature verification: subscriptions never activate after checkout, cancellations never sync. Dev works; prod doesn't.
+**Do:** mirror the scoped `express.raw()` middleware in `api/server.ts` ahead of `express.json()`. Must land before webhook registration (§3.1.4) means anything.
+
 ### 2.1 No "check your email" state after signup — **P1 if email confirmation is on**
 `Login.tsx` has no confirmation-pending UI. If the Supabase project has "Confirm email" enabled, a new user who signs up sees… nothing actionable. Every signup flow reviewed (Perplexity, Claude, Qatalog) has an explicit *check your email* screen, and the best ones accept a 6-digit code inline rather than requiring a click-through.
 **Do:** add a post-signup state to `Login.tsx`: "We sent a confirmation link to {email}" + resend button (`supabase.auth.resend()`). Decide the confirmation policy first (§3.2). Brand voice: state what happened + what to do next.
@@ -45,7 +49,7 @@ The server sets `success_url: /app?checkout=success` and `cancel_url: /pricing?c
 **Do:** on `checkout=success`, show a toast/banner ("You're on Pro — receipt is in your email") and poll `billingUsage` (the query key already exists in `workspace-query-keys.ts`) until the webhook lands; on `checkout=canceled`, a quiet "Checkout canceled — your plan is unchanged" on Pricing.
 
 ### 2.4 Signup asks for the org name never — **P3 (nice-to-have)**
-The default workspace is auto-named "My Organization." Qatalog/Langdock ask 1–2 light questions post-signup (org name, size) and use them. Granted already collects org context later (Organization page, org-memory suggestions), so keep this minimal or skip: a single optional "Organization name" field on the signup form that flows into `ensureDefaultOrganizationForUser(userId, displayName)` (the parameter already exists).
+The default workspace is auto-named "My Organization." Qatalog/Langdock ask 1–2 light questions post-signup (org name, size) and use them. Granted already collects org context later (Organization page, org-memory suggestions), so keep this minimal or skip: a single optional "Organization name" field on the signup form. Note the transport gap: signup itself never calls `ensureDefaultOrganizationForUser` — the org is provisioned later by the first `GET /api/organizations`, which passes no display name. Plumbing needed: store the name in signup metadata (like `signup_plan`) and have the provisioning path read it, or add a dedicated first-run endpoint.
 
 ### 2.5 No annual pricing — **P3 (decision, then small code)**
 Pricing page and checkout are monthly-only (one `STRIPE_PRO_PRICE_ID`). Every reference flow has a monthly/annual toggle with a savings callout, and annual prepay matters for nonprofit budgeting cycles (grant-funded orgs often prefer invoiced annual). If wanted: second Price in Stripe, cadence toggle on `pricing.tsx`, pass the chosen price id to `/api/billing/checkout`.
@@ -74,7 +78,7 @@ These are **owner actions** (they need your Stripe/Supabase/Google/Vercel logins
 
 ### 3.3 Vercel
 1. Confirm all `STRIPE_*` env vars exist in the **Production** environment specifically (not just Preview/Development).
-2. `SESSION_SECRET`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL`, `OPENAI_API_KEY` — verify against `.env.example`.
+2. `SESSION_SECRET`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `DATABASE_URL`, `OPENAI_API_KEY` — verify against `.env.example`. (The client reads the `VITE_*` names; `NEXT_PUBLIC_SUPABASE_*` work only as legacy fallbacks via `vite.config.ts` — prefer the canonical `VITE_*` in new environments.)
 3. After setting env vars, redeploy (env changes don't apply to existing deployments).
 
 ---
@@ -97,6 +101,7 @@ Stripe test mode first (test keys in Preview env), then one real charge on live.
 
 | Order | Work | Who | Size |
 |---|---|---|---|
+| 0 | Fix prod webhook raw body (§2.0, GRA-66) | Claude session | 1 small branch — **blocks everything billing** |
 | 1 | Stripe account activation + live product/price (§3.1.1–2) | Owner | 30 min + review wait |
 | 2 | Supabase prod auth config + email policy decision (§3.2) | Owner | 1 hr |
 | 3 | Check-your-email state + password reset (§2.1, §2.2) | Claude session | 1 branch, ~half day incl. review |
