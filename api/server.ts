@@ -7,9 +7,9 @@ loadDotenv();
 
 import express, {
   type Express,
+  type NextFunction,
   type Request,
   type Response,
-  type NextFunction,
 } from "express";
 import { registerRoutes } from "../server/routes.js";
 import { setupAuth } from "../server/auth.js";
@@ -17,10 +17,7 @@ import { corsMiddleware } from "../server/middleware/cors.js";
 import { apiRateLimiter } from "../server/middleware/rateLimiter.js";
 import { setupSecurityHeaders } from "../server/securityHeaders.js";
 
-let cachedApp: Express | null = null;
-let initPromise: Promise<Express> | null = null;
-
-async function createApp(): Promise<Express> {
+export async function createApp(): Promise<Express> {
   const app = express();
 
   // Trust Vercel's edge proxy so `req.ip` is the real client address.
@@ -32,9 +29,19 @@ async function createApp(): Promise<Express> {
 
   app.use(corsMiddleware);
 
+  // Stripe webhook signature verification needs the exact raw request
+  // bytes, so this must be mounted (scoped to the webhook path) before the
+  // global JSON parser below — otherwise express.json() consumes the body
+  // and stripe.webhooks.constructEvent() fails signature verification on
+  // every request. Mirrors server/index.ts (the local dev entry); this file
+  // is the Vercel production entry, which previously lacked this carve-out
+  // (GRA-66).
+  const jsonBodyLimit = process.env.REQUEST_BODY_LIMIT || "1mb";
   app.use(
-    express.json({ limit: process.env.REQUEST_BODY_LIMIT || "1mb" }),
+    "/api/billing/webhook",
+    express.raw({ type: "application/json", limit: jsonBodyLimit }),
   );
+  app.use(express.json({ limit: jsonBodyLimit }));
   app.use(
     express.urlencoded({
       extended: false,
@@ -73,33 +80,9 @@ async function createApp(): Promise<Express> {
   return app;
 }
 
-async function getApp(): Promise<Express> {
-  if (cachedApp) return cachedApp;
-  if (!initPromise) {
-    initPromise = createApp()
-      .then((app) => {
-        cachedApp = app;
-        return app;
-      })
-      .catch((error) => {
-        initPromise = null;
-        throw error;
-      });
-  }
-  return initPromise;
-}
-
-export default async function handler(req: Request, res: Response) {
-  try {
-    const app = await getApp();
-    return app(req, res);
-  } catch (error: any) {
-    console.error("[api] Failed to initialize app:", error);
-    res
-      .status(500)
-      .json({
-        error: "Server initialization failed",
-        message: error?.message || "Unknown error",
-      });
-  }
-}
+// Export the Express application itself so Vercel detects and hosts it as an
+// Express app. A custom function handler receives Vercel's parsed `req.body`
+// helper before Express runs, which can consume the byte-exact Stripe payload.
+// Direct Express export leaves body parsing under the scoped middleware above.
+const app = await createApp();
+export default app;
