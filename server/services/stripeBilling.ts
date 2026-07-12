@@ -60,7 +60,7 @@ export async function createProCheckoutSession(input: {
     customer_email: input.userEmail || undefined,
     client_reference_id: input.userId,
     line_items: [{ price: STRIPE_PRO_PRICE_ID, quantity: 1 }],
-    success_url: `${appOrigin}/app?checkout=success`,
+    success_url: `${appOrigin}/app?checkout=success&organizationId=${encodeURIComponent(input.organizationId)}`,
     cancel_url: `${appOrigin}/pricing?checkout=canceled`,
     allow_promotion_codes: true,
     metadata,

@@ -6,8 +6,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { getAuthUrl } from "@/lib/domains";
 import { prepareExplicitProCheckout } from "@/lib/signup-plan";
 import { apiRequest } from "@/lib/queryClient";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
-import { useState } from "react";
+import { ArrowRight, CheckCircle2, Info } from "lucide-react";
+import { useEffect, useState } from "react";
 
 const plans = [
   {
@@ -103,6 +103,16 @@ export default function Pricing() {
   const { user } = useAuth();
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [checkoutCanceled] = useState(
+    () => new URLSearchParams(window.location.search).get("checkout") === "canceled",
+  );
+
+  useEffect(() => {
+    if (!checkoutCanceled) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("checkout");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [checkoutCanceled]);
 
   async function startProCheckout() {
     if (!user) {
@@ -146,6 +156,15 @@ export default function Pricing() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <MarketingHeader />
+
+      {checkoutCanceled && (
+        <div className="border-b border-slate-200 bg-slate-50" role="status">
+          <div className="mx-auto flex max-w-6xl items-center gap-2 px-6 py-3 text-sm text-slate-700">
+            <Info className="h-4 w-4 shrink-0 text-slate-500" />
+            Checkout canceled — your plan is unchanged.
+          </div>
+        </div>
+      )}
 
       <section className="bg-white py-16 md:py-20">
         <div className="mx-auto max-w-6xl px-6 text-center">
