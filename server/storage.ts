@@ -1334,9 +1334,16 @@ export class DbStorage implements IStorage {
       mission: user?.mission ?? null,
       focusAreas: user?.focusAreas ?? null,
       plan: "starter",
-    } as any).returning();
+    } as any).onConflictDoNothing().returning();
+    if (!rows?.length) {
+      // Lost a provisioning race: a concurrent request inserted the org
+      // between our existence check and this insert (typical on first load,
+      // when several API calls fire at once for a brand-new user). The org
+      // now exists — re-enter the existing-org path to backfill membership.
+      return this.ensureDefaultOrganizationForUser(userId, displayName);
+    }
     await db?.insert(schema.memberships).values({ userId, organizationId: userId, role: "owner" } as any);
-    return rows![0];
+    return rows[0];
   }
 
   async createOrganization(userId: string, insertOrganization: InsertOrganization): Promise<Organization> {

@@ -1,6 +1,7 @@
-// Load environment variables FIRST, before any other imports
-import { config } from "dotenv";
-config({ path: [".env.local", ".env"] }); // This must run before any other code that reads process.env
+// Side-effect import: must stay first so .env.local is loaded before any
+// module below reads process.env at its top level (ESM hoists imports, so a
+// plain config() call here would run too late — GRA-61).
+import "./env.js";
 
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes.js";
