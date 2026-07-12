@@ -35,13 +35,15 @@ function signStripePayload(payload: string, secret: string, timestamp = Math.flo
 
 let server: ReturnType<typeof import("http").createServer>;
 let baseUrl = "";
+const previousWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+const previousSecretKey = process.env.STRIPE_SECRET_KEY;
 
 beforeAll(async () => {
   process.env.STRIPE_WEBHOOK_SECRET = WEBHOOK_SECRET;
   process.env.STRIPE_SECRET_KEY = "sk_test_dummy_key_for_gra66";
 
-  const { createApp } = await import("./server.js");
-  const app = await createApp();
+  // Exercise the same default Express export Vercel hosts in production.
+  const { default: app } = await import("./server.js");
   server = app.listen(0);
   await new Promise<void>((resolve) => {
     server.on("listening", () => {
@@ -58,6 +60,10 @@ afterAll(async () => {
   await new Promise<void>((resolve, reject) => {
     server.close((error) => (error ? reject(error) : resolve()));
   });
+  if (previousWebhookSecret === undefined) delete process.env.STRIPE_WEBHOOK_SECRET;
+  else process.env.STRIPE_WEBHOOK_SECRET = previousWebhookSecret;
+  if (previousSecretKey === undefined) delete process.env.STRIPE_SECRET_KEY;
+  else process.env.STRIPE_SECRET_KEY = previousSecretKey;
 });
 
 describe("POST /api/billing/webhook (production entry, GRA-66)", () => {

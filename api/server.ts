@@ -7,8 +7,6 @@ loadDotenv();
 
 import express, {
   type Express,
-  type Request,
-  type Response,
   type NextFunction,
 } from "express";
 import { registerRoutes } from "../server/routes.js";
@@ -16,9 +14,6 @@ import { setupAuth } from "../server/auth.js";
 import { corsMiddleware } from "../server/middleware/cors.js";
 import { apiRateLimiter } from "../server/middleware/rateLimiter.js";
 import { setupSecurityHeaders } from "../server/securityHeaders.js";
-
-let cachedApp: Express | null = null;
-let initPromise: Promise<Express> | null = null;
 
 export async function createApp(): Promise<Express> {
   const app = express();
@@ -83,33 +78,9 @@ export async function createApp(): Promise<Express> {
   return app;
 }
 
-async function getApp(): Promise<Express> {
-  if (cachedApp) return cachedApp;
-  if (!initPromise) {
-    initPromise = createApp()
-      .then((app) => {
-        cachedApp = app;
-        return app;
-      })
-      .catch((error) => {
-        initPromise = null;
-        throw error;
-      });
-  }
-  return initPromise;
-}
-
-export default async function handler(req: Request, res: Response) {
-  try {
-    const app = await getApp();
-    return app(req, res);
-  } catch (error: any) {
-    console.error("[api] Failed to initialize app:", error);
-    res
-      .status(500)
-      .json({
-        error: "Server initialization failed",
-        message: error?.message || "Unknown error",
-      });
-  }
-}
+// Export the Express application itself so Vercel detects and hosts it as an
+// Express app. A custom function handler receives Vercel's parsed `req.body`
+// helper before Express runs, which can consume the byte-exact Stripe payload.
+// Direct Express export leaves body parsing under the scoped middleware above.
+const app = await createApp();
+export default app;
