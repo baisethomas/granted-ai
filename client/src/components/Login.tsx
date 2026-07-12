@@ -12,6 +12,7 @@ import {
   setPendingSignupPlan,
 } from '@/lib/signup-plan'
 import { ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react'
+import { resendSignupConfirmation, sendPasswordReset } from '@/lib/supabase'
 
 const planOptions: Array<{
   id: SignupPlan
@@ -41,6 +42,10 @@ export const Login = () => {
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
+  const [confirmationEmail, setConfirmationEmail] = useState('')
+  const [confirmationResent, setConfirmationResent] = useState(false)
+  const [forgotPassword, setForgotPassword] = useState(false)
+  const [resetEmailSent, setResetEmailSent] = useState(false)
 
   const { signIn, signUp, signInWithGoogle } = useAuth()
 
@@ -62,12 +67,13 @@ export const Login = () => {
 
     try {
       if (isSignUp) {
-        const { error } = await signUp(email, password, { signup_plan: signupPlan })
+        const { data, error } = await signUp(email, password, { signup_plan: signupPlan })
         if (error) {
           clearPendingSignupPlan()
           setError(error.message)
         } else {
           setPendingSignupPlan(signupPlan)
+          if (!data.session) setConfirmationEmail(email)
         }
       } else {
         const { error } = await signIn(email, password)
@@ -81,6 +87,27 @@ export const Login = () => {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleResendConfirmation = async () => {
+    setLoading(true); setError(''); setConfirmationResent(false)
+    try {
+      const { error } = await resendSignupConfirmation(confirmationEmail)
+      if (error) setError('We could not resend the confirmation email. Check the address and try again.')
+      else setConfirmationResent(true)
+    } catch {
+      setError('We could not resend the confirmation email. Check your connection and try again.')
+    } finally { setLoading(false) }
+  }
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault(); setLoading(true); setError('')
+    try {
+      const { error } = await sendPasswordReset(email)
+      if (error) setError('We could not send the reset email. Check the address and try again.')
+      else setResetEmailSent(true)
+    } catch { setError('We could not send the reset email. Check your connection and try again.') }
+    finally { setLoading(false) }
   }
 
   const handleGoogleSignIn = async () => {
@@ -172,6 +199,24 @@ export const Login = () => {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-xl">
+              {confirmationEmail ? <div>
+                <CheckCircle2 className="h-10 w-10 text-primary" />
+                <h2 className="mt-4 text-2xl font-bold text-slate-900">Check your email</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">We sent a confirmation link to <strong>{confirmationEmail}</strong>. Open it to finish creating your account.</p>
+                {error && <div role="alert" className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+                {confirmationResent && <div role="status" className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">A new confirmation email is on its way. Use the most recent link.</div>}
+                <Button type="button" variant="outline" onClick={handleResendConfirmation} disabled={loading} className="mt-6 w-full h-11">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Resend confirmation email'}</Button>
+                <Button type="button" variant="link" className="mt-4 w-full text-primary" onClick={() => setConfirmationEmail('')}>Use a different email</Button>
+              </div> : forgotPassword ? <div>
+                <h2 className="text-2xl font-bold text-slate-900">Reset your password</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{resetEmailSent ? `We sent a reset link to ${email}. Open it to choose a new password.` : 'Enter your email and we’ll send you a secure reset link.'}</p>
+                {!resetEmailSent && <form className="mt-6 space-y-4" onSubmit={handlePasswordReset}>
+                  <div className="space-y-2"><Label htmlFor="reset-email">Email address</Label><Input id="reset-email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-11" /></div>
+                  {error && <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+                  <Button type="submit" disabled={loading} className="w-full h-11">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send reset link'}</Button>
+                </form>}
+                <Button type="button" variant="link" className="mt-4 w-full text-primary" onClick={() => { setForgotPassword(false); setResetEmailSent(false); setError('') }}>Back to sign in</Button>
+              </div> : <>
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-slate-900">
                   {isSignUp ? 'Create your account' : 'Sign in to your account'}
@@ -255,7 +300,7 @@ export const Login = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <div className="flex items-center justify-between"><Label htmlFor="password">Password</Label>{!isSignUp && <Button type="button" variant="link" className="h-auto p-0 text-primary" onClick={() => { setForgotPassword(true); setError('') }}>Forgot password?</Button>}</div>
                   <Input
                     id="password"
                     name="password"
@@ -311,6 +356,7 @@ export const Login = () => {
                   {isSignUp ? 'Sign in' : 'Sign up'}
                 </button>
               </div>
+              </>}
             </div>
 
             <p className="mt-6 text-center text-xs text-slate-500">

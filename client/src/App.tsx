@@ -34,6 +34,7 @@ import Organization from "@/pages/organization";
 import Pricing from "@/pages/pricing";
 import Privacy from "@/pages/privacy";
 import Terms from "@/pages/terms";
+import ResetPassword from "@/pages/reset-password";
 import PortfolioMetrics from "@/pages/metrics";
 import { ProjectDetail } from "@/pages/projects/[id]";
 import { NewProjectDialog } from "@/components/new-project-dialog";
@@ -68,7 +69,8 @@ function isAppRoute(location: string): boolean {
 function AppContent() {
   const [location, setLocation] = useLocation();
   const { user, loading } = useAuth();
-  const checkoutRedirecting = usePostSignupCheckout(user, loading);
+  const isPasswordResetRoute = location === "/auth/reset";
+  const checkoutRedirecting = usePostSignupCheckout(isPasswordResetRoute ? null : user, loading);
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
   // Where a project was opened from (Dashboard, Metrics, ...), so the
   // in-page Back button returns there directly instead of using raw browser
@@ -85,10 +87,10 @@ function AppContent() {
 
   // Handle redirect to /app when user logs in
   useEffect(() => {
-    if (user && !isAppRoute(location) && !isPublicPath) {
+    if (user && !isAppRoute(location) && !isPublicPath && !isPasswordResetRoute) {
       setLocation("/app");
     }
-  }, [user, location, setLocation, isPublicPath]);
+  }, [user, location, setLocation, isPublicPath, isPasswordResetRoute]);
 
   // Handle redirect to landing when user logs out from an authenticated route
   useEffect(() => {
@@ -124,6 +126,10 @@ function AppContent() {
   if (!loading && user && isMarketingDomain()) {
     window.location.href = `${APP_DOMAIN}/app`;
     return null;
+  }
+
+  if (isPasswordResetRoute) {
+    return <QueryClientProvider client={queryClient}><TooltipProvider><ResetPassword canReset={Boolean(user)} /></TooltipProvider></QueryClientProvider>;
   }
 
   // Logged-out routes: "/" (landing) and "/auth" (login/signup)
