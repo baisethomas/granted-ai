@@ -19,7 +19,10 @@ export async function waitForProPlan({
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
       const billing = await getBilling();
-      if (billing.plan === "pro") return billing;
+      if (
+        billing.plan === "pro" &&
+        (billing.status === "active" || billing.status === "trialing")
+      ) return billing;
     } catch {
       // Webhook propagation and short-lived network errors are both retried.
     }
@@ -28,24 +31,29 @@ export async function waitForProPlan({
   return null;
 }
 
-function removeCheckoutParam() {
+function removeCheckoutParams() {
   const url = new URL(window.location.href);
   url.searchParams.delete("checkout");
+  url.searchParams.delete("organizationId");
   window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
-export function useCheckoutReturn(organizationId: string | null) {
+export function getCheckoutOrganizationId(search: string): string | null {
+  const params = new URLSearchParams(search);
+  return params.get("checkout") === "success" ? params.get("organizationId") : null;
+}
+
+export function useCheckoutReturn() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   useEffect(() => {
+    const organizationId = getCheckoutOrganizationId(window.location.search);
     if (!organizationId) return;
-    const checkoutSucceeded = new URLSearchParams(window.location.search).get("checkout") === "success";
-    if (!checkoutSucceeded) return;
 
-    removeCheckoutParam();
+    removeCheckoutParams();
     let cancelled = false;
-    const notification = toast({
+    toast({
       title: "Payment received",
       description: "We’re activating Pro now. This usually takes a few seconds.",
     });
@@ -59,14 +67,12 @@ export function useCheckoutReturn(organizationId: string | null) {
     }).then((billing) => {
       if (cancelled) return;
       if (billing) {
-        notification.update({
-          id: notification.id,
+        toast({
           title: "You’re on Pro",
           description: "Your receipt is in your email. Your expanded limits are ready.",
         });
       } else {
-        notification.update({
-          id: notification.id,
+        toast({
           title: "Payment received",
           description: "Pro is still activating. Your plan will update automatically shortly.",
         });
@@ -74,5 +80,5 @@ export function useCheckoutReturn(organizationId: string | null) {
     });
 
     return () => { cancelled = true; };
-  }, [organizationId, queryClient, toast]);
+  }, [queryClient, toast]);
 }

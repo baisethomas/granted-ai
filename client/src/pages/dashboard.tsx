@@ -23,7 +23,7 @@ export default function Dashboard({ onOpenProject, onNewProject, onNavigateToDoc
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { activeOrganizationId } = useWorkspace();
-  useCheckoutReturn(activeOrganizationId);
+  useCheckoutReturn();
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [lastOpenedProjectId] = useState<string | null>(() =>
