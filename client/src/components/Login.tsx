@@ -300,7 +300,7 @@ export const Login = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between"><Label htmlFor="password">Password</Label>{!isSignUp && <Button type="button" variant="link" className="h-auto p-0 text-primary" onClick={() => { setForgotPassword(true); setError('') }}>Forgot password?</Button>}</div>
+                  <div className="flex items-center justify-between"><Label htmlFor="password">Password</Label>{!isSignUp && <Button type="button" variant="link" className="h-auto p-0 text-primary" onClick={() => { setForgotPassword(true); setError(''); clearPendingSignupPlan() }}>Forgot password?</Button>}</div>
                   <Input
                     id="password"
                     name="password"
