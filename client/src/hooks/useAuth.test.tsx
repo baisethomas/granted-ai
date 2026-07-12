@@ -1,10 +1,11 @@
 import { act, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider, useAuth } from './useAuth'
-import { peekPendingSignupPlan, setPendingSignupPlan } from '@/lib/signup-plan'
+import { isSignupCheckoutHandled, peekPendingSignupPlan, resolvePendingSignupPlan, setPendingSignupPlan } from '@/lib/signup-plan'
 
 let authCallback: (event: string, session: any) => void
 const unsubscribe = vi.fn()
+const updateUser = vi.fn().mockResolvedValue({ error: null })
 let mockSession: any = null
 
 vi.mock('@/lib/supabase', () => ({
@@ -19,6 +20,7 @@ vi.mock('@/lib/supabase', () => ({
         authCallback = callback
         return { data: { subscription: { unsubscribe } } }
       },
+      updateUser: (...args: unknown[]) => updateUser(...args),
     },
   },
 }))
@@ -42,6 +44,7 @@ async function renderAuthProvider() {
 describe('AuthProvider password recovery state', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    updateUser.mockResolvedValue({ error: null })
     mockSession = null
     window.sessionStorage.clear()
   })
@@ -100,6 +103,26 @@ describe('AuthProvider password recovery state', () => {
     await act(async () => authCallback('PASSWORD_RECOVERY', { user: { id: 'recovery-user' } }))
 
     expect(peekPendingSignupPlan()).toBeNull()
+  })
+
+  // Greptile P1 (round 2): clearing the session-storage intent alone left
+  // the checkout resolver's other fallback open — it also reads
+  // user.user_metadata.signup_plan (set at signup, independent of whether
+  // checkout ever completed), so a recovering user whose original signup
+  // wanted Pro would still get auto-redirected to Stripe after finishing
+  // their reset. Establishing recovery must close that path too.
+  it('tombstones the account so its own signup_plan metadata cannot resolve into a checkout after recovery', async () => {
+    const recoveringUser = { id: 'recovery-user', user_metadata: { signup_plan: 'pro' } }
+    // Before any recovery flow, this account's metadata alone would resolve
+    // a pending Pro checkout — establishing the baseline this fix closes.
+    expect(resolvePendingSignupPlan(recoveringUser)).toBe('pro')
+
+    await renderAuthProvider()
+    await act(async () => authCallback('PASSWORD_RECOVERY', { user: recoveringUser }))
+
+    expect(updateUser).toHaveBeenCalledWith({ data: { signup_plan: null } })
+    expect(isSignupCheckoutHandled('recovery-user')).toBe(true)
+    expect(resolvePendingSignupPlan(recoveringUser)).toBeNull()
   })
 
   it('clears stored recovery authorization on sign-out', async () => {

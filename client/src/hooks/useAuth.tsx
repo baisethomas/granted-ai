@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js'
 import { supabase, signIn, signUp, signOut, signInWithGoogle, getCurrentSession } from '@/lib/supabase'
 import { queryClient } from '@/lib/queryClient'
-import { clearPendingSignupPlan } from '@/lib/signup-plan'
+import { prepareExplicitProCheckout } from '@/lib/signup-plan'
 
 // Recovery authorization is tied to a specific user id and persisted across
 // a page reload (a normal browser refresh on /auth/reset must not lock the
@@ -80,11 +80,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           writeRecoveryUserId(session.user.id)
           setRecoveryUserId(session.user.id)
           // A recovery session in flight is never a legitimate paid-checkout
-          // intent. Without this, a visitor who opened /auth?plan=pro and
-          // then used "Forgot password?" instead would have the stale plan
-          // auto-trigger Stripe checkout for the recovering account once
-          // usePostSignupCheckout sees them land on /app.
-          clearPendingSignupPlan()
+          // intent. clearPendingSignupPlan() alone only covers the
+          // session-storage intent (e.g. a visitor who opened
+          // /auth?plan=pro then used "Forgot password?") — the checkout
+          // resolver also falls back to the account's own
+          // user_metadata.signup_plan (set at signup, independent of
+          // whether checkout was ever completed), so a recovering user
+          // needs the full clear-and-tombstone treatment or that fallback
+          // still fires Stripe checkout once usePostSignupCheckout sees
+          // them land on /app.
+          void prepareExplicitProCheckout(session.user.id)
         }
         // Clear cached API data when the session ends so stale data
         // is never shown to the next user or after a token expiry.
