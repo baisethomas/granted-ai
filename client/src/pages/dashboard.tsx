@@ -11,6 +11,7 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { isQuestionAnswered, resolveResponseStatus } from "@/lib/questions";
 import { LAST_OPENED_PROJECT_STORAGE_KEY } from "@/lib/recent-project";
 import { FolderOpen } from "lucide-react";
+import { useCheckoutReturn } from "@/hooks/useCheckoutReturn";
 
 interface DashboardProps {
   onOpenProject?: (projectId: string, tab?: string) => void;
@@ -22,6 +23,7 @@ export default function Dashboard({ onOpenProject, onNewProject, onNavigateToDoc
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { activeOrganizationId } = useWorkspace();
+  useCheckoutReturn(activeOrganizationId);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [lastOpenedProjectId] = useState<string | null>(() =>
