@@ -43,6 +43,22 @@ export function HowItWorksSection() {
             funder questions, reviewing language, and preparing clean exports.
           </p>
         </div>
+        <div className="relative mx-auto mt-10 max-w-4xl">
+          <div className="absolute inset-6 rounded-3xl bg-gradient-to-br from-[var(--brand-a)]/10 via-[var(--brand-b)]/10 to-[var(--brand-c)]/20 blur-2xl" />
+          {/* Autoplay requires muted; controls let visitors unmute the soundtrack. */}
+          <video
+            src="/granted-promo.mp4"
+            poster="/granted-promo-poster.jpg"
+            autoPlay
+            muted
+            loop
+            playsInline
+            controls
+            preload="metadata"
+            aria-label="Product tour: uploading documents, adding funder questions, and reviewing a cited draft in Granted"
+            className="relative w-full rounded-2xl border border-slate-200 bg-white shadow-xl"
+          />
+        </div>
         <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {steps.map((step, index) => (
             <Card key={index} className="hover:shadow-md hover:-translate-y-0.5 transition">
