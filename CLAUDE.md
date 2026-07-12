@@ -47,7 +47,7 @@ Never use Haiku for the generation pipeline, billing/plan logic, or auth.
 - **Never call an LLM without a plan check first.** Gate every token-spending path with `billingService.checkLimit(userId, "ai_tokens", estimatedTokens, organizationId)` before calling `aiService`. Same pattern for `"projects"` and `"documents"` limits on those routes.
 - **Never expose provider keys client-side.** `OPENAI_API_KEY` is server-only. The only key that reaches the browser is the Supabase anon key.
 - **Never use `Promise.all` for multi-source retrieval or fan-out** — use `Promise.allSettled` so one failure doesn't kill the response.
-- **Never write migrations by hand.** Edit `shared/schema-simple.ts`, then `npm run db:push`. Files in `/migrations/` are generated.
+- **Never write migrations by hand.** Edit `shared/schema-simple.ts`, then `npm run db:push`. `db:push` is the live mechanism; the `/migrations/` directory is stale history — its `meta/` snapshot only covers migration 0000 (while 0001–0008 exist), so `drizzle-kit generate` prompts on phantom renames. Don't use `generate` here.
 - **Never bypass tenant isolation.** Every query on user data filters by `organizationId`. Data access goes through `server/storage.ts`, not raw Drizzle in routes.
 - **Run the relevant tests before committing.** Tests are colocated (`*.test.ts`) and run with `vitest`. After auth changes run `npm run test:auth`; after billing changes run the billing tests; run `npm run check` (tsc) for type safety.
 - **Never commit or push directly to `main`.** Every change — no matter how small — starts on a new branch created *before* touching any code. Branch naming: `feat/GRA-<id>-short-description`, `fix/GRA-<id>-short-description`, or `chore/short-description`. When work is done, open a PR with `gh pr create` (use `/pr`). Code is not shipped until a PR exists. If you find yourself on `main` with uncommitted changes, stop and ask before proceeding.
@@ -119,6 +119,8 @@ Version history:  GET  /api/questions/:questionId/versions
 Real tables (Drizzle export → SQL name):
 `users`, `organizations`, `memberships`, `subscriptions`, `projects`, `documents`, `documentExtractions`→`document_extractions`, `docChunks`→`doc_chunks` (pgvector 1536), `documentProcessingJobs`→`document_processing_jobs`, `draftCitations`→`draft_citations`, `assumptionLabels`→`assumption_labels`, `embeddingCache`→`embedding_cache` (pgvector 1536), `usageEvents`→`usage_events`, `organizationProfileSuggestions`→`organization_profile_suggestions` (the "org memory" builder), `grantQuestions`→`questions`, `responseVersions`→`response_versions` (**this is where generated answers + versions live — there is no `drafts` table**), `grantMetrics`→`grant_metrics`, `grantMetricEvents`→`grant_metric_events`, `userSettings`→`user_settings`.
 
+`memberships` has a unique index `memberships_user_org_unique` on (`userId`, `organizationId`) — added in GRA-61 to back the race-safe `onConflictDoNothing()` inserts in `DbStorage.ensureDefaultOrganizationForUser` (`server/storage.ts`), which previously 500'd with duplicate-key errors when a new user's first page load fired concurrent API calls.
+
 There is **no `clarifications` table yet** — the clarification engine is Phase 4.
 
 pgvector columns require the `vector` extension (`enable_vector.sql`).
@@ -167,9 +169,11 @@ npm run auth:create-test-user     # create a Supabase test user
 
 ## Environment Variables
 
+Loaded locally by `server/env.ts` (dotenv, `.env.local` then `.env`) — a side-effect module that must stay the first import of `server/index.ts` (see File Structure). On Vercel the platform injects env before module evaluation, so this only matters for local dev.
+
 | Key | Where | Notes |
 |---|---|---|
-| `DATABASE_URL` | server | Neon PostgreSQL; also read by drizzle.config via dotenv |
+| `DATABASE_URL` | server | Neon PostgreSQL. Note: `drizzle.config.ts` loads only `.env` (not `.env.local`), so keep `DATABASE_URL` in `.env` for `db:push` to see it |
 | `OPENAI_API_KEY` | server | Generation + embeddings. Never client-side |
 | `GRANTED_DEFAULT_MODEL` | server | Generation model, default `gpt-4o-mini` |
 | `DOCUMENT_EMBEDDING_MODEL` | server | Default `text-embedding-3-small` |
@@ -205,6 +209,11 @@ npm run auth:create-test-user     # create a Supabase test user
                   # workspace-query-keys.ts (per-workspace TanStack Query keys, incl. billingUsage)
 
 /server/
+  env.ts          # side-effect module: loads .env.local/.env via dotenv (GRA-61).
+                  # MUST stay the FIRST import in index.ts — the repo is ESM, imports
+                  # are hoisted, so modules imported before it (e.g. storage.ts, which
+                  # reads DATABASE_URL at module scope) would see an empty env. That's
+                  # how local dev silently fell back to in-memory MemStorage pre-fix
   index.ts        # entry (port 5001 dev); wires Vite middleware
   routes.ts       # ALL API routes (~2,650 lines — navigate by section)
   storage.ts      # the real data-access layer over Drizzle (83KB)

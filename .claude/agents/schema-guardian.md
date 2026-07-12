@@ -25,7 +25,7 @@ You are the database and schema expert for Granted AI. You own `shared/schema-si
 |---|---|---|
 | `users` | `users` | Auth identity |
 | `organizations` | `organizations` | Tenant root — everything traces here |
-| `memberships` | `memberships` | user ↔ org with role |
+| `memberships` | `memberships` | user ↔ org with role — unique index `memberships_user_org_unique` on (userId, organizationId), backs `onConflictDoNothing()` in org provisioning (GRA-61) |
 | `subscriptions` | `subscriptions` | Plan/billing state per org |
 | `projects` | `projects` | A grant application |
 | `documents` | `documents` | Uploaded files (storage refs + preview) |
