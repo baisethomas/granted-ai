@@ -42,8 +42,6 @@ AUTH_RATE_LIMIT_WINDOW_MS=900000     # 15 minutes
 AUTH_RATE_LIMIT_MAX_REQUESTS=5       # Max auth attempts per window
 UPLOAD_RATE_LIMIT_WINDOW_MS=3600000  # 1 hour
 UPLOAD_RATE_LIMIT_MAX_REQUESTS=10    # Max uploads per hour
-EARLY_ACCESS_RATE_LIMIT_WINDOW_MS=3600000  # 1 hour
-EARLY_ACCESS_RATE_LIMIT_MAX_REQUESTS=5     # Max early-access signups per IP per window (public POST /api/early-access)
 
 # Request Body Size Limits (optional - defaults shown)
 REQUEST_BODY_LIMIT=1mb               # JSON body size limit

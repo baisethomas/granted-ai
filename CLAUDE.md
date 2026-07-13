@@ -62,7 +62,7 @@ Never use Haiku for the generation pipeline, billing/plan logic, or auth.
 
 **Dev server runs on port 5001** locally (5000 avoided — macOS AirPlay). Entry: `server/index.ts`.
 
-**Logged-out surface (GRA-67):** `/` is the marketing landing page, which now does **early-access email capture**, not open signup. The hero and CTA sections render `EarlyAccessForm` (`client/src/components/landing/early-access-form.tsx`) posting to the public `POST /api/early-access` (source `hero` | `cta`); the old "Start a Draft" open-signup CTAs are gone. The hero form container has `id="early-access"` and `LandingPage` in `App.tsx` scrolls to URL fragments on mount, so `/#early-access` deep-links work on SPA loads. The FAQ has an early-access entry. On `pricing.tsx`, logged-out Starter/Pro/bottom CTAs point to `/#early-access` with "Get early access" labels (logged-in behavior unchanged). **`/auth` remains fully open** (login + direct signup) for invited design partners — deliberately unadvertised.
+**Logged-out surface (GRA-68):** `/` is the marketing landing page. "Early access" now means **open signup** — the GRA-67 waitlist (email-capture form, `POST /api/early-access`, `early_access_signups` table) was removed in GRA-68. The hero and CTA "Get early access" buttons call `getAuthUrl("starter")` (`client/src/lib/domains.ts`) → `/auth?plan=starter`, which opens the account-creation form directly (a `plan` query param is what switches `/auth` into signup mode — plain `/auth` is the sign-in form, so signup CTAs must carry a plan). The FAQ's early-access entry says you can sign up and start drafting today. On `pricing.tsx`, logged-out Starter/Pro CTAs are back to `getAuthUrl(plan)` with "Start Free"/"Try Pro" labels; the Team plan's CTA is "Get notified" (a `mailto:sales@granted.ai` link). **`/auth` is fully open and actively advertised.**
 
 **Client navigation:** `wouter`-based real routing (`client/src/App.tsx`) — not React state. Sidebar is 5 items: Dashboard, Organization, Documents, Metrics, Settings.
 ```
@@ -80,9 +80,7 @@ There is no first-run tour modal anymore (the old `onboarding-dialog.tsx` 5-step
 **Request → data flow:**
 ```
 client (/api/* via TanStack Query)
-  → Express route in server/routes.ts   (~2,700 lines; guarded by requireSupabaseUser —
-                                          one deliberate exception: public POST /api/early-access
-                                          at the top of registerRoutes, rate-limited per IP)
+  → Express route in server/routes.ts   (~2,650 lines; guarded by requireSupabaseUser)
     → billingService.checkLimit(...)     (plan enforcement, server/services/billing.ts)
     → server/storage.ts                  (the real data-access layer over Drizzle — 83KB)
     → server/services/ai.ts              (AIService: retrieval → generation → citations)
@@ -121,9 +119,7 @@ Version history:  GET  /api/questions/:questionId/versions
 ## Data model (canonical: `shared/schema-simple.ts`)
 
 Real tables (Drizzle export → SQL name):
-`users`, `organizations`, `memberships`, `subscriptions`, `projects`, `documents`, `documentExtractions`→`document_extractions`, `docChunks`→`doc_chunks` (pgvector 1536), `documentProcessingJobs`→`document_processing_jobs`, `draftCitations`→`draft_citations`, `assumptionLabels`→`assumption_labels`, `embeddingCache`→`embedding_cache` (pgvector 1536), `usageEvents`→`usage_events`, `organizationProfileSuggestions`→`organization_profile_suggestions` (the "org memory" builder), `grantQuestions`→`questions`, `responseVersions`→`response_versions` (**this is where generated answers + versions live — there is no `drafts` table**), `grantMetrics`→`grant_metrics`, `grantMetricEvents`→`grant_metric_events`, `userSettings`→`user_settings`, `earlyAccessSignups`→`early_access_signups`.
-
-`early_access_signups` (GRA-67) is the one **pre-auth, pre-tenant** table: id, email (unique index `early_access_signups_email_unique`), source (`hero` | `cta`), createdAt — deliberately **no** `organizationId`/`userId`, because rows exist before any tenant does. Dedupe is the unique index + `onConflictDoNothing` (race-safe, and repeat submissions return 200 so the public endpoint can't be used to probe who already signed up). Types `EarlyAccessSignup`/`InsertEarlyAccessSignup` are exported. Written via `storage.createEarlyAccessSignup(email, source)` from `POST /api/early-access` — unauthenticated, zod-validated (email lowercased), guarded by `earlyAccessRateLimiter` (IP-keyed, `skipFailedRequests: true` so 400s don't burn a shared office IP's budget). No billing gate — no LLM call. Tests: `server/routes.earlyAccess.test.ts`.
+`users`, `organizations`, `memberships`, `subscriptions`, `projects`, `documents`, `documentExtractions`→`document_extractions`, `docChunks`→`doc_chunks` (pgvector 1536), `documentProcessingJobs`→`document_processing_jobs`, `draftCitations`→`draft_citations`, `assumptionLabels`→`assumption_labels`, `embeddingCache`→`embedding_cache` (pgvector 1536), `usageEvents`→`usage_events`, `organizationProfileSuggestions`→`organization_profile_suggestions` (the "org memory" builder), `grantQuestions`→`questions`, `responseVersions`→`response_versions` (**this is where generated answers + versions live — there is no `drafts` table**), `grantMetrics`→`grant_metrics`, `grantMetricEvents`→`grant_metric_events`, `userSettings`→`user_settings`.
 
 `memberships` has a unique index `memberships_user_org_unique` on (`userId`, `organizationId`) — added in GRA-61 to back the race-safe `onConflictDoNothing()` inserts in `DbStorage.ensureDefaultOrganizationForUser` (`server/storage.ts`), which previously 500'd with duplicate-key errors when a new user's first page load fired concurrent API calls.
 
@@ -185,8 +181,6 @@ Loaded locally by `server/env.ts` (dotenv, `.env.local` then `.env`) — a side-
 | `DOCUMENT_EMBEDDING_MODEL` | server | Default `text-embedding-3-small` |
 | `SESSION_SECRET` | server | Express sessions |
 | `STRIPE_*` | server | Stripe billing keys/webhook secret |
-| `EARLY_ACCESS_RATE_LIMIT_WINDOW_MS` | server | Early-access signup rate-limit window, default `3600000` (1h) |
-| `EARLY_ACCESS_RATE_LIMIT_MAX_REQUESTS` | server | Max signups per IP per window, default `5` |
 | `NEXT_PUBLIC_SUPABASE_URL` | Vite define | Legacy name; exposed to client |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vite define | Safe — anon key only |
 | `ANTHROPIC_API_KEY` | server | Present in env story but **not used** by current pipeline |
@@ -205,8 +199,8 @@ Loaded locally by `server/env.ts` (dotenv, `.env.local` then `.env`) — a side-
                   # drafts.tsx were merged into these as tabs in GRA-57 — no longer standalone pages)
   components/     # custom, top-level (not components/ui/): ClarificationPanel, EvidenceMap,
                   # HomeGuidance (Home's setup checklist + "up next" card, GRA-59)
-  components/landing/  # marketing landing sections (hero, CTA, FAQ, footer, ...) incl.
-                  # early-access-form.tsx (EarlyAccessForm → POST /api/early-access, GRA-67)
+  components/landing/  # marketing landing sections (hero, CTA, FAQ, footer, ...) —
+                  # "Get early access" CTAs go to /auth?plan=starter (open signup, GRA-68)
   components/settings/  # Settings page pieces (GRA-63): rows.tsx (SettingsRow /
                   # SettingsRowStacked / SettingsSection layout primitives) and
                   # PlanBilling.tsx (Plan & billing tab — plan status, Pro checkout,
@@ -225,14 +219,12 @@ Loaded locally by `server/env.ts` (dotenv, `.env.local` then `.env`) — a side-
                   # reads DATABASE_URL at module scope) would see an empty env. That's
                   # how local dev silently fell back to in-memory MemStorage pre-fix
   index.ts        # entry (port 5001 dev); wires Vite middleware
-  routes.ts       # ALL API routes (~2,700 lines — navigate by section); colocated tests
-                  # e.g. routes.earlyAccess.test.ts (public early-access endpoint)
+  routes.ts       # ALL API routes (~2,650 lines — navigate by section)
   storage.ts      # the real data-access layer over Drizzle (83KB)
   services/       # ai.ts (RAG), retrieval.ts, embedding.ts,
                   # billing.ts, stripeBilling.ts, fileProcessor.ts, metrics.ts
   workers/        # documentProcessor.ts (extract → chunk → embed)
   middleware/     # supabaseAuth.ts (requireSupabaseUser), cors.ts, rateLimiter.ts
-                  # (incl. earlyAccessRateLimiter — IP-keyed, skipFailedRequests)
   auth.ts         # Passport fallback (secondary)
   db.ts           # Drizzle + Neon connection only
 
