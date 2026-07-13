@@ -139,6 +139,8 @@ Granted helps nonprofits streamline their grant application process by intellige
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret | ❌ Billing only |
 | `STRIPE_PRO_PRICE_ID` | Stripe price ID for the Pro plan | ❌ Billing only |
 | `ALLOWED_ORIGINS` | Comma-separated browser origins allowed by CORS | ❌ Optional |
+| `EARLY_ACCESS_RATE_LIMIT_WINDOW_MS` | Rate-limit window for `POST /api/early-access` (default: `3600000` = 1h) | ❌ Optional |
+| `EARLY_ACCESS_RATE_LIMIT_MAX_REQUESTS` | Max early-access signups per IP per window (default: `5`) | ❌ Optional |
 | `PORT` | Server port (default: `5001` in dev, `5000` in production) | ❌ Optional |
 
 \* Without `DATABASE_URL` the server uses in-memory storage — data resets on restart.  
@@ -303,6 +305,9 @@ Or schedule automated processing:
 
 ## API Structure
 
+### Early Access (public)
+- `POST /api/early-access` - Landing-page early-access signup (`{ email, source: "hero" | "cta" }`). Unauthenticated; per-IP rate-limited; returns 200 for any valid email — including duplicates — so it can't be used to probe existing signups.
+
 ### Authentication
 - `POST /auth/login` - Local login
 - `POST /auth/signup` - Register new user
@@ -337,7 +342,7 @@ Or schedule automated processing:
 - `GET /api/settings` - Get user settings
 - `PUT /api/settings` - Update settings
 
-All endpoints (except `/auth/*`) require Supabase JWT authentication via `Authorization: Bearer <token>` header.
+All endpoints (except `/auth/*` and `POST /api/early-access`) require Supabase JWT authentication via `Authorization: Bearer <token>` header.
 
 ## Database Schema
 
@@ -354,6 +359,7 @@ All endpoints (except `/auth/*`) require Supabase JWT authentication via `Author
 - `draftCitations` - Maps responses to source chunks
 - `assumptionLabels` - AI-detected assumptions
 - `userSettings` - Per-user AI preferences
+- `earlyAccessSignups` - Pre-auth landing-page email capture (no org/user link; unique email index)
 
 **Vector Storage:**
 The `docChunks` table uses PostgreSQL's pgvector extension to store 1536-dimensional embeddings, enabling fast semantic similarity search.

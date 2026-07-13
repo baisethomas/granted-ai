@@ -26,3 +26,5 @@ _Update this checklist as subtasks complete to keep the team in sync._
 ## Related initiatives
 
 A parallel UI/IA initiative (dashboard navigation and the per-application workspace) is tracked separately in `docs/dashboard-redesign-plan.md` and Linear's "Dashboard & flow redesign" milestone (GRA-55) — it doesn't map onto the numbered phases above. All 4 of its phases have shipped (GRA-56, GRA-57, GRA-60, GRA-59) and the initiative is complete.
+
+Launch prep (also outside the numbered phases): the marketing landing page pivoted from open "Start a Draft" signup to early-access email capture (GRA-67, shipped) — public `POST /api/early-access`, `early_access_signups` table, `/auth` left open but unadvertised for invited design partners.

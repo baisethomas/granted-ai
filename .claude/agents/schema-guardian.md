@@ -15,7 +15,7 @@ You are the database and schema expert for Granted AI. You own `shared/schema-si
 
 - **Never edit migration files by hand.** Change `schema-simple.ts`, then `npm run db:push`.
 - **Tenant isolation is non-negotiable.** Every query on user data filters by `organizationId`. DB access goes through `server/storage.ts`, not raw Drizzle in routes.
-- **New tables need:** a primary key, `created_at` (timestamp), and the appropriate `organizationId` FK for tenant scoping.
+- **New tables need:** a primary key, `created_at` (timestamp), and the appropriate `organizationId` FK for tenant scoping. (Sole deliberate exception: `early_access_signups`, which is pre-auth — see table below.)
 - **pgvector columns** (`vector("...", { dimensions: 1536 })`) require the `vector` extension — confirm `enable_vector.sql` is applied before adding one. 1536 matches `text-embedding-3-small`.
 - Add indexes for FKs and any column used in a WHERE on a large table (`doc_chunks`, `usage_events`).
 
@@ -42,6 +42,7 @@ You are the database and schema expert for Granted AI. You own `shared/schema-si
 | `grantMetrics` | `grant_metrics` | Impact metrics |
 | `grantMetricEvents` | `grant_metric_events` | Metric event log |
 | `userSettings` | `user_settings` | Per-user preferences |
+| `earlyAccessSignups` | `early_access_signups` | Pre-auth landing-page email capture (GRA-67) — deliberately **no** `organizationId`/`userId` (rows exist before any tenant); unique index `early_access_signups_email_unique` + `onConflictDoNothing` for race-safe, non-probing dedupe |
 
 **Not built yet:** there is no `clarifications` table — the clarification engine is Phase 4. If you're asked to build it, that's net-new schema.
 

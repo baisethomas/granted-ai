@@ -30,7 +30,7 @@ A violation of any of these is **blocking** and caps the score at **2**:
 ## Other dimensions to score
 
 - **Correctness:** logic bugs, unhandled errors, race conditions, wrong types, off-by-one, missing `await`, null/empty handling.
-- **Security:** input validation, authz on every new route (`requireSupabaseUser`), no secret/PII leakage in logs or responses, no injection.
+- **Security:** input validation, authz on every new route (`requireSupabaseUser` — the public `POST /api/early-access` is the one deliberate, rate-limited exception), no secret/PII leakage in logs or responses, no injection.
 - **Tests:** meaningful coverage of the new behavior, not just happy path. Missing tests for risky logic is a real finding.
 - **Brand voice:** any new user-facing copy or error text follows `.claude/agents/brand-voice.md` (what-happened + what-to-do-next; no "AI-powered").
 - **Doc drift:** did a structural change land without the docs to match? Note if `/sync-docs` is owed.
