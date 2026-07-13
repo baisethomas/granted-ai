@@ -1,12 +1,11 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
+import { EarlyAccessForm } from "./early-access-form";
 
 interface CTASectionProps {
-  onSignup: () => void;
   onLogin: () => void;
 }
 
-export function CTASection({ onSignup, onLogin }: CTASectionProps) {
+export function CTASection({ onLogin }: CTASectionProps) {
   return (
     <section className="py-20">
       <div className="max-w-6xl mx-auto px-6 text-center">
@@ -19,13 +18,11 @@ export function CTASection({ onSignup, onLogin }: CTASectionProps) {
           </span>
         </h2>
         <p className="mx-auto mt-3 max-w-3xl text-lg leading-8 text-slate-600">
-          Start with your existing materials and turn the next application into a focused
-          review process instead of a blank-page scramble.
+          Join the list and we'll email your invite as spots open. Already have an
+          account? Log in.
         </p>
-        <div className="mt-6 flex items-center justify-center gap-3">
-          <Button onClick={onSignup}>
-            Start a Draft <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <EarlyAccessForm source="cta" className="flex justify-center" />
           <Button variant="outline" onClick={onLogin}>
             Log in
           </Button>

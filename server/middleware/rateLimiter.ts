@@ -106,6 +106,32 @@ export const uploadRateLimiter = rateLimit({
 });
 
 /**
+ * Limiter for the public early-access signup endpoint. Unauthenticated and
+ * pre-launch-visible, so the budget is tight; keyed by IP only since callers
+ * never carry a JWT.
+ */
+const earlyAccessWindowMs = parseInt(process.env.EARLY_ACCESS_RATE_LIMIT_WINDOW_MS || "3600000", 10); // 1 hour
+export const earlyAccessRateLimiter = rateLimit({
+  windowMs: earlyAccessWindowMs,
+  max: parseInt(process.env.EARLY_ACCESS_RATE_LIMIT_MAX_REQUESTS || "5", 10), // 5 / window
+  message: {
+    error: "Too many signup attempts. Wait a bit and try again.",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Don't count rejected submissions (e.g. typoed emails) against the budget —
+  // a shared office IP shouldn't get locked out by a few failed attempts.
+  skipFailedRequests: true,
+  keyGenerator: (req: Request) => `ip:${ipKeyGenerator(req.ip ?? "")}`,
+  handler: (req: Request, res: Response) => {
+    res.status(429).json({
+      error: "Too many signup attempts. Wait a bit and try again.",
+      retryAfter: getRetryAfter(req, earlyAccessWindowMs),
+    });
+  },
+});
+
+/**
  * Stricter limiter for worker / cron endpoints that authenticate via a
  * shared secret. These should never be hit by an interactive user, so
  * the budget is intentionally tight to slow down brute-force attempts

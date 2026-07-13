@@ -291,6 +291,19 @@ export const userSettings = pgTable("user_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Pre-auth early-access signups from the marketing landing page. Deliberately
+// has no organizationId/userId — rows exist before any tenant does.
+export const earlyAccessSignups = pgTable("early_access_signups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email").notNull(),
+  source: text("source").notNull().default("hero"), // hero | cta
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  // Dedupe is enforced here + onConflictDoNothing, not check-then-insert,
+  // so repeat submissions stay race-safe and don't reveal prior signups.
+  uniqueIndex("early_access_signups_email_unique").on(table.email),
+]);
+
 // Zod schemas for validation
 export const UserInsertSchema = createInsertSchema(users);
 export const OrganizationInsertSchema = createInsertSchema(organizations);
@@ -411,3 +424,5 @@ export type GrantMetric = typeof grantMetrics.$inferSelect;
 export type InsertGrantMetric = z.infer<typeof insertGrantMetricSchema>;
 export type GrantMetricEvent = typeof grantMetricEvents.$inferSelect;
 export type InsertGrantMetricEvent = z.infer<typeof insertGrantMetricEventSchema>;
+export type EarlyAccessSignup = typeof earlyAccessSignups.$inferSelect;
+export type InsertEarlyAccessSignup = typeof earlyAccessSignups.$inferInsert;

@@ -30,7 +30,8 @@ import {
   type Document,
 } from "../shared/schema.js";
 import { requireSupabaseUser, supabaseAdminClient, type AuthenticatedRequest } from "./middleware/supabaseAuth.js";
-import { uploadRateLimiter, workerRateLimiter } from "./middleware/rateLimiter.js";
+import { earlyAccessRateLimiter, uploadRateLimiter, workerRateLimiter } from "./middleware/rateLimiter.js";
+import { z } from "zod";
 import { mergeDevDetails, mergeDevErrorDetails } from "./httpExtras.js";
 import { redactForLog, verboseHttpLogs } from "./logRedact.js";
 
@@ -431,7 +432,29 @@ const upload = multer({
   fileFilter: uploadFileFilter,
 });
 
+const earlyAccessSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(320),
+  source: z.enum(["hero", "cta"]).default("hero"),
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Public (unauthenticated) early-access signup from the marketing landing
+  // page. Always returns 200 for a valid email — including duplicates — so
+  // the endpoint can't be used to probe who has already signed up.
+  app.post("/api/early-access", earlyAccessRateLimiter, async (req: Request, res) => {
+    const parsed = earlyAccessSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Enter a valid email address." });
+    }
+    try {
+      await storage.createEarlyAccessSignup(parsed.data.email, parsed.data.source);
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("Failed to record early-access signup:", error);
+      res.status(500).json({ error: "Something went wrong on our end. Try again in a minute." });
+    }
+  });
+
   // Diagnostic endpoint. Disabled in production to avoid leaking
   // tenancy metadata (project list, ids, titles) and connection-string
   // prefixes to any logged-in user. In non-production environments it
