@@ -375,31 +375,15 @@ function App() {
 export default App;
 
 function LandingPage({ onClickSeeHow, onNavigateToAuth }: { onClickSeeHow: () => void; onNavigateToAuth: () => void }) {
-  // The browser resolves URL fragments before React renders, so links like
-  // /#early-access (e.g. from the pricing page) need a manual scroll on mount.
-  // History scroll restoration can override it after paint, so disable it for
-  // hash loads and re-scroll once layout has settled.
-  useEffect(() => {
-    const target = window.location.hash.slice(1);
-    if (!target) return;
-    if ("scrollRestoration" in window.history) {
-      window.history.scrollRestoration = "manual";
-    }
-    const scroll = () => document.getElementById(target)?.scrollIntoView({ block: "start" });
-    scroll();
-    const timer = setTimeout(scroll, 150);
-    return () => clearTimeout(timer);
-  }, []);
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <MarketingHeader />
-      <HeroSection onClickSeeHow={onClickSeeHow} />
+      <HeroSection onClickSeeHow={onClickSeeHow} onNavigateToAuth={onNavigateToAuth} />
       <HowItWorksSection />
       <FeaturesSection />
       <TrustSection />
       <FAQSection />
-      <CTASection onLogin={onNavigateToAuth} />
+      <CTASection onSignup={onNavigateToAuth} onLogin={onNavigateToAuth} />
       <Footer />
     </div>
   );

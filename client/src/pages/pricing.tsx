@@ -49,8 +49,8 @@ const plans = [
     price: "Coming soon",
     period: "",
     description: "For small development teams that need shared workspaces, seats, and role-based collaboration.",
-    cta: "Join Waitlist",
-    href: "mailto:sales@granted.ai?subject=Team%20Plan%20Waitlist",
+    cta: "Get notified",
+    href: "mailto:sales@granted.ai?subject=Team%20Plan%20Interest",
     highlighted: false,
     features: [
       "Shared organization workspace",
@@ -116,9 +116,7 @@ export default function Pricing() {
 
   async function startProCheckout() {
     if (!user) {
-      // Early access: logged-out visitors join the waitlist instead of
-      // being funneled into open signup.
-      window.location.href = "/#early-access";
+      window.location.href = getAuthUrl("pro");
       return;
     }
 
@@ -248,20 +246,14 @@ export default function Pricing() {
                   </div>
                 ) : (
                   <a
-                    href={
-                      "href" in plan
-                        ? plan.href
-                        : user
-                          ? getAuthUrl(plan.plan)
-                          : "/#early-access"
-                    }
+                    href={"href" in plan ? plan.href : getAuthUrl(plan.plan)}
                     className="mt-8 block"
                   >
                     <Button
                       className="w-full"
                       variant={plan.highlighted ? "default" : "outline"}
                     >
-                      {"href" in plan || user ? plan.cta : "Get early access"}
+                      {plan.cta}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </a>
@@ -327,15 +319,13 @@ export default function Pricing() {
             </span>
           </h2>
           <p className="mx-auto mt-3 max-w-2xl text-lg leading-8 text-slate-600">
-            {user
-              ? "Start free today, then upgrade when your grant workload needs more projects, uploads, exports, or draft history."
-              : "Join the early-access list, then upgrade when your grant workload needs more projects, uploads, exports, or draft history."}
+            Start free today, then upgrade when your grant workload needs more projects,
+            uploads, exports, or draft history.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <a href={user ? getAuthUrl("starter") : "/#early-access"}>
+            <a href={getAuthUrl("starter")}>
               <Button>
-                {user ? "Start Free" : "Get early access"}
-                <ArrowRight className="ml-2 h-4 w-4" />
+                Start Free <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </a>
             <a href="mailto:sales@granted.ai">

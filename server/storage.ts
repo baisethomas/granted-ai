@@ -271,9 +271,6 @@ export interface IStorage {
   createGrantMetricEvent(event: InsertGrantMetricEvent): Promise<GrantMetricEvent>;
   getGrantMetricEvents(metricId: string): Promise<GrantMetricEvent[]>;
   getMetricsForProjects(projectIds: string[]): Promise<GrantMetric[]>;
-
-  // Early access (pre-auth marketing signups; no tenant scoping by design)
-  createEarlyAccessSignup(email: string, source: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -295,7 +292,6 @@ export class MemStorage implements IStorage {
   private grantMetrics: Map<string, GrantMetric> = new Map();
   private grantMetricEvents: Map<string, GrantMetricEvent> = new Map();
   private organizationProfileSuggestions: Map<string, OrganizationProfileSuggestion> = new Map();
-  private earlyAccessSignups: Map<string, { id: string; email: string; source: string; createdAt: Date }> = new Map();
 
   async getUser(id: string): Promise<User | undefined> {
     return this.users.get(id);
@@ -1245,12 +1241,6 @@ export class MemStorage implements IStorage {
   async getMetricsForProjects(projectIds: string[]): Promise<GrantMetric[]> {
     const set = new Set(projectIds);
     return Array.from(this.grantMetrics.values()).filter(m => set.has(m.projectId));
-  }
-
-  async createEarlyAccessSignup(email: string, source: string): Promise<void> {
-    if (!this.earlyAccessSignups.has(email)) {
-      this.earlyAccessSignups.set(email, { id: randomUUID(), email, source, createdAt: new Date() });
-    }
   }
 }
 
@@ -2334,13 +2324,6 @@ export class DbStorage implements IStorage {
       .from(schema.grantMetrics)
       .where(inArray(schema.grantMetrics.projectId, projectIds));
     return rows ?? [];
-  }
-
-  async createEarlyAccessSignup(email: string, source: string): Promise<void> {
-    await db
-      ?.insert(schema.earlyAccessSignups)
-      .values({ email, source })
-      .onConflictDoNothing({ target: schema.earlyAccessSignups.email });
   }
 }
 
