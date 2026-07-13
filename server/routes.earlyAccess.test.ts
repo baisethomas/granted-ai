@@ -95,7 +95,8 @@ describe("POST /api/early-access", () => {
 
   it("rate limits repeated submissions from one IP", async () => {
     let limited: Response | undefined;
-    // Budget is 10/window (set above); 4 requests are already spent.
+    // Budget is 10/window (set above). Failed requests are uncounted
+    // (skipFailedRequests), so only the earlier 2 successful signups count.
     for (let i = 0; i < 10; i++) {
       const res = await postSignup({ email: `wave-${i}@nonprofit.org`, source: "hero" });
       if (res.status === 429) {

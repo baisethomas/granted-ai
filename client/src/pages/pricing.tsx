@@ -116,7 +116,9 @@ export default function Pricing() {
 
   async function startProCheckout() {
     if (!user) {
-      window.location.href = getAuthUrl("pro");
+      // Early access: logged-out visitors join the waitlist instead of
+      // being funneled into open signup.
+      window.location.href = "/#early-access";
       return;
     }
 
@@ -246,14 +248,20 @@ export default function Pricing() {
                   </div>
                 ) : (
                   <a
-                    href={"href" in plan ? plan.href : getAuthUrl(plan.plan)}
+                    href={
+                      "href" in plan
+                        ? plan.href
+                        : user
+                          ? getAuthUrl(plan.plan)
+                          : "/#early-access"
+                    }
                     className="mt-8 block"
                   >
                     <Button
                       className="w-full"
                       variant={plan.highlighted ? "default" : "outline"}
                     >
-                      {plan.cta}
+                      {"href" in plan || user ? plan.cta : "Get early access"}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </a>
@@ -319,13 +327,15 @@ export default function Pricing() {
             </span>
           </h2>
           <p className="mx-auto mt-3 max-w-2xl text-lg leading-8 text-slate-600">
-            Start free today, then upgrade when your grant workload needs more projects,
-            uploads, exports, or draft history.
+            {user
+              ? "Start free today, then upgrade when your grant workload needs more projects, uploads, exports, or draft history."
+              : "Join the early-access list, then upgrade when your grant workload needs more projects, uploads, exports, or draft history."}
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <a href={getAuthUrl("starter")}>
+            <a href={user ? getAuthUrl("starter") : "/#early-access"}>
               <Button>
-                Start Free <ArrowRight className="ml-2 h-4 w-4" />
+                {user ? "Start Free" : "Get early access"}
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </a>
             <a href="mailto:sales@granted.ai">

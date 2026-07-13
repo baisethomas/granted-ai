@@ -110,19 +110,23 @@ export const uploadRateLimiter = rateLimit({
  * pre-launch-visible, so the budget is tight; keyed by IP only since callers
  * never carry a JWT.
  */
+const earlyAccessWindowMs = parseInt(process.env.EARLY_ACCESS_RATE_LIMIT_WINDOW_MS || "3600000", 10); // 1 hour
 export const earlyAccessRateLimiter = rateLimit({
-  windowMs: parseInt(process.env.EARLY_ACCESS_RATE_LIMIT_WINDOW_MS || "3600000", 10), // 1 hour
-  max: parseInt(process.env.EARLY_ACCESS_RATE_LIMIT_MAX_REQUESTS || "5", 10), // 5 / hour
+  windowMs: earlyAccessWindowMs,
+  max: parseInt(process.env.EARLY_ACCESS_RATE_LIMIT_MAX_REQUESTS || "5", 10), // 5 / window
   message: {
     error: "Too many signup attempts. Wait a bit and try again.",
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Don't count rejected submissions (e.g. typoed emails) against the budget —
+  // a shared office IP shouldn't get locked out by a few failed attempts.
+  skipFailedRequests: true,
   keyGenerator: (req: Request) => `ip:${ipKeyGenerator(req.ip ?? "")}`,
   handler: (req: Request, res: Response) => {
     res.status(429).json({
       error: "Too many signup attempts. Wait a bit and try again.",
-      retryAfter: getRetryAfter(req, 3600000),
+      retryAfter: getRetryAfter(req, earlyAccessWindowMs),
     });
   },
 });

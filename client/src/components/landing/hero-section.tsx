@@ -39,7 +39,8 @@ export function HeroSection({ onClickSeeHow }: HeroSectionProps) {
             answers with every claim cited to your own documents — and flags what it can't
             support instead of making it up.
           </p>
-          <div className="mt-6">
+          {/* scroll-mt clears the sticky marketing header when linked as /#early-access */}
+          <div className="mt-6 scroll-mt-24" id="early-access">
             <EarlyAccessForm source="hero" />
             <div className="mt-3">
               <Button variant="outline" onClick={onClickSeeHow}>
