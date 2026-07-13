@@ -375,15 +375,22 @@ function App() {
 export default App;
 
 function LandingPage({ onClickSeeHow, onNavigateToAuth }: { onClickSeeHow: () => void; onNavigateToAuth: () => void }) {
+  // Login only defaults to account-creation mode when the URL carries a plan,
+  // so signup CTAs must go through getAuthUrl with one — plain /auth is the
+  // sign-in form.
+  const handleSignup = () => {
+    window.location.href = getAuthUrl("starter");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <MarketingHeader />
-      <HeroSection onClickSeeHow={onClickSeeHow} onNavigateToAuth={onNavigateToAuth} />
+      <HeroSection onClickSeeHow={onClickSeeHow} onNavigateToAuth={handleSignup} />
       <HowItWorksSection />
       <FeaturesSection />
       <TrustSection />
       <FAQSection />
-      <CTASection onSignup={onNavigateToAuth} onLogin={onNavigateToAuth} />
+      <CTASection onSignup={handleSignup} onLogin={onNavigateToAuth} />
       <Footer />
     </div>
   );
