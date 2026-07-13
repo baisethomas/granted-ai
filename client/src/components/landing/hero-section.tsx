@@ -1,12 +1,12 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
+import { EarlyAccessForm } from "./early-access-form";
 
 interface HeroSectionProps {
   onClickSeeHow: () => void;
-  onNavigateToAuth: () => void;
 }
 
-export function HeroSection({ onClickSeeHow, onNavigateToAuth }: HeroSectionProps) {
+export function HeroSection({ onClickSeeHow }: HeroSectionProps) {
   const highlights = [
     {
       title: "Cited to your documents",
@@ -27,7 +27,7 @@ export function HeroSection({ onClickSeeHow, onNavigateToAuth }: HeroSectionProp
       <div className="max-w-6xl mx-auto px-6 flex flex-col-reverse lg:flex-row items-center gap-12 lg:gap-16">
         <div className="w-full lg:w-1/2">
           <div className="text-sm font-semibold uppercase tracking-widest text-slate-500">
-            AI grant drafting workspace
+            Early access is opening in waves
           </div>
           <h1 className="mt-4 text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
             <span className="bg-gradient-to-r from-[var(--brand-a)] via-[var(--brand-b)] to-[var(--brand-c)] bg-clip-text text-transparent">
@@ -39,13 +39,13 @@ export function HeroSection({ onClickSeeHow, onNavigateToAuth }: HeroSectionProp
             answers with every claim cited to your own documents — and flags what it can't
             support instead of making it up.
           </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Button onClick={onNavigateToAuth}>
-              Start a Draft <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-            <Button variant="outline" onClick={onClickSeeHow}>
-              See the Workflow
-            </Button>
+          <div className="mt-6">
+            <EarlyAccessForm source="hero" />
+            <div className="mt-3">
+              <Button variant="outline" onClick={onClickSeeHow}>
+                See how it works
+              </Button>
+            </div>
           </div>
           <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
             {highlights.map((highlight) => (

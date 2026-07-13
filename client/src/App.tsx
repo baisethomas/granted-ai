@@ -375,23 +375,15 @@ function App() {
 export default App;
 
 function LandingPage({ onClickSeeHow, onNavigateToAuth }: { onClickSeeHow: () => void; onNavigateToAuth: () => void }) {
-  const handleSignup = () => {
-    onNavigateToAuth();
-  };
-
-  const handleLogin = () => {
-    onNavigateToAuth();
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <MarketingHeader />
-      <HeroSection onClickSeeHow={onClickSeeHow} onNavigateToAuth={onNavigateToAuth} />
+      <HeroSection onClickSeeHow={onClickSeeHow} />
       <HowItWorksSection />
       <FeaturesSection />
       <TrustSection />
       <FAQSection />
-      <CTASection onSignup={handleSignup} onLogin={handleLogin} />
+      <CTASection onLogin={onNavigateToAuth} />
       <Footer />
     </div>
   );

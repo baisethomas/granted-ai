@@ -3,6 +3,10 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 export function FAQSection() {
   const faqs = [
     {
+      question: "What does early access mean?",
+      answer: "We're onboarding organizations in small waves so every team gets real support while we refine the product. Join the list and we'll email your invite when a spot opens — no payment details required to sign up.",
+    },
+    {
       question: "How does Granted use our documents?",
       answer: "We build a private, per-organization knowledge base to tailor responses. Your content is not shared or used for public model training.",
     },
