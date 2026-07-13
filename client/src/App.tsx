@@ -375,31 +375,22 @@ function App() {
 export default App;
 
 function LandingPage({ onClickSeeHow, onNavigateToAuth }: { onClickSeeHow: () => void; onNavigateToAuth: () => void }) {
-  // The browser resolves URL fragments before React renders, so links like
-  // /#early-access (e.g. from the pricing page) need a manual scroll on mount.
-  // History scroll restoration can override it after paint, so disable it for
-  // hash loads and re-scroll once layout has settled.
-  useEffect(() => {
-    const target = window.location.hash.slice(1);
-    if (!target) return;
-    if ("scrollRestoration" in window.history) {
-      window.history.scrollRestoration = "manual";
-    }
-    const scroll = () => document.getElementById(target)?.scrollIntoView({ block: "start" });
-    scroll();
-    const timer = setTimeout(scroll, 150);
-    return () => clearTimeout(timer);
-  }, []);
+  // Login only defaults to account-creation mode when the URL carries a plan,
+  // so signup CTAs must go through getAuthUrl with one — plain /auth is the
+  // sign-in form.
+  const handleSignup = () => {
+    window.location.href = getAuthUrl("starter");
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <MarketingHeader />
-      <HeroSection onClickSeeHow={onClickSeeHow} />
+      <HeroSection onClickSeeHow={onClickSeeHow} onNavigateToAuth={handleSignup} />
       <HowItWorksSection />
       <FeaturesSection />
       <TrustSection />
       <FAQSection />
-      <CTASection onLogin={onNavigateToAuth} />
+      <CTASection onSignup={handleSignup} onLogin={onNavigateToAuth} />
       <Footer />
     </div>
   );

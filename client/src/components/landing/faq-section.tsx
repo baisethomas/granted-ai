@@ -4,7 +4,7 @@ export function FAQSection() {
   const faqs = [
     {
       question: "What does early access mean?",
-      answer: "We're onboarding organizations in small waves so every team gets real support while we refine the product. Join the list and we'll email your invite when a spot opens — no payment details required to sign up.",
+      answer: "You can sign up and start drafting today — the free plan requires no payment details. The product is young and improving fast, and early organizations get direct support and a real say in what we build next.",
     },
     {
       question: "How does Granted use our documents?",

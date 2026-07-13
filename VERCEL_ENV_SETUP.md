@@ -29,8 +29,6 @@ Your Vercel deployment needs the following environment variables configured:
 
 - `GRANTED_DEFAULT_MODEL` - Default OpenAI model (defaults to `gpt-4o-mini`)
 - `NODE_ENV` - Set to `production` for production deployments
-- `EARLY_ACCESS_RATE_LIMIT_WINDOW_MS` - Rate-limit window for the public `POST /api/early-access` signup endpoint (defaults to `3600000` = 1 hour)
-- `EARLY_ACCESS_RATE_LIMIT_MAX_REQUESTS` - Max early-access signups per IP per window (defaults to `5`)
 
 ## How to Add Environment Variables in Vercel
 
