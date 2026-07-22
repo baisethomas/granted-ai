@@ -431,6 +431,7 @@ Combines two search strategies:
 - Production API errors omit internal `details`; verbose HTTP body logging only when `DEBUG_VERBOSE_HTTP=1`
 - Worker/cron batch sizes capped (`DOCUMENT_WORKER_BATCH_MAX`, default 50)
 - Organization-scoped access checks on projects and billing-sensitive actions
+- **Database access is server-only.** The app reaches Postgres exclusively through Drizzle over `DATABASE_URL` (table-owner role); it never uses Supabase's PostgREST Data API. That path is doubly locked: the Data API is **disabled** in the Supabase dashboard, and Row Level Security is **enabled on all public tables** (`supabase/migrations/0005_enable_rls_public_tables.sql`), so the browser anon key cannot read the database directly. Note: Drizzle `db:push` does not manage RLS — any new table must have RLS enabled explicitly via a hand-written file in `supabase/migrations/`.
 
 ---
 
