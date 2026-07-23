@@ -9,7 +9,9 @@ Usage: `/campaign <goal>` — e.g. `/campaign launch push for open signup, 2 wee
 1. **Brief first.** Invoke the **campaign-strategist** agent with the user's goal (`$ARGUMENTS`). It produces a campaign brief: goal, audience segment, core angle, channel plan, content calendar, success metrics — written to `marketing/campaigns/<campaign-slug>/brief.md`.
 2. **Get approval.** Present the brief to the user. Do not build any assets until they approve or amend it.
 3. **Execute via specialists.** After approval, the strategist delegates:
+   - **market-researcher** — sourced intelligence briefs (commissioned before the brief if the landscape is unclear)
    - **social-media-manager** — LinkedIn/X posts, threads, newsletter drafts
+   - **content-generator** — blog posts, guides, case studies, landing copy
    - **ad-copywriter** — paid ad variant sets per platform
    - **visual-producer** — images via `npm run marketing:image` for any asset with an image brief
    Run independent asset builds in parallel where possible.
