@@ -17,3 +17,6 @@ client_secret_*.json
 *.key
 .env*.local
 supabase/.temp/
+
+# generated marketing images (deliverables, not source)
+marketing/assets/
