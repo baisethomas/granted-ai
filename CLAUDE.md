@@ -167,6 +167,9 @@ npm run test:auth      # auth smoke tests
 npm run doc:process    # run the document worker locally
 npm run fixtures:nonprofit        # seed nonprofit test fixtures
 npm run auth:create-test-user     # create a Supabase test user
+npm run marketing:image           # generate a marketing image via OpenAI gpt-image-1
+                                  #   (scripts/generate-marketing-image.ts; --prompt required,
+                                  #   optional --size / --out; writes to marketing/assets/, gitignored)
 ```
 
 ## Environment Variables
@@ -179,6 +182,7 @@ Loaded locally by `server/env.ts` (dotenv, `.env.local` then `.env`) — a side-
 | `OPENAI_API_KEY` | server | Generation + embeddings. Never client-side |
 | `GRANTED_DEFAULT_MODEL` | server | Generation model, default `gpt-4o-mini` |
 | `DOCUMENT_EMBEDDING_MODEL` | server | Default `text-embedding-3-small` |
+| `GRANTED_IMAGE_MODEL` | server (scripts) | Optional; image model for `npm run marketing:image`, default `gpt-image-1` |
 | `SESSION_SECRET` | server | Express sessions |
 | `STRIPE_*` | server | Stripe billing keys/webhook secret |
 | `NEXT_PUBLIC_SUPABASE_URL` | Vite define | Legacy name; exposed to client |
@@ -247,5 +251,6 @@ Loaded locally by `server/env.ts` (dotenv, `.env.local` then `.env`) — a side-
 | `/review` | After a PR exists | Triggers **Codex** (external, GPT) on the PR, you fix its P1/P2 findings, re-trigger until clean, then auto-merge (squash). The only path into `main`. Greptile is a disabled second gate (out of credits) |
 | `/new-feature` | Before writing any new feature code | End-to-end plan: touches which files, schema changes needed, billing gate, tests required. Must be confirmed before implementation starts |
 | `/copy-review` | Before shipping any user-facing text | Checks wording against brand voice — no "AI-powered", errors have what-happened + what-to-do-next, empty states invite action |
+| `/campaign` | When planning/building a marketing campaign | Runs the marketing agent team: **campaign-strategist** writes a brief (goal, audience, angle, calendar) → you approve → it delegates to **social-media-manager**, **ad-copywriter**, and **visual-producer** (`npm run marketing:image`) → **brand-voice** checks the copy → package lands in `marketing/campaigns/<slug>/` (images in `marketing/assets/`, gitignored) |
 
 The harness loads automatically on session start — you never need to activate it. These commands are for deliberate mid-session actions.

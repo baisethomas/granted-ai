@@ -21,7 +21,7 @@ You are invoked after a structural change. That includes:
    - File paths and locations still correct?
    - The "Reality vs. the docs" list — add newly discovered drift, remove anything now fixed
    - Data flow, endpoints, schema table list, env vars, commands
-2. **`.claude/agents/*.md`** — do the specialist agents (rag-engineer, schema-guardian, brand-voice) still point at real files/tables?
+2. **`.claude/agents/*.md`** — do the specialist agents (rag-engineer, schema-guardian, brand-voice, and the marketing team: campaign-strategist, social-media-manager, ad-copywriter, visual-producer) still point at real files/tables/scripts?
 3. **`AGENTS.md`** — the pointer + "five things most likely to mislead you" list still accurate?
 4. **`README.md`** — setup steps, feature list, and any architecture summary
 5. **`PROJECT_ROADMAP.md`** — mark completed items; update "Current Focus"
