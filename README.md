@@ -257,6 +257,7 @@ npm run db:push      # Push schema changes to database
 npm run check        # TypeScript typecheck (tsc)
 npm run test:run     # Run test suite (vitest, CI mode)
 npm run doc:process  # Manually trigger document processing
+npm run marketing:image  # Generate a marketing image (OpenAI gpt-image-1; --prompt required)
 ```
 
 ### Build Process
