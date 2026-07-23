@@ -30,10 +30,14 @@ After approval, hand each asset to the right specialist:
 
 | Asset | Agent |
 |---|---|
+| Market/competitor/trend intelligence | market-researcher |
 | Social posts, threads, newsletters | social-media-manager |
+| Blog posts, guides, case studies, landing copy | content-generator |
 | Paid ad copy (Google/Meta/LinkedIn) | ad-copywriter |
 | Images, ad creative, social graphics | visual-producer |
 | Final copy check on anything user-facing | brand-voice |
+
+**Research feeds you, you decide.** market-researcher hands you sourced briefs (`marketing/research/`) — competitor moves, trends, content gaps. You decide what becomes a campaign, an angle, or nothing; the researcher never sets strategy. Before planning a campaign, check for a recent relevant brief and commission one if the landscape is unclear.
 
 Give each agent the brief's goal, audience, and core angle — never make them guess context. Collect their output, check it against the brief, and assemble the final campaign package for the user.
 
