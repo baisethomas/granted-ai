@@ -34,6 +34,7 @@ import Organization from "@/pages/organization";
 import Pricing from "@/pages/pricing";
 import Privacy from "@/pages/privacy";
 import Terms from "@/pages/terms";
+import Security from "@/pages/security";
 import ResetPassword from "@/pages/reset-password";
 import PortfolioMetrics from "@/pages/metrics";
 import { ProjectDetail } from "@/pages/projects/[id]";
@@ -87,7 +88,7 @@ function AppContent() {
   // dashboard for a cold-start deep link with no recorded origin.
   const projectOriginRef = useRef("/app");
 
-  const PUBLIC_PATHS = ["/privacy", "/terms", "/pricing"];
+  const PUBLIC_PATHS = ["/privacy", "/terms", "/pricing", "/security"];
   const isPublicPath = PUBLIC_PATHS.includes(location);
   const activeTab = tabForLocation(location);
 
@@ -132,13 +133,15 @@ function AppContent() {
     return <QueryClientProvider client={queryClient}><TooltipProvider><ResetPassword canReset={isPasswordRecovery} onComplete={clearPasswordRecovery} /></TooltipProvider></QueryClientProvider>;
   }
 
-  // Authenticated users on marketing domain → send to the app.
+  // Authenticated users on marketing domain → send to the app, except when they
+  // are on a public marketing/legal page (/pricing, /privacy, /security, /terms)
+  // which signed-in visitors should still be able to read.
   // isPasswordResetRoute is already handled above and this is unreachable
   // when it's true, but the check is repeated explicitly rather than relied
   // on implicitly — a reset link must never bounce to /app before the user
   // can set a new password, so this invariant should hold regardless of
   // branch ordering above.
-  if (!loading && user && isMarketingDomain() && !isPasswordResetRoute) {
+  if (!loading && user && isMarketingDomain() && !isPasswordResetRoute && !isPublicPath) {
     window.location.href = `${APP_DOMAIN}/app`;
     return null;
   }
@@ -163,6 +166,9 @@ function AppContent() {
             </Route>
             <Route path="/privacy">
               <Privacy />
+            </Route>
+            <Route path="/security">
+              <Security />
             </Route>
             <Route path="/terms">
               <Terms />
@@ -199,6 +205,9 @@ function AppContent() {
             </Route>
             <Route path="/privacy">
               <Privacy />
+            </Route>
+            <Route path="/security">
+              <Security />
             </Route>
             <Route path="/terms">
               <Terms />

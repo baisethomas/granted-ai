@@ -31,7 +31,9 @@ const AI_TIMEOUT = 60000; // 60 seconds
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 2000; // 2 seconds
 
-// Check for valid API key
+// Prefer OPENAI_API_KEY. VITE_OPENAI_API_KEY is a legacy server-side alias for
+// deployments that still only set the Vite-named var (see VERCEL_ENV_SETUP.md).
+// Do not reference VITE_OPENAI_API_KEY from client code — it must stay server-only.
 const apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
 const hasValidApiKey = apiKey && apiKey !== "default_key" && apiKey.startsWith("sk-");
 

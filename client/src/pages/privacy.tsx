@@ -2,7 +2,7 @@ import MarketingHeader from "@/components/layout/marketing-header";
 import { Footer } from "@/components/landing/footer";
 
 export default function Privacy() {
-  const lastUpdated = "April 22, 2026";
+  const lastUpdated = "July 28, 2026";
 
   return (
     <div
@@ -65,11 +65,11 @@ export default function Privacy() {
 
             <h2 className="text-xl font-semibold text-slate-900">4. AI and Content Processing</h2>
             <p>
-              Content you upload or submit to the Service may be processed by third-party AI
-              providers (such as OpenAI and Anthropic) solely for the purpose of generating
-              responses on your behalf. We take reasonable steps to select providers with
-              appropriate data handling practices. We do not use your content to train foundation
-              models without your consent.
+              Content you upload or submit to the Service may be processed by OpenAI (our current AI
+              provider) to summarize documents, generate embeddings for retrieval, and produce draft
+              responses on your behalf. We take reasonable steps to select providers with appropriate
+              data handling practices. We do not use your content to train foundation models.
+              OpenAI&apos;s API does not use API inputs or outputs to train its models by default.
             </p>
 
             <h2 className="text-xl font-semibold text-slate-900">5. Data Retention</h2>
@@ -84,7 +84,13 @@ export default function Privacy() {
             <p>
               We implement reasonable technical and organizational measures designed to protect your
               information. However, no method of transmission over the Internet or electronic
-              storage is completely secure, and we cannot guarantee absolute security.
+              storage is completely secure, and we cannot guarantee absolute security. For a
+              plain-language overview of how we handle access, uploads, draft generation, and app
+              hardening, see our{" "}
+              <a href="/security" className="text-blue-600 underline">
+                Security
+              </a>{" "}
+              page.
             </p>
 
             <h2 className="text-xl font-semibold text-slate-900">7. Your Rights and Choices</h2>

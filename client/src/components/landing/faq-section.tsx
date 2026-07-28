@@ -8,7 +8,8 @@ export function FAQSection() {
     },
     {
       question: "How does Granted use our documents?",
-      answer: "We build a private, per-organization knowledge base to tailor responses. Your content is not shared or used for public model training.",
+      answer:
+        "We build a private, per-organization knowledge base to tailor responses. When you upload documents, Granted may send text to OpenAI's API for summarization and embeddings. When you generate a draft, relevant excerpts may also be sent to OpenAI to produce the answer. That data is not used to train OpenAI's models by default, and Granted does not use your content for model training.",
     },
     {
       question: "Will the draft sound like our organization?",
