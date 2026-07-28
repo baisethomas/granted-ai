@@ -2,9 +2,9 @@ import OpenAI from "openai";
 
 const MODEL = process.env.DOCUMENT_EMBEDDING_MODEL || "text-embedding-3-small";
 
-const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  : null;
+// Prefer OPENAI_API_KEY; VITE_OPENAI_API_KEY is a legacy server-side alias.
+const apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+const openai = apiKey ? new OpenAI({ apiKey }) : null;
 
 export async function generateEmbedding(
   input: string

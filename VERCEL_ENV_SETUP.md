@@ -21,9 +21,13 @@ Your Vercel deployment needs the following environment variables configured:
 
 ### OpenAI Configuration
 
-- `OPENAI_API_KEY` (or `VITE_OPENAI_API_KEY`)
-  - Must start with `sk-`
-  - Used for AI response generation
+- `OPENAI_API_KEY` (required for new setups; must start with `sk-`)
+  - Used for draft generation, document summarization, and embeddings
+  - Server-only — never expose this to the browser
+- `VITE_OPENAI_API_KEY` (legacy alias only)
+  - Accepted as a temporary fallback by the server if `OPENAI_API_KEY` is unset
+  - Prefer migrating existing Vercel envs to `OPENAI_API_KEY` and removing the `VITE_` alias
+  - Do not reference this variable from client code
 
 ### Optional Configuration
 

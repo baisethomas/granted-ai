@@ -1,10 +1,29 @@
+import { useEffect } from "react";
 import MarketingHeader from "@/components/layout/marketing-header";
 import { Footer } from "@/components/landing/footer";
 import { Button } from "@/components/ui/button";
 import { getAuthUrl } from "@/lib/domains";
 
+const PAGE_TITLE = "Security | Granted";
+const PAGE_DESCRIPTION =
+  "How Granted keeps your organization's documents scoped to your account — and what happens when you upload and generate a draft.";
+
 export default function Security() {
   const lastUpdated = "July 28, 2026";
+
+  useEffect(() => {
+    const previousTitle = document.title;
+    const descriptionMeta = document.querySelector('meta[name="description"]');
+    const previousDescription = descriptionMeta?.getAttribute("content") ?? "";
+
+    document.title = PAGE_TITLE;
+    descriptionMeta?.setAttribute("content", PAGE_DESCRIPTION);
+
+    return () => {
+      document.title = previousTitle;
+      descriptionMeta?.setAttribute("content", previousDescription);
+    };
+  }, []);
 
   return (
     <div
