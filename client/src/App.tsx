@@ -133,13 +133,15 @@ function AppContent() {
     return <QueryClientProvider client={queryClient}><TooltipProvider><ResetPassword canReset={isPasswordRecovery} onComplete={clearPasswordRecovery} /></TooltipProvider></QueryClientProvider>;
   }
 
-  // Authenticated users on marketing domain → send to the app.
+  // Authenticated users on marketing domain → send to the app, except when they
+  // are on a public marketing/legal page (/pricing, /privacy, /security, /terms)
+  // which signed-in visitors should still be able to read.
   // isPasswordResetRoute is already handled above and this is unreachable
   // when it's true, but the check is repeated explicitly rather than relied
   // on implicitly — a reset link must never bounce to /app before the user
   // can set a new password, so this invariant should hold regardless of
   // branch ordering above.
-  if (!loading && user && isMarketingDomain() && !isPasswordResetRoute) {
+  if (!loading && user && isMarketingDomain() && !isPasswordResetRoute && !isPublicPath) {
     window.location.href = `${APP_DOMAIN}/app`;
     return null;
   }
