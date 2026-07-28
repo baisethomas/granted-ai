@@ -12,7 +12,7 @@ Checked against: live product code, `/privacy` + FAQ copy, and public Neon / Sup
 | Area | Result |
 |---|---|
 | Tenant isolation + auth claims | **Pass** — claimable as written |
-| Server-only OpenAI key (browser) | **Pass with caveat** — Vite does not expose `OPENAI_API_KEY`; remove dead `VITE_OPENAI_API_KEY` fallback |
+| Server-only OpenAI key (browser) | **Pass with caveat** — Vite does not expose `OPENAI_API_KEY` unless client code references a `VITE_*` name. Server retains a legacy `VITE_OPENAI_API_KEY` alias for older Vercel envs; prefer `OPENAI_API_KEY` and do not reference the alias from client code. |
 | Helmet / HTTP hardening | **Pass** — claimable for production |
 | OpenAI processes content for drafts | **Pass** — must say this clearly |
 | “We don’t train on your content” | **Pass if rephrased** — Granted doesn’t train; OpenAI API doesn’t train by default. Do not imply Zero Data Retention |
@@ -35,9 +35,9 @@ User-data routes use `requireSupabaseUser`. Exceptions (Stripe webhook, document
 
 ### Pass with hygiene fix — provider keys not in the browser
 - Vite `define` only injects Supabase URL/anon key + app domain (`vite.config.ts`). No OpenAI key in client bundle config.
-- Server generation uses `OPENAI_API_KEY` (`server/services/ai.ts`, `embedding.ts`).
-- **Issue:** `ai.ts` falls back to `process.env.VITE_OPENAI_API_KEY`. That name implies a client-exposed var. Even if unused today, it weakens the claim and invites misconfiguration.
-- **Dead code:** `client/src/lib/rag/embeddings.ts` constructs an OpenAI client with `OPENAI_API_KEY` but has **no imports** anywhere — not a live leak path; still delete or quarantine before marketing “keys never reach the browser.”
+- Server generation uses `OPENAI_API_KEY`, with a **legacy server-side fallback** to `VITE_OPENAI_API_KEY` for deployments that still only set the Vite-named var (`server/services/ai.ts`, `embedding.ts`; documented in `VERCEL_ENV_SETUP.md`).
+- **Accepted risk / migration:** Prefer `OPENAI_API_KEY` in all new and existing Vercel envs. Keep the alias until every environment is migrated; never import or reference `VITE_OPENAI_API_KEY` from `client/`.
+- **Done:** Deleted unused `client/src/lib/rag/*` (including a dead OpenAI client constructor).
 
 ### Pass — HTTP hardening
 `server/securityHeaders.ts`: Helmet CSP (prod), HSTS (prod), `frameAncestors: 'none'`, referrer policy. Safe to summarize as “production responses include standard browser security headers (including HSTS and a content security policy).” Avoid listing every directive.
@@ -127,8 +127,8 @@ Prioritized work before copy freezes and `/security` ships.
 
 | # | Item | Action |
 |---|---|---|
-| 6 | `VITE_OPENAI_API_KEY` fallback in `server/services/ai.ts` | Remove fallback; use `OPENAI_API_KEY` only |
-| 7 | Dead `client/src/lib/rag/embeddings.ts` (and likely unused `lib/rag/`) | Delete unused client OpenAI path or confirm unused and remove |
+| 6 | `VITE_OPENAI_API_KEY` server alias | **Retained** as legacy server-only fallback during env migration; document `OPENAI_API_KEY` as primary (`VERCEL_ENV_SETUP.md`). Remove alias only after all Vercel envs set `OPENAI_API_KEY`. |
+| 7 | Dead `client/src/lib/rag/*` | **Done** — deleted unused client OpenAI path |
 | 8 | Encryption section | Add provider-attributed AES-256 / TLS bullets to `/security` (sources above) |
 | 9 | Auth claim wording | “App data APIs require sign-in” — not “all requests” |
 
@@ -147,7 +147,7 @@ Prioritized work before copy freezes and `/security` ships.
 
 1. ~~**Product decisions** on contact + 2026 review.~~ → `support@grantedai.app`; skip review mention.
 2. **Copy PR prep:** Privacy §4 + FAQ rewrite + draft `copy.md` for `/security` using locked claims.
-3. **Eng PR:** `/security` page + footer/privacy links + remove `VITE_OPENAI_API_KEY` fallback (+ optional dead `lib/rag` cleanup).
+3. **Eng PR:** `/security` page + footer/privacy links + dead `lib/rag` cleanup; retain `VITE_OPENAI_API_KEY` as documented legacy server alias until envs migrate.
 4. Brand-voice pass on final copy.
 5. Ship via `/review`.
 
@@ -158,7 +158,7 @@ Prioritized work before copy freezes and `/security` ships.
 ### May claim
 - Org-scoped access via membership
 - App data APIs require Supabase auth
-- OpenAI API key is server-side only (after removing `VITE_` fallback)
+- OpenAI API key is server-side only (primary: `OPENAI_API_KEY`; legacy server alias `VITE_OPENAI_API_KEY` accepted during migration — never referenced from client)
 - Production HTTP security headers (Helmet)
 - Draft generation sends relevant document context to OpenAI’s API
 - Granted does not train models on your content; OpenAI API does not train on API data by default

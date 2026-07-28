@@ -3,9 +3,9 @@ export function Footer() {
 
   return (
     <footer className="border-t border-slate-200/80 bg-white/70">
-      <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between text-sm text-slate-600">
+      <div className="max-w-6xl mx-auto px-6 py-4 flex flex-col gap-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-4 text-sm text-slate-600">
         <div>© {currentYear} Granted</div>
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
           <a href="/privacy" className="hover:text-slate-900">Privacy</a>
           <a href="/security" className="hover:text-slate-900">Security</a>
           <a href="/terms" className="hover:text-slate-900">Terms</a>
