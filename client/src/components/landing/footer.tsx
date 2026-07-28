@@ -9,9 +9,9 @@ export function Footer() {
           <a href="/privacy" className="hover:text-slate-900">Privacy</a>
           <a href="/security" className="hover:text-slate-900">Security</a>
           <a href="/terms" className="hover:text-slate-900">Terms</a>
-          <a href="#features" className="hover:text-slate-900">Features</a>
-          <a href="#how" className="hover:text-slate-900">How it works</a>
-          <a href="#faq" className="hover:text-slate-900">FAQ</a>
+          <a href="/#features" className="hover:text-slate-900">Features</a>
+          <a href="/#how" className="hover:text-slate-900">How it works</a>
+          <a href="/#faq" className="hover:text-slate-900">FAQ</a>
         </div>
       </div>
     </footer>

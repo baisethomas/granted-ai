@@ -66,10 +66,10 @@ export default function Privacy() {
             <h2 className="text-xl font-semibold text-slate-900">4. AI and Content Processing</h2>
             <p>
               Content you upload or submit to the Service may be processed by OpenAI (our current AI
-              provider) solely for the purpose of generating responses on your behalf. We take
-              reasonable steps to select providers with appropriate data handling practices. We do
-              not use your content to train foundation models. OpenAI&apos;s API does not use API
-              inputs or outputs to train its models by default.
+              provider) to summarize documents, generate embeddings for retrieval, and produce draft
+              responses on your behalf. We take reasonable steps to select providers with appropriate
+              data handling practices. We do not use your content to train foundation models.
+              OpenAI&apos;s API does not use API inputs or outputs to train its models by default.
             </p>
 
             <h2 className="text-xl font-semibold text-slate-900">5. Data Retention</h2>
@@ -85,8 +85,8 @@ export default function Privacy() {
               We implement reasonable technical and organizational measures designed to protect your
               information. However, no method of transmission over the Internet or electronic
               storage is completely secure, and we cannot guarantee absolute security. For a
-              plain-language overview of how we handle access, draft generation, and app hardening,
-              see our{" "}
+              plain-language overview of how we handle access, uploads, draft generation, and app
+              hardening, see our{" "}
               <a href="/security" className="text-blue-600 underline">
                 Security
               </a>{" "}

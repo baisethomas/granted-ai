@@ -21,8 +21,8 @@ export default function Security() {
             Your org&apos;s documents stay yours
           </h1>
           <p className="text-lg text-slate-600 mb-6">
-            Here&apos;s how Granted scopes access, handles draft generation, and protects the app — in
-            plain language.
+            Here&apos;s how Granted scopes access, handles uploads and draft generation, and protects the
+            app — in plain language.
           </p>
           <p className="text-sm text-slate-500 mb-8">Last updated: {lastUpdated}</p>
 
@@ -48,11 +48,17 @@ export default function Security() {
             </section>
 
             <section className="space-y-3">
-              <h2 className="text-xl font-semibold text-slate-900">What happens when you generate a draft</h2>
+              <h2 className="text-xl font-semibold text-slate-900">What happens when you upload and generate</h2>
               <ol className="list-decimal pl-6 space-y-2">
                 <li>You upload source materials to your organization.</li>
-                <li>Granted retrieves the passages most relevant to the question.</li>
-                <li>Those excerpts are sent to OpenAI&apos;s API to draft an answer.</li>
+                <li>
+                  Granted may send document text to OpenAI&apos;s API to create a summary and embeddings so
+                  we can find relevant passages later.
+                </li>
+                <li>
+                  When you generate a draft, Granted retrieves the most relevant passages and sends those
+                  excerpts to OpenAI&apos;s API to draft an answer.
+                </li>
                 <li>The answer, citations, and versions are saved back to your organization.</li>
               </ol>
               <p>
@@ -67,8 +73,8 @@ export default function Security() {
                 <li>Sign-in through Supabase Auth for app access</li>
                 <li>OpenAI API keys stay on the server — they are not shipped to the browser</li>
                 <li>
-                  Production responses include standard browser security headers (including HSTS and a
-                  content security policy)
+                  API responses include standard security headers (including HSTS and a content security
+                  policy)
                 </li>
                 <li>
                   Data is stored with infrastructure providers that encrypt data at rest (AES-256) and
