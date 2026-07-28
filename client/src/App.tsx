@@ -34,6 +34,7 @@ import Organization from "@/pages/organization";
 import Pricing from "@/pages/pricing";
 import Privacy from "@/pages/privacy";
 import Terms from "@/pages/terms";
+import Security from "@/pages/security";
 import ResetPassword from "@/pages/reset-password";
 import PortfolioMetrics from "@/pages/metrics";
 import { ProjectDetail } from "@/pages/projects/[id]";
@@ -87,7 +88,7 @@ function AppContent() {
   // dashboard for a cold-start deep link with no recorded origin.
   const projectOriginRef = useRef("/app");
 
-  const PUBLIC_PATHS = ["/privacy", "/terms", "/pricing"];
+  const PUBLIC_PATHS = ["/privacy", "/terms", "/pricing", "/security"];
   const isPublicPath = PUBLIC_PATHS.includes(location);
   const activeTab = tabForLocation(location);
 
@@ -164,6 +165,9 @@ function AppContent() {
             <Route path="/privacy">
               <Privacy />
             </Route>
+            <Route path="/security">
+              <Security />
+            </Route>
             <Route path="/terms">
               <Terms />
             </Route>
@@ -199,6 +203,9 @@ function AppContent() {
             </Route>
             <Route path="/privacy">
               <Privacy />
+            </Route>
+            <Route path="/security">
+              <Security />
             </Route>
             <Route path="/terms">
               <Terms />

@@ -32,7 +32,7 @@ const MAX_RETRIES = 2;
 const RETRY_DELAY = 2000; // 2 seconds
 
 // Check for valid API key
-const apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+const apiKey = process.env.OPENAI_API_KEY;
 const hasValidApiKey = apiKey && apiKey !== "default_key" && apiKey.startsWith("sk-");
 
 console.log("OpenAI API key configured:", !!hasValidApiKey);
