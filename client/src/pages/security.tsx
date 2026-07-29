@@ -18,7 +18,7 @@ import {
 
 const PAGE_TITLE = "Security | Granted";
 const PAGE_DESCRIPTION =
-  "How Granted keeps your organization's documents scoped to your account — and what happens when you upload and generate a draft.";
+  "How Granted keeps your organization's documents scoped to your account, and what happens when you upload and generate a draft.";
 
 const pillars = [
   {
@@ -31,13 +31,13 @@ const pillars = [
     icon: Sparkles,
     title: "Honest draft processing",
     description:
-      "When you upload or generate a draft, relevant text may go to OpenAI to summarize, find matching passages, and write. OpenAI's API does not use that data to train models by default.",
+      "When you upload or generate a draft, relevant text may be sent to our model provider to summarize, find matching passages, and write.",
   },
   {
     icon: ShieldCheck,
     title: "Hardened by default",
     description:
-      "OpenAI credentials stay on our servers — never in your browser. In production, we send standard browser security protections. Data is encrypted in transit and at rest.",
+      "Model-provider credentials stay on our servers, never in your browser. In production, we send standard browser security protections. Data is encrypted in transit and at rest.",
   },
   {
     icon: Ban,
@@ -57,13 +57,13 @@ const flowSteps = [
     icon: Search,
     title: "Prepare",
     description:
-      "Document text may be summarized and indexed with OpenAI so relevant passages can be found later.",
+      "Document text may be summarized and indexed so relevant passages can be found later.",
   },
   {
     icon: Sparkles,
     title: "Generate",
     description:
-      "For a draft, Granted finds the best passages and sends those excerpts to OpenAI.",
+      "For a draft, Granted finds the best passages and sends those excerpts to our model provider.",
   },
   {
     icon: LockKeyhole,
@@ -81,7 +81,7 @@ const hardenItems = [
   {
     icon: LockKeyhole,
     title: "Credentials stay private",
-    description: "OpenAI credentials never ship to your browser.",
+    description: "Model-provider credentials never ship to your browser.",
   },
   {
     icon: ShieldCheck,
@@ -127,8 +127,8 @@ export default function Security() {
             </span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-            How Granted scopes access, handles uploads and drafting, and hardens the app — built for
-            teams that need speed without giving up trust.
+            How Granted scopes access, handles uploads and drafting, and hardens the app for teams
+            that need speed without giving up trust.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Button asChild>
@@ -185,11 +185,12 @@ export default function Security() {
               How it works
             </div>
             <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
-              From upload to draft — still your org&apos;s data
+              From upload to draft, still your org&apos;s data
             </h2>
             <p className="mt-4 text-lg leading-8 text-slate-600">
-              OpenAI&apos;s API does not use that data to train its models by default. Granted does not
-              use your content to train models.
+              Drafting runs through OpenAI&apos;s API, our model provider for summarizing, indexing,
+              and writing. That API does not use the data to train models by default. Granted does
+              not use your content to train models.
             </p>
           </div>
           <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
