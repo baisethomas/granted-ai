@@ -35,10 +35,12 @@ OpenAI's API does not use that data to train its models by default. Granted does
 ## How we harden the app
 **Heading:** How we harden the app
 
-- Sign-in through Supabase Auth for app access
+- Sign-in required for app access
 - OpenAI API keys stay on the server — they are not shipped to the browser
 - API responses include standard security headers (including HSTS and a content security policy)
-- Data is stored with infrastructure providers that encrypt data at rest (AES-256) and encrypt traffic in transit (TLS/HTTPS): Neon (database), Supabase (auth and files), and Vercel (application)
+- Data is encrypted in transit and at rest
+
+**Do not name** hosting/database/auth vendors (Neon, Supabase, Vercel, etc.) on the public page or in marketing copy — that discloses infrastructure. Keep OpenAI named only as the AI processor for upload/draft flows.
 
 ## What we don't do
 **Heading:** What we don't do

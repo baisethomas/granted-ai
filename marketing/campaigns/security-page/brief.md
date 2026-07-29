@@ -69,7 +69,8 @@ Only claim what the product actually does today. **Do not invent certifications.
 
 - SOC 2 / ISO 27001 / HIPAA / FedRAMP / “compliant with …”
 - Penetration-test results, bug-bounty program, or “zero breaches”
-- Encryption-at-rest / in-transit details beyond what we can confirm from Neon / Supabase / Vercel docs **after** a short infra fact-check pass
+- Naming hosting / database / auth / CDN vendors on the public page (Neon, Supabase, Vercel, etc.) — do not disclose where data is stored
+- Encryption algorithm/vendor detail beyond a generic “encrypted in transit and at rest”
 - “Your data never leaves our servers” (false — generation uses OpenAI)
 - Anthropic as an active processor (SDK unused; privacy copy still mentions it — **reconcile privacy vs. security page** before launch)
 - Fabricated uptime, “military-grade,” or competitor comparisons
@@ -78,7 +79,7 @@ Only claim what the product actually does today. **Do not invent certifications.
 
 **Done 2026-07-28** — see `fact-check.md`.
 
-1. ~~Confirm encryption / residency language with Neon + Supabase + Vercel public docs (or stay silent).~~ → Provider-attributed AES-256/TLS OK; stay silent on specific region.
+1. ~~Confirm encryption / residency language with Neon + Supabase + Vercel public docs (or stay silent).~~ → Generic “encrypted in transit and at rest” only; **never name infra vendors** on the public page.
 2. ~~Align Privacy §4 with reality (OpenAI-only today; Anthropic aspirational).~~ → **Must fix:** remove Anthropic; fix FAQ “not shared.”
 3. ~~Decide whether to mention GRA-34 audit at all.~~ → **Skip** — do not mention the 2026 review on `/security`.
 4. ~~Confirm security contact email and expected response SLA.~~ → **`support@grantedai.app`**; omit numeric SLA in v1.

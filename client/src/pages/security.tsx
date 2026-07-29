@@ -89,17 +89,13 @@ export default function Security() {
             <section className="space-y-3">
               <h2 className="text-xl font-semibold text-slate-900">How we harden the app</h2>
               <ul className="list-disc pl-6 space-y-2">
-                <li>Sign-in through Supabase Auth for app access</li>
+                <li>Sign-in required for app access</li>
                 <li>OpenAI API keys stay on the server — they are not shipped to the browser</li>
                 <li>
                   API responses include standard security headers (including HSTS and a content security
                   policy)
                 </li>
-                <li>
-                  Data is stored with infrastructure providers that encrypt data at rest (AES-256) and
-                  encrypt traffic in transit (TLS/HTTPS): Neon (database), Supabase (auth and files),
-                  and Vercel (application)
-                </li>
+                <li>Data is encrypted in transit and at rest</li>
               </ul>
             </section>
 
