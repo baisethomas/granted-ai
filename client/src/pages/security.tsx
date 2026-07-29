@@ -25,19 +25,19 @@ const pillars = [
     icon: Building2,
     title: "Org-scoped access",
     description:
-      "Documents, drafts, and org details stay in your workspace. App data APIs require sign-in, and access follows organization membership.",
+      "Documents, drafts, and org details stay in your workspace. You sign in to reach your org's data, and access follows organization membership.",
   },
   {
     icon: Sparkles,
     title: "Honest draft processing",
     description:
-      "Upload and generation may send relevant text to OpenAI's API to summarize, embed, and draft. That data is not used to train models by default.",
+      "When you upload or generate a draft, relevant text may go to OpenAI to summarize, find matching passages, and write. That data is not used to train models by default.",
   },
   {
     icon: ShieldCheck,
     title: "Hardened by default",
     description:
-      "Secret provider keys (like OpenAI) stay on the server. Production API responses include standard security headers. Data is encrypted in transit and at rest.",
+      "OpenAI credentials stay on our servers — never in your browser. In production, we send standard browser security protections. Data is encrypted in transit and at rest.",
   },
   {
     icon: Ban,
@@ -57,13 +57,13 @@ const flowSteps = [
     icon: Search,
     title: "Prepare",
     description:
-      "Document text may be summarized and embedded via OpenAI so relevant passages can be found later.",
+      "Document text may be summarized and indexed with OpenAI so relevant passages can be found later.",
   },
   {
     icon: Sparkles,
     title: "Generate",
     description:
-      "For a draft, Granted retrieves the best passages and sends those excerpts to OpenAI's API.",
+      "For a draft, Granted finds the best passages and sends those excerpts to OpenAI.",
   },
   {
     icon: LockKeyhole,
@@ -76,18 +76,18 @@ const hardenItems = [
   {
     icon: KeyRound,
     title: "Sign-in required",
-    description: "App data APIs require a signed-in account.",
+    description: "Your workspace data requires a signed-in account.",
   },
   {
     icon: LockKeyhole,
-    title: "Keys stay server-side",
-    description: "OpenAI API keys are not shipped to the browser.",
+    title: "Credentials stay private",
+    description: "OpenAI credentials never ship to your browser.",
   },
   {
     icon: ShieldCheck,
-    title: "Security headers",
+    title: "Browser protections",
     description:
-      "Production API responses include HSTS and a content security policy.",
+      "In production, we send standard headers that help block common attacks.",
   },
   {
     icon: ShieldCheck,
@@ -188,8 +188,8 @@ export default function Security() {
               From upload to draft — still your org&apos;s data
             </h2>
             <p className="mt-4 text-lg leading-8 text-slate-600">
-              OpenAI&apos;s API does not use that data to train its models by default. Granted does not
-              use your content to train models.
+              OpenAI does not use that data to train its models by default. Granted does not use your
+              content to train models.
             </p>
           </div>
           <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -218,7 +218,7 @@ export default function Security() {
         <div className="mx-auto max-w-6xl px-6">
           <div className="max-w-3xl">
             <div className="text-sm font-semibold uppercase tracking-widest text-slate-500">
-              Hardening
+              Protections
             </div>
             <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
               Practical controls that protect your workspace
