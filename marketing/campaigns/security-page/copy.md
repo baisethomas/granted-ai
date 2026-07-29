@@ -32,7 +32,7 @@ No single prose column. No “Last updated” in the hero.
 ## Pillars
 1. **Org-scoped access** — Documents, drafts, and org details stay in your workspace. App data APIs require sign-in, and access follows organization membership.
 2. **Honest draft processing** — Upload and generation may send relevant text to OpenAI's API to summarize, embed, and draft. That data is not used to train models by default.
-3. **Hardened by default** — API keys stay on the server. API responses include standard security headers. Data is encrypted in transit and at rest.
+3. **Hardened by default** — Secret provider keys (like OpenAI) stay on the server. Production API responses include standard security headers. Data is encrypted in transit and at rest.
 4. **Clear boundaries** — We don't sell your personal information or train foundation models on your content. We won't claim certifications we haven't earned.
 
 ## Flow

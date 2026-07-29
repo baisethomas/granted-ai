@@ -37,7 +37,7 @@ const pillars = [
     icon: ShieldCheck,
     title: "Hardened by default",
     description:
-      "API keys stay on the server. API responses include standard security headers. Data is encrypted in transit and at rest.",
+      "Secret provider keys (like OpenAI) stay on the server. Production API responses include standard security headers. Data is encrypted in transit and at rest.",
   },
   {
     icon: Ban,
