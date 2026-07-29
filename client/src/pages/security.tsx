@@ -31,7 +31,7 @@ const pillars = [
     icon: Sparkles,
     title: "Honest draft processing",
     description:
-      "When you upload or generate a draft, relevant text may go to OpenAI to summarize, find matching passages, and write. That data is not used to train models by default.",
+      "When you upload or generate a draft, relevant text may go to OpenAI to summarize, find matching passages, and write. OpenAI's API does not use that data to train models by default.",
   },
   {
     icon: ShieldCheck,
@@ -188,8 +188,8 @@ export default function Security() {
               From upload to draft — still your org&apos;s data
             </h2>
             <p className="mt-4 text-lg leading-8 text-slate-600">
-              OpenAI does not use that data to train its models by default. Granted does not use your
-              content to train models.
+              OpenAI&apos;s API does not use that data to train its models by default. Granted does not
+              use your content to train models.
             </p>
           </div>
           <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
