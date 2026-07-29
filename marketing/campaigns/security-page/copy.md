@@ -1,69 +1,53 @@
 # Security page copy (`/security`)
 
-**Status:** Implemented in `client/src/pages/security.tsx` (GRA-78) — source of truth for page copy  
+**Status:** Marketing features layout (Mobbin-informed) on `fix/GRA-78-no-infra-vendor-disclosure`  
 **Contact:** support@grantedai.app  
-**Do not mention:** 2026 security review
+**Do not mention:** 2026 security review · infra vendor names (Neon, Supabase, Vercel, etc.)
 
 ---
 
 ## Meta
 - **Title:** Security | Granted
-- **Description:** How Granted keeps your organization's documents scoped to your account — and what happens when you generate a draft.
+- **Description:** How Granted keeps your organization's documents scoped to your account — and what happens when you upload and generate a draft.
+
+## Layout (marketing features, not legal blog)
+
+Inspired by Mobbin security/features patterns ([Intercom key features](https://mobbin.com/sites/sections/3ddf998c-d286-4a6e-9e32-0c1738ccd3e7), [Sana AI trust grid](https://mobbin.com/screens/4229415a-4ad1-443f-acad-24ed514f98aa), [Airbnb trust columns](https://mobbin.com/screens/b6e77065-a2cf-4a56-849a-5614b3251341), [ClickUp feature cards](https://mobbin.com/sites/sections/f5b064fa-23cd-4c49-917a-ab66d24f21c8)) and Granted’s own Pricing / Trust sections:
+
+1. Centered hero (eyebrow + brand headline + one sentence + CTAs)
+2. 2×2 icon feature cards — trust pillars
+3. 4-step “how it works” row — upload → prepare → generate → stay yours
+4. 4-up hardening strip
+5. Procurement CTA band + privacy/terms links
+
+No single prose column. No “Last updated” in the hero.
 
 ## Hero
 - **Eyebrow:** Security
 - **Headline:** Your org's documents stay yours
-- **Supporting:** Here's how Granted scopes access, handles draft generation, and protects the app — in plain language.
-- **Primary CTA:** Start free → `getAuthUrl("starter")`
-- **Secondary CTA:** Contact us → `mailto:support@grantedai.app?subject=Security%20or%20procurement%20question`
+- **Supporting:** How Granted scopes access, handles uploads and drafting, and hardens the app — built for teams that need speed without giving up trust.
+- **Primary CTA:** Start free
+- **Secondary CTA:** Talk to us about security → mailto:support@grantedai.app
 
-## Who can access your data
-**Heading:** Who can access your data
+## Pillars
+1. **Org-scoped access** — Documents, drafts, and org details stay in your workspace. App data APIs require sign-in, and access follows organization membership.
+2. **Honest draft processing** — Upload and generation may send relevant text to OpenAI's API to summarize, embed, and draft. That data is not used to train models by default.
+3. **Hardened by default** — Secret provider keys (like OpenAI) stay on the server. Production API responses include standard security headers. Data is encrypted in transit and at rest.
+4. **Clear boundaries** — We don't sell your personal information or train foundation models on your content. We won't claim certifications we haven't earned.
 
-Your documents, drafts, and organization details live inside your organization's workspace. App data APIs require a signed-in account, and access is scoped to organization membership — another organization's account cannot open yours.
+## Flow
+1. Upload — Source materials go into your organization's workspace.
+2. Prepare — Document text may be summarized and embedded via OpenAI so relevant passages can be found later.
+3. Generate — For a draft, Granted retrieves the best passages and sends those excerpts to OpenAI's API.
+4. Stay yours — Answers, citations, and versions save back to your organization.
 
-## What happens when you upload and generate
-**Heading:** What happens when you upload and generate
+Training note under the section: OpenAI's API does not use that data to train its models by default. Granted does not use your content to train models.
 
-1. You upload source materials to your organization.
-2. Granted may send document text to OpenAI's API to create a summary and embeddings so we can find relevant passages later.
-3. When you generate a draft, Granted retrieves the most relevant passages and sends those excerpts to OpenAI's API to draft an answer.
-4. The answer, citations, and versions are saved back to your organization.
+## Hardening strip
+- Sign-in required
+- Keys stay server-side
+- Security headers (HSTS + CSP on API responses)
+- Encrypted in transit and at rest
 
-OpenAI's API does not use that data to train its models by default. Granted does not use your content to train models.
-
-## How we harden the app
-**Heading:** How we harden the app
-
-- Sign-in through Supabase Auth for app access
-- OpenAI API keys stay on the server — they are not shipped to the browser
-- API responses include standard security headers (including HSTS and a content security policy)
-- Data is stored with infrastructure providers that encrypt data at rest (AES-256) and encrypt traffic in transit (TLS/HTTPS): Neon (database), Supabase (auth and files), and Vercel (application)
-
-## What we don't do
-**Heading:** What we don't do
-
-- We do not sell your personal information
-- We do not use your content to train foundation models
-- We do not claim certifications we haven't earned — if you need a formal security review for procurement, email us
-
-## Enterprise / procurement
-**Heading:** Security and procurement questions
-
-Evaluating Granted for a larger rollout? Email [support@grantedai.app](mailto:support@grantedai.app) with security or procurement questions. You can also see plans on our [pricing page](/pricing).
-
-## Related
-See also our [Privacy Policy](/privacy) and [Terms of Service](/terms).
-
----
-
-## Companion fixes (same ship)
-
-### Privacy §4 — replace with:
-Content you upload or submit to the Service may be processed by OpenAI (our current AI provider) to summarize documents, generate embeddings for retrieval, and produce draft responses on your behalf. We take reasonable steps to select providers with appropriate data handling practices. We do not use your content to train foundation models. OpenAI's API does not use API inputs or outputs to train its models by default.
-
-### Privacy §6 — append:
-For a plain-language overview of how we handle access, draft generation, and app hardening, see our [Security](/security) page.
-
-### Landing FAQ — replace answer for "How does Granted use our documents?":
-We build a private, per-organization knowledge base to tailor responses. When you upload documents, Granted may send text to OpenAI's API for summarization and embeddings. When you generate a draft, relevant excerpts may also be sent to OpenAI to produce the answer. That data is not used to train OpenAI's models by default, and Granted does not use your content for model training.
+## Procurement CTA
+Evaluating Granted for procurement? Email support@grantedai.app · View pricing · Privacy · Terms

@@ -16,7 +16,7 @@ Checked against: live product code, `/privacy` + FAQ copy, and public Neon / Sup
 | Helmet / HTTP hardening | **Pass** — claimable for production |
 | OpenAI processes content for drafts | **Pass** — must say this clearly |
 | “We don’t train on your content” | **Pass if rephrased** — Granted doesn’t train; OpenAI API doesn’t train by default. Do not imply Zero Data Retention |
-| Encryption at rest / in transit | **Pass if attributed to providers** — Neon, Supabase, Vercel publicly document AES-256 at rest + TLS in transit |
+| Encryption at rest / in transit | **Pass if generic** — say encrypted in transit/at rest; **do not name** Neon / Supabase / Vercel (or other infra vendors) on the public page |
 | Specific data residency (region) | **Stay silent / keep Privacy §9** — we did not verify Granted’s Neon/Supabase project regions |
 | Anthropic as processor | **Fail in Privacy** — unused; must remove before `/security` ships |
 | FAQ “content is not shared” | **Fail** — overstrong; content *is* sent to OpenAI for generation |
@@ -78,10 +78,11 @@ OK if “we” = Granted, but pair with an accurate processor list and optionall
 | OpenAI | Generation + embeddings | Processor for draft generation — not “our servers only” |
 
 ### How to say it on `/security`
-**Allowed:** “Data is stored with infrastructure providers that encrypt data at rest (AES-256) and encrypt traffic in transit (TLS/HTTPS) — Neon (database), Supabase (auth/files), Vercel (application).”
+**Allowed:** “Data is encrypted in transit and at rest.”
 
 **Not allowed:**
-- Claiming **Granted** is SOC 2 / ISO because Neon/Vercel are
+- Naming hosting, database, auth, or CDN vendors (Neon, Supabase, Vercel, AWS, etc.)
+- Claiming **Granted** is SOC 2 / ISO because a vendor is
 - Naming a specific cloud region without verifying our project settings
 - “Your data never leaves our servers”
 
@@ -129,7 +130,7 @@ Prioritized work before copy freezes and `/security` ships.
 |---|---|---|
 | 6 | `VITE_OPENAI_API_KEY` server alias | **Retained** as legacy server-only fallback during env migration; document `OPENAI_API_KEY` as primary (`VERCEL_ENV_SETUP.md`). Remove alias only after all Vercel envs set `OPENAI_API_KEY`. |
 | 7 | Dead `client/src/lib/rag/*` | **Done** — deleted unused client OpenAI path |
-| 8 | Encryption section | Add provider-attributed AES-256 / TLS bullets to `/security` (sources above) |
+| 8 | Encryption section | Generic “encrypted in transit and at rest” only — **no vendor names** on the public page |
 | 9 | Auth claim wording | “App data APIs require sign-in” — not “all requests” |
 
 ### P2 — Nice follow-ups (not blocking v1 page)
@@ -162,7 +163,7 @@ Prioritized work before copy freezes and `/security` ships.
 - Production HTTP security headers (Helmet)
 - Draft generation sends relevant document context to OpenAI’s API
 - Granted does not train models on your content; OpenAI API does not train on API data by default
-- Infrastructure providers encrypt at rest (AES-256) and in transit (TLS/HTTPS) — Neon, Supabase, Vercel
+- Data encrypted in transit and at rest (no infra vendor names on the public page)
 - Contact: `support@grantedai.app` for security / procurement on `/security`
 
 ### Still must not claim
