@@ -86,7 +86,8 @@ const hardenItems = [
   {
     icon: ShieldCheck,
     title: "Security headers",
-    description: "API responses include HSTS and a content security policy.",
+    description:
+      "Production API responses include HSTS and a content security policy.",
   },
   {
     icon: ShieldCheck,
@@ -220,7 +221,7 @@ export default function Security() {
               Hardening
             </div>
             <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
-              Practical controls on every request
+              Practical controls that protect your workspace
             </h2>
           </div>
           <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
