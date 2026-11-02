@@ -51,7 +51,17 @@ function buildConfirmationUrl(emailData: EmailData): string {
   return `${SUPABASE_URL}/auth/v1/verify?${params.toString()}`
 }
 
-function fallbackHtml(heading: string, body: string, confirmationUrl: string): string {
+function fallbackHtml(heading: string, body: string, confirmationUrl: string | null): string {
+  const cta = confirmationUrl
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td bgcolor="#2186EB" style="border-radius:999px;">
+<a href="${confirmationUrl}" style="display:inline-block;padding:12px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#FFFFFF;text-decoration:none;">Continue</a>
+</td>
+</tr>
+</table>
+<p style="margin:24px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#8A94A6;">If the button doesn't work, copy and paste this link: ${confirmationUrl}</p>`
+    : ""
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -77,14 +87,7 @@ function fallbackHtml(heading: string, body: string, confirmationUrl: string): s
 </tr>
 <tr>
 <td style="padding:0 32px 32px 32px;">
-<table role="presentation" cellpadding="0" cellspacing="0" border="0">
-<tr>
-<td bgcolor="#2186EB" style="border-radius:999px;">
-<a href="${confirmationUrl}" style="display:inline-block;padding:12px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#FFFFFF;text-decoration:none;">Continue</a>
-</td>
-</tr>
-</table>
-<p style="margin:24px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#8A94A6;">If the button doesn't work, copy and paste this link: ${confirmationUrl}</p>
+${cta}
 </td>
 </tr>
 </table>
@@ -117,7 +120,7 @@ async function sendViaTemplate(to: string, alias: string, subject: string, confi
   }
 }
 
-async function sendFallback(to: string, subject: string, heading: string, body: string, confirmationUrl: string) {
+async function sendFallback(to: string, subject: string, heading: string, body: string, confirmationUrl: string | null) {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -152,8 +155,9 @@ Deno.serve(async (req: Request) => {
     user = verified.user
     emailData = verified.email_data
   } catch (error) {
+    console.error("auth-send-email: webhook verification failed", (error as Error).message)
     return Response.json(
-      { error: { http_code: 401, message: `Invalid webhook signature: ${(error as Error).message}` } },
+      { error: { http_code: 401, message: "Invalid webhook signature" } },
       { status: 401 },
     )
   }
@@ -164,6 +168,16 @@ Deno.serve(async (req: Request) => {
   try {
     if (mapped) {
       await sendViaTemplate(user.email, mapped.alias, mapped.subject, confirmationUrl)
+    } else if (emailData.email_action_type.endsWith("_notification")) {
+      // Security notifications (password/email changed, MFA or identity
+      // changes) carry no token to verify, so they get no action link.
+      await sendFallback(
+        user.email,
+        "Security notice for your Granted AI account",
+        "Your account was updated",
+        "A security setting on your Granted AI account just changed. If you didn't make this change, reset your password and email support@grantedai.app.",
+        null,
+      )
     } else {
       // Unhandled action type (invite, magic link, email change, reauth) —
       // send a minimal branded email so the flow still works rather than
