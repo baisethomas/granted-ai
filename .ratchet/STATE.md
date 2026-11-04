@@ -17,7 +17,7 @@ Install Ratchet in granted-ai (brief PR #62) by merging the drop-in contract int
 
 ## Current phase
 
-Ratchet install is on `cursor/install-ratchet-b7d1` as work PR #63. Waiting on Ternary review and Vercel preview. Do not merge.
+Ratchet install is on `cursor/install-ratchet-b7d1` as work PR #63. Empty commit `3b4514660ad45ee61c4856f2a0b0fd9bfbf03f66` retriggered Ternary now that it watches this repo. Waiting on that check. Do not merge.
 
 ## Completed
 
@@ -40,8 +40,8 @@ Ratchet install is on `cursor/install-ratchet-b7d1` as work PR #63. Waiting on T
 
 ## Next
 
-1. Wait for Ternary review and Vercel preview on PR #63; do not disable Ternary.
-2. Post remaining evidence on brief PR #62 if anything was missing at open time.
+1. Wait for Ternary on the retrigger head; do not disable or bypass it.
+2. Post a follow-up evidence comment on brief PR #62 with the final head and check conclusions.
 3. Operator reviews and merges (reserved). After merge, rewrite this file on `main`.
 
 ## Blocked
@@ -84,4 +84,4 @@ When PR #63 is merged, rewrite this file against `main`: tag the install `[merge
 - Updated: 2026-11-04
 - By: agent (Cursor Grok)
 - Branch/worktree: cursor/install-ratchet-b7d1
-- Last known-good commit: 6cb6920b675af9294c8a724720fd28b6310f0829 (pre-guard-extension; this handoff adds the db:push gate)
+- Last known-good commit: 3b4514660ad45ee61c4856f2a0b0fd9bfbf03f66 (empty retrigger; this handoff only records that SHA)
