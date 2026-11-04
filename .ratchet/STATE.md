@@ -17,7 +17,7 @@ Install Ratchet in granted-ai (brief PR #62) by merging the drop-in contract int
 
 ## Current phase
 
-Ratchet install on `cursor/install-ratchet-b7d1`. Files are in place; first push will mint the work PR number, then this file is updated with `[open PR #N]`.
+Ratchet install is on `cursor/install-ratchet-b7d1` as work PR #63. Waiting on Ternary review and Vercel preview. Do not merge.
 
 ## Completed
 
@@ -25,10 +25,11 @@ Ratchet install on `cursor/install-ratchet-b7d1`. Files are in place; first push
 - Appended the filled Ratchet contract to `AGENTS.md` and the Claude adapter to `CLAUDE.md` without deleting prior rules.
 - Wired `.claude/settings.json` hooks (lint, stop gate, destructive guard). Stop-hook `CHECKS` is lint + tsc + `test:run`.
 - Recorded install decisions in `DECISIONS.md`.
+- Opened work PR #63 off `main`.
 
 ## Working on
 
-- Ratchet install for granted-ai (this branch; PR number pending first push)
+- Ratchet install for granted-ai [open PR #63]
 - brief: install-ratchet [open PR #62]
 - brief: stale-pr-triage [open PR #61]
 - Install Vercel Web Analytics [open PR #60]
@@ -38,13 +39,13 @@ Ratchet install on `cursor/install-ratchet-b7d1`. Files are in place; first push
 
 ## Next
 
-1. Push this branch, open the work PR, then replace "PR number pending first push" with `[open PR #N]`.
-2. Post the evidence table on brief PR #62 (install command/output, diffs, grep, tests/build, five-section PR body).
-3. Wait for Ternary review and Vercel preview; do not merge.
+1. Wait for Ternary review and Vercel preview on PR #63; do not disable Ternary.
+2. Post remaining evidence on brief PR #62 if anything was missing at open time.
+3. Operator reviews and merges (reserved). After merge, rewrite this file on `main`.
 
 ## Blocked
 
-- None. Merge of this PR is reserved for the operator.
+- None. Merge of PR #63 is reserved for the operator.
 
 ## Important context
 
@@ -74,11 +75,11 @@ Ratchet install on `cursor/install-ratchet-b7d1`. Files are in place; first push
 
 ## Integration note
 
-When this branch is merged, rewrite this file against `main`: tag the install PR `[merged #N]`, keep the other open PRs, and set Next to "use Ratchet pickup on the next workstream". Git is the integration mechanism.
+When PR #63 is merged, rewrite this file against `main`: tag the install `[merged #63]`, keep the other open PRs, and set Next to "use Ratchet pickup on the next workstream". Git is the integration mechanism.
 
 ## Last handoff
 
 - Updated: 2026-11-04
 - By: agent (Cursor Grok)
 - Branch/worktree: cursor/install-ratchet-b7d1
-- Last known-good commit: pending first commit on this branch
+- Last known-good commit: 2fd74b414e32a6a49a8a9072ac3490682168f8f2
