@@ -80,3 +80,15 @@ At branch integration, preserve compatible entries from all sides; escalate mate
 - **Consequences:** Claude Code cannot run `npm run db:push` or `drizzle-kit generate` by momentum; a human must run them. `rrr.sh` concurrent-run P2 on the same review was left alone (upstream template, not this repo's mutation path).
 - **Revisit when:** Ratchet's drop-in guard gains `db:push` / `generate` itself, or this repo adds another schema-mutation script.
 - **Approved by:** agent (authorized by brief PR #62; responding to Codex P1 on PR #63)
+
+### D-20261104-2326-resync-ratchet-1.2.1 — Re-sync installed Ratchet files to 1.2.1 (770fc5d)
+
+- **Status:** accepted
+- **Impact:** medium
+- **Date:** 2026-11-04
+- **Decision:** Bring the installed upstream Ratchet files on PR #63 to Ratchet 1.2.1 at main squash `770fc5d8c40fdbc56af5f99ec0e7c82a20b54091`. Leave `AGENTS.md` and `CLAUDE.md` content unchanged (including the `ratchet-version: 1.2.0` markers). Restore `guard-destructive.sh` to upstream 770fc5d byte-for-byte, dropping the local `db:push` / `drizzle-kit generate` fork from D-20261104-2156-guard-db-push. This entry supersedes that decision; the earlier entry is left as written (append-only).
+- **Why:** CoS lifted the hold after Ratchet PR #20 merged. 1.2.1 fails closed on unexpected `payload_field` status and names a missing `lib-payload.sh`, and it fixes the ratchet-init / ratchet-upgrade source-root traversal Ternary flagged. The same instruction required those four scripts to match 770fc5d exactly, so a three-way MERGE that kept the db:push fork was refused for the guard.
+- **Rejected / alternatives:** Apply the MERGE proposal for `guard-destructive.sh` (would keep db:push patterns and fail the byte-for-byte check). Patch `AGENTS.md` / `CLAUDE.md` version comments to 1.2.1 (forbidden: those are project files). Keep the local db:push tests in `test-hooks.sh` (they would fail against the restored guard).
+- **Consequences:** `npm run db:push` and `npx drizzle-kit generate` are no longer blocked by the installed guard; `drizzle-kit push` and `db:migrate` still are. Installed `test-install.sh` / `test-upgrade.sh` fail (do not skip) when this repo has no Ratchet drop-in source. `AGENTS.md` still reads `ratchet-version: 1.2.0` while hooks/skills are 1.2.1.
+- **Revisit when:** a later Ratchet release covers `db:push` / `generate`, or the operator allows updating the version markers in `AGENTS.md` / `CLAUDE.md`.
+- **Approved by:** agent (authorized by CoS re-sync of brief PR #62 / work PR #63)

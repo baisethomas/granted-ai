@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ratchet-version: 1.2.0
+# ratchet-version: 1.2.1
 # PreToolUse(Bash) guard: surface the hard stops in AGENTS.md so irreversible
 # commands stop and go to a human instead of running by momentum.
 #
@@ -29,8 +29,18 @@
 
 set -uo pipefail
 
+lib="$(dirname "${BASH_SOURCE[0]}")/lib-payload.sh"
+# Cannot verify if the helper is missing, unreadable, or fails to source: an
+# unread payload would look like an empty command and fail open.
+if [ ! -r "$lib" ]; then
+  echo "BLOCKED by guard hook: cannot load lib-payload.sh (missing or unreadable), so destructive commands cannot be checked." >&2
+  exit 2
+fi
 # shellcheck source=lib-payload.sh
-. "$(dirname "${BASH_SOURCE[0]}")/lib-payload.sh"
+. "$lib" || {
+  echo "BLOCKED by guard hook: cannot load lib-payload.sh, so destructive commands cannot be checked." >&2
+  exit 2
+}
 
 input=$(cat)
 
@@ -38,10 +48,18 @@ input=$(cat)
 # which would silently allow every destructive operation. "Cannot verify" must
 # never be treated as "nothing to block".
 command=$(payload_field "$input" '.tool_input.command' '?.tool_input?.command')
-case $? in
+pf_status=$?
+# payload_field is specified to return 0, 1, or 2. Any other status — helper
+# crash, command-not-found after a failed source, a future return code — used
+# to fall through, treat the empty capture as "no command", and allow the
+# tool through. Cannot verify => block.
+case $pf_status in
+  0) ;;
   1) echo "BLOCKED by guard hook: no JSON parser available (needs jq or node), so destructive commands cannot be checked. Install jq, then retry." >&2
      exit 2 ;;
   2) echo "BLOCKED by guard hook: could not parse the hook payload, so destructive commands cannot be checked. Fix the JSON parser (jq/node), then retry." >&2
+     exit 2 ;;
+  *) echo "BLOCKED by guard hook: payload parser exited $pf_status unexpectedly, so destructive commands cannot be checked. Fix the JSON parser (jq/node), then retry." >&2
      exit 2 ;;
 esac
 
@@ -237,7 +255,7 @@ has_raw "git[[:space:]]+${GIT_GLOBALS}[^[:space:];&|]*(\\\$|${BRACE})" \
 { seg_has_raw "$(git_sub '(push|reset|branch|clean|filter-branch|filter-repo)')" "$EXPANSION" \
   || seg_has_raw '(^|[[:space:]])rm([[:space:]]|$)' "$EXPANSION" \
   || seg_has_raw '(^|[[:space:]])(curl|wget|scp|rsync|sftp)([[:space:]]|$)' "$EXPANSION" \
-  || seg_has_raw_i 'psql|mysql|prisma|drizzle-kit|db:migrate|db:push' "$EXPANSION"; } \
+  || seg_has_raw_i 'psql|mysql|prisma|drizzle-kit|db:migrate' "$EXPANSION"; } \
   && block "a destructive-family or outbound command with shell expansion in its arguments, which cannot be checked"
 
 seg_has "$(git_sub push)" "$FORCE_FLAG" \
@@ -275,7 +293,7 @@ RM='rm([[:space:]]|$)'
   || seg_has "$RM" '(^|[[:space:]])(-[[:alpha:]]*[rR]|--recursive)([[:space:]]|$)' '(^|[[:space:]])(-[[:alpha:]]*f|--force)([[:space:]]|$)'; } \
   && block "a recursive force delete"
 
-has 'db:migrate|db:push|migrate[[:space:]]+(up|down|deploy|latest|reset)|prisma[[:space:]]+migrate|drizzle-kit[[:space:]]+(push|generate)' \
+has 'db:migrate|migrate[[:space:]]+(up|down|deploy|latest|reset)|prisma[[:space:]]+migrate|drizzle-kit[[:space:]]+push' \
   && block "a database migration"
 
 has_i 'DROP[[:space:]]+(TABLE|DATABASE|SCHEMA)|TRUNCATE[[:space:]]+TABLE' \
