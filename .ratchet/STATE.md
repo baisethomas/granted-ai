@@ -26,6 +26,7 @@ Ratchet install is on `cursor/install-ratchet-b7d1` as work PR #63. Waiting on T
 - Wired `.claude/settings.json` hooks (lint, stop gate, destructive guard). Stop-hook `CHECKS` is lint + tsc + `test:run`.
 - Recorded install decisions in `DECISIONS.md`.
 - Opened work PR #63 off `main`.
+- Extended the destructive-command guard so `npm run db:push` and `npx drizzle-kit generate` are blocked (Codex P1 on #63). Left the `rrr.sh` overlap P2 as upstream Ratchet.
 
 ## Working on
 
@@ -64,6 +65,7 @@ Ratchet install is on `cursor/install-ratchet-b7d1` as work PR #63. Waiting on T
 - `npm run build` exit 0 (vite + esbuild).
 - `.claude/hooks/test-hooks.sh` 258 passed, 0 failed (stderr: two `jq: Argument list too long` lines in the large-payload case).
 - `.agents/skills/ratchet-bugfix/scripts/test-rrr.sh` 34 passed, 0 failed.
+- Guard probes after Codex P1: `npm run db:push`, `npx drizzle-kit push`, and `npx drizzle-kit generate` exit 2; `npm run test:run` exit 0. `test-hooks.sh` 261 passed, 0 failed.
 - `AGENTS.md` / `CLAUDE.md` vs `origin/main`: prefix-identical; additions only. Linear `feat/GRA-<id>` rule still in `CLAUDE.md`.
 - Seeded `.ratchet/` files, `AGENTS.md`, `CLAUDE.md`, and `CODEX.md` have no template-placeholder slots. Ratchet skill/hook files still document that sentinel by design.
 
@@ -82,4 +84,4 @@ When PR #63 is merged, rewrite this file against `main`: tag the install `[merge
 - Updated: 2026-11-04
 - By: agent (Cursor Grok)
 - Branch/worktree: cursor/install-ratchet-b7d1
-- Last known-good commit: 2fd74b414e32a6a49a8a9072ac3490682168f8f2
+- Last known-good commit: 6cb6920b675af9294c8a724720fd28b6310f0829 (pre-guard-extension; this handoff adds the db:push gate)

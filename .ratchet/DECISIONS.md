@@ -68,3 +68,15 @@ At branch integration, preserve compatible entries from all sides; escalate mate
 - **Consequences:** Stop-hook and `ratchet-done` both run the same three scripts. The lint hook keeps the template language rows so `test-hooks.sh` still exercises them; only the ESLint row is used in daily TypeScript/JavaScript work.
 - **Revisit when:** a single composite npm script is added, or a GitHub Actions workflow starts running a different set.
 - **Approved by:** agent (authorized by brief PR #62)
+
+### D-20261104-2156-guard-db-push — Guard npm run db:push and drizzle-kit generate
+
+- **Status:** accepted
+- **Impact:** medium
+- **Date:** 2026-11-04
+- **Decision:** Extend the installed destructive-command guard so `npm run db:push` and `npx drizzle-kit generate` are blocked, matching this repo's real schema-mutation commands and the hard stop in `AGENTS.md`.
+- **Why:** The drop-in guard blocked `db:migrate` and `drizzle-kit push` but not the `db:push` script this repo actually runs. Codex P1 on PR #63 showed a payload with `npm run db:push` exiting 0. That is the ordinary path to mutate production schema.
+- **Rejected / alternatives:** Leave the template patterns unchanged (the command this repo uses would silently pass). Upstream a Ratchet change first (out of scope for this install; this repo still needs the gate now).
+- **Consequences:** Claude Code cannot run `npm run db:push` or `drizzle-kit generate` by momentum; a human must run them. `rrr.sh` concurrent-run P2 on the same review was left alone (upstream template, not this repo's mutation path).
+- **Revisit when:** Ratchet's drop-in guard gains `db:push` / `generate` itself, or this repo adds another schema-mutation script.
+- **Approved by:** agent (authorized by brief PR #62; responding to Codex P1 on PR #63)

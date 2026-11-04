@@ -237,7 +237,7 @@ has_raw "git[[:space:]]+${GIT_GLOBALS}[^[:space:];&|]*(\\\$|${BRACE})" \
 { seg_has_raw "$(git_sub '(push|reset|branch|clean|filter-branch|filter-repo)')" "$EXPANSION" \
   || seg_has_raw '(^|[[:space:]])rm([[:space:]]|$)' "$EXPANSION" \
   || seg_has_raw '(^|[[:space:]])(curl|wget|scp|rsync|sftp)([[:space:]]|$)' "$EXPANSION" \
-  || seg_has_raw_i 'psql|mysql|prisma|drizzle-kit|db:migrate' "$EXPANSION"; } \
+  || seg_has_raw_i 'psql|mysql|prisma|drizzle-kit|db:migrate|db:push' "$EXPANSION"; } \
   && block "a destructive-family or outbound command with shell expansion in its arguments, which cannot be checked"
 
 seg_has "$(git_sub push)" "$FORCE_FLAG" \
@@ -275,7 +275,7 @@ RM='rm([[:space:]]|$)'
   || seg_has "$RM" '(^|[[:space:]])(-[[:alpha:]]*[rR]|--recursive)([[:space:]]|$)' '(^|[[:space:]])(-[[:alpha:]]*f|--force)([[:space:]]|$)'; } \
   && block "a recursive force delete"
 
-has 'db:migrate|migrate[[:space:]]+(up|down|deploy|latest|reset)|prisma[[:space:]]+migrate|drizzle-kit[[:space:]]+push' \
+has 'db:migrate|db:push|migrate[[:space:]]+(up|down|deploy|latest|reset)|prisma[[:space:]]+migrate|drizzle-kit[[:space:]]+(push|generate)' \
   && block "a database migration"
 
 has_i 'DROP[[:space:]]+(TABLE|DATABASE|SCHEMA)|TRUNCATE[[:space:]]+TABLE' \
