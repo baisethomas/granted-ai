@@ -254,3 +254,50 @@ Loaded locally by `server/env.ts` (dotenv, `.env.local` then `.env`) — a side-
 | `/campaign` | When planning/building a marketing campaign | Runs the marketing agent team: **campaign-strategist** writes a brief (goal, audience, angle, calendar; commissions **market-researcher** intel briefs → `marketing/research/` when the landscape is unclear) → you approve → it delegates to **social-media-manager**, **content-generator** (long-form: blog/guides/case studies/landing copy), **ad-copywriter**, and **visual-producer** (`npm run marketing:image`) → **brand-voice** checks the copy → package lands in `marketing/campaigns/<slug>/` (images in `marketing/assets/`, gitignored) |
 
 The harness loads automatically on session start — you never need to activate it. These commands are for deliberate mid-session actions.
+
+---
+
+# Ratchet adapter (Claude Code)
+<!-- ratchet-version: 1.2.0 -->
+
+<!--
+Appended to the existing CLAUDE.md rather than replacing it. Everything above
+(this file's project guide, never-break rules, Linear `/start` tracking, and
+slash commands) is unchanged. AGENTS.md now also holds Ratchet's model-agnostic
+operating contract. Do not duplicate those Ratchet rules here.
+-->
+
+Before doing any work, read and follow `AGENTS.md` in full, including the Ratchet operating contract. Its rules govern planning, verification, scope, project-memory maintenance, decision autonomy, hard stops, reporting, and handoff. The never-break product rules in this file remain in force.
+
+## Claude Code specifics
+
+- Use plan mode for nontrivial work when available.
+- Respect configured `.claude/` hooks and never bypass a failing stop/check hook merely to complete the task.
+- Read `.ratchet/STATE.md` and `.ratchet/DECISIONS.md` through the workflow defined in `AGENTS.md`.
+- Maintain project memory autonomously according to the low/medium/high impact thresholds in `AGENTS.md`.
+- Treat any conflict between this adapter section and `AGENTS.md` as a configuration error. `AGENTS.md` wins; report the conflict. This does not license dropping the never-break product rules, Linear `/start` branch naming, or Codex `/review` merge gate documented above.
+
+## Model routing
+
+Tiers, what each owns, and the routing rules are defined in `AGENTS.md` → Delegation and model tiers. This table only says which model fills each tier here. The owner picks the orchestrator's model (`/model`, or the `model` setting). Set a subagent's tier with the Agent tool's `model` parameter, or with `model:` in a `.claude/agents/*.md` definition.
+
+The **Model Assignments** table earlier in this file is a separate, older map of Claude session work to Opus/Sonnet/Haiku. Keep using it for in-session task routing in this repo. The table below is the Ratchet delegation-tier map for subagent work.
+
+| Tier | Model | Effort |
+|---|---|---|
+| Orchestrate | **Fable** (`fable`) | the owner's setting |
+| Operate, high risk | **Opus** (`opus`) | `high` |
+| Operate, routine | **Sonnet** (`sonnet`) | `medium` |
+| Git & docs | **Haiku** (`haiku`) | `low` |
+
+The value in backticks is the alias that `/model`, the `model` setting, and the Agent tool accept. Fable is not available on every plan or Claude Code version: where `fable` is not selectable, Opus orchestrates and takes the high-risk tier as well — state the substitution, as `AGENTS.md` requires.
+
+Effort is the Agent tool's `effort` parameter and is a floor for the tier: raise it for a hard unit, never lower it on high-risk work to save tokens. A second failed verification escalates the tier, as `AGENTS.md` says, not the effort.
+
+## Repo-specific Claude notes
+
+- This file remains the project guide. `AGENTS.md` is the Codex/Ratchet entry point and now contains both the original five-gotchas pointer and the Ratchet contract.
+- Linear tracking is unchanged: `/start` before any issue work; branches are `feat/GRA-<id>-…`, `fix/GRA-<id>-…`, or `chore/…`. Do not rewrite that rule even if Linear teams have moved.
+- After a PR exists, `/review` (Codex) is still the only path into `main`. Ratchet does not replace that gate.
+- After a structural change, `/sync-docs` still applies.
+- Never fabricate citations; never call an LLM without `billingService.checkLimit`; never expose `OPENAI_API_KEY` client-side; never bypass `organizationId` tenant isolation.

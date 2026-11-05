@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# ratchet-version: 1.3.1
+# PostToolUse(Edit|Write) hook: lint the file that was just edited so the error
+# lands in-loop, whether or not the model would have checked on its own. One
+# linter per file type (see lint_command_for); a mapped type whose linter is
+# missing is reported, never silently skipped.
+#
+# Contract (https://code.claude.com/docs/en/hooks):
+#   - input arrives as JSON on stdin; the path is at .tool_input.file_path
+#     (there is NO $CLAUDE_FILE_PATHS environment variable)
+#   - exit 2 surfaces stderr back to Claude; exit 0 is silent success
+
+set -uo pipefail
+
+# shellcheck source=lib-payload.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib-payload.sh"
+
+input=$(cat)
+
+# Without a parser this hook would skip every file and look like it was passing.
+# Surface that once, visibly, rather than pretending to lint.
+file=$(payload_field "$input" '.tool_input.file_path' '?.tool_input?.file_path')
+case $? in
+  1) no_parser_message "lint hook disabled"; exit 2 ;;
+  2) echo "lint hook disabled: could not parse the hook payload, so edited files are not being linted. Fix the JSON parser (jq/node)." >&2
+     exit 2 ;;
+esac
+
+[ -z "$file" ] && exit 0
+
+# One linter per file type; the edited file's path is appended to the command.
+# Keep the template rows so test-hooks.sh can exercise missing-linter and
+# non-ESLint cases. Only the ESLint row is used in daily work here (this repo
+# is TypeScript/JavaScript). A row whose tool is not installed is REPORTED on
+# every edit, not skipped.
+lint_command_for() {
+  case "$1" in
+    *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs) echo "npx eslint --no-warn-ignored" ;;
+    *.py)                              echo "ruff check --quiet" ;;      # --quiet: no "All checks passed!" on success
+    *.swift)                           echo "swiftlint lint --quiet" ;;
+    *.go)                              echo "gofmt -l" ;;
+    *.rs)                              echo "cargo fmt --quiet -- --check" ;;   # via cargo so the crate's edition applies
+    *.rb)                              echo "rubocop --format simple" ;;
+    *.sh|*.bash)                       echo "shellcheck" ;;
+    *)                                 echo "" ;;
+  esac
+}
+
+lint_cmd=$(lint_command_for "$file")
+# Not a file type this repo lints (docs, config, data): nothing to do.
+[ -z "$lint_cmd" ] && exit 0
+
+# The tool that must exist is the linter, not its launcher: `npx eslint` needs
+# ESLint in node_modules/.bin or on PATH, and "npx exists" proves nothing (npx
+# would try to fetch it, or print an npm error that reads like lint output).
+tool=${lint_cmd%% *}
+if [ "$tool" = "npx" ]; then
+  tool=$(printf '%s' "$lint_cmd" | awk '{ print $2 }')
+  installed=0
+  [ -x "${CLAUDE_PROJECT_DIR:-.}/node_modules/.bin/$tool" ] && installed=1
+  command -v "$tool" >/dev/null 2>&1 && installed=1
+else
+  installed=0; command -v "$tool" >/dev/null 2>&1 && installed=1
+fi
+if [ "$installed" -eq 0 ]; then
+  echo "lint hook: ${file##*.} files are mapped to '${lint_cmd}' but '${tool}' is not installed, so ${file} was NOT linted. Install it, or remove that row from lint_command_for in .claude/hooks/lint-edited-file.sh." >&2
+  exit 2
+fi
+
+# Say so rather than skipping silently: an unlinted edit that looks linted is
+# the failure mode this hook exists to remove.
+if ! cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null; then
+  echo "lint hook disabled: cannot enter CLAUDE_PROJECT_DIR (${CLAUDE_PROJECT_DIR:-.}), so ${file} was not linted." >&2
+  exit 2
+fi
+
+# Capture rather than pipe: a pipeline would report tail's status, not the linter's.
+# shellcheck disable=SC2086  # lint_cmd is a command with flags, split on purpose
+output=$($lint_cmd "$file" 2>&1)
+status=$?
+
+# Several linters exit 0 with warnings (ESLint) or only print offending file
+# names (gofmt -l), so an exit-code check alone would stay silent on real
+# problems. Surface any output at all.
+if [ "$status" -eq 0 ] && [ -z "${output//[[:space:]]/}" ]; then
+  exit 0
+fi
+
+{
+  echo "${tool} reported problems in ${file} (note: a linter does not typecheck; run the build or tests for type errors):"
+  printf '%s\n' "$output" | head -40
+} >&2
+exit 2
