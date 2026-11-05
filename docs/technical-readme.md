@@ -432,6 +432,7 @@ Combines two search strategies:
 - Production API errors omit internal `details`; verbose HTTP body logging only when `DEBUG_VERBOSE_HTTP=1`
 - Worker/cron batch sizes capped (`DOCUMENT_WORKER_BATCH_MAX`, default 50)
 - Organization-scoped access checks on projects and billing-sensitive actions
+- **Database access is server-only.** The app reaches Postgres only over `DATABASE_URL` as the table-owner role (Drizzle, plus the `pg` pool behind the Passport session store); it never uses Supabase's PostgREST Data API. That path is doubly locked: the Data API is **disabled** in the Supabase dashboard, and Row Level Security is **enabled on all 19 Drizzle-managed tables** (`supabase/migrations/0005_enable_rls_public_tables.sql`), so the browser anon key cannot read the database directly. The Passport `session` table, created at runtime by `connect-pg-simple`, is not covered by that migration and relies on the Data API being off. Note: Drizzle `db:push` does not manage RLS — any new table must have RLS enabled explicitly via a hand-written file in `supabase/migrations/`.
 
 ---
 
