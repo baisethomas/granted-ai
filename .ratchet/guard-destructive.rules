@@ -1,0 +1,4 @@
+# Extra blocked commands for this project. Combined with Ratchet defaults.
+# Restores the D-20261104-2156 db:push / generate block via the 1.3.0 project-rules file.
+npm run db:push
+drizzle-kit generate

@@ -92,3 +92,15 @@ At branch integration, preserve compatible entries from all sides; escalate mate
 - **Consequences:** `npm run db:push` and `npx drizzle-kit generate` are no longer blocked by the installed guard; `drizzle-kit push` and `db:migrate` still are. Installed `test-install.sh` / `test-upgrade.sh` fail (do not skip) when this repo has no Ratchet drop-in source. `AGENTS.md` still reads `ratchet-version: 1.2.0` while hooks/skills are 1.2.1.
 - **Revisit when:** a later Ratchet release covers `db:push` / `generate`, or the operator allows updating the version markers in `AGENTS.md` / `CLAUDE.md`.
 - **Approved by:** agent (authorized by CoS re-sync of brief PR #62 / work PR #63)
+
+### D-20261105-0125-restore-db-push-via-project-rules — Restore db:push / generate block via project rules
+
+- **Status:** accepted
+- **Impact:** medium
+- **Date:** 2026-11-05
+- **Decision:** Bring the installed upstream Ratchet files on PR #63 to Ratchet 1.3.0 at main squash `11a02d0dca64c9af6bc11400d693b7cea9a77c03`. Keep every installed upstream file byte-identical to that drop-in, including `guard-destructive.sh` (no local fork). Restore the `npm run db:push` and `drizzle-kit generate` block as a PROJECT rule in `.ratchet/guard-destructive.rules`, using the 1.3.0 documented format. This entry supersedes D-20261104-2326-resync-ratchet-1.2.1; the earlier entry is left as written (append-only).
+- **Why:** 1.3.0 adds project-owned extra guard rules so a repo can block extra commands without forking the hook. D-20261104-2326 dropped the local fork to satisfy the 1.2.1 byte-for-byte check; the block is still required because `npm run db:push` is this repo's real schema-mutation path. The documented example at 11a02d0 is exactly these two patterns.
+- **Rejected / alternatives:** Re-fork `guard-destructive.sh` (fails the 11a02d0 byte-identical requirement). Leave the block dropped (the command this repo uses would silently pass). Patch `AGENTS.md` / `CLAUDE.md` version comments to 1.3.0 (forbidden: those are project files).
+- **Consequences:** `npm run db:push` and `npx drizzle-kit generate` are blocked again, via `.ratchet/guard-destructive.rules`, not a hook fork. Defaults still block `drizzle-kit push` and `db:migrate`. `install.sh` / `upgrade.sh` classify the rules file as MEMORY and never overwrite it. `AGENTS.md` / `CLAUDE.md` still read `ratchet-version: 1.2.0` while hooks/skills/`CODEX.md` are 1.3.0. Stop-hook `CHECKS` and the lint-hook comment stay as owner edits (`CURRENT`).
+- **Revisit when:** Ratchet's default guard gains `db:push` / `generate` itself, or this repo adds another schema-mutation script, or the operator allows updating the version markers in `AGENTS.md` / `CLAUDE.md`.
+- **Approved by:** agent (authorized by brief PR #62 / work PR #63 re-sync to 11a02d0)
