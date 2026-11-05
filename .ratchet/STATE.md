@@ -89,4 +89,4 @@ When PR #63 is merged, rewrite this file against `main`: tag the install `[merge
 - Updated: 2026-11-05
 - By: agent (Cursor Grok 4.6)
 - Branch/worktree: cursor/install-ratchet-b7d1
-- Last known-good commit: pending this session's commit (1.3.0 re-sync + project rules)
+- Last known-good commit: 87948a3c7d8b74f6579f0c081a4d918d5abf883a (Ratchet 1.3.0 re-sync + project rules)
