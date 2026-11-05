@@ -17,17 +17,16 @@ Install Ratchet in granted-ai (brief PR #62) by merging the drop-in contract int
 
 ## Current phase
 
-Re-synced installed Ratchet files on `cursor/install-ratchet-b7d1` (work PR #63) to Ratchet 1.3.0 at main squash `11a02d0dca64c9af6bc11400d693b7cea9a77c03`. Restored the `db:push` / `generate` block via `.ratchet/guard-destructive.rules` (no hook fork). Waiting on Ternary on the new head. Do not merge.
+Re-synced installed Ratchet files on `cursor/install-ratchet-b7d1` (work PR #63) to Ratchet 1.3.1 at main squash `efb2dc70b61a79f912ef36aac5c8ce3ca4372b96`. Project rules file unchanged. Waiting on Vercel and Ternary on the new head. Do not merge.
 
 ## Completed
 
 - Ran `install.sh --from <Ratchet>/drop-in --to <repo> --claude --codex` on 2026-11-04: added `.ratchet/`, `.agents/skills/`, hooks, `CODEX.md`, and `.claude/skills` symlink; skipped existing `AGENTS.md` and `CLAUDE.md`.
 - Appended the filled Ratchet contract to `AGENTS.md` and the Claude adapter to `CLAUDE.md` without deleting prior rules.
-- Wired `.claude/settings.json` hooks (lint, stop gate, destructive guard). Stop-hook `CHECKS` is lint + tsc + `test:run`.
-- Recorded install decisions in `DECISIONS.md`.
+- Wired `.claude/settings.json` hooks. Stop-hook `CHECKS` is lint + tsc + `test:run`.
 - Opened work PR #63 off `main`.
-- Re-synced to Ratchet 1.2.1 (`770fc5d`) and restored `guard-destructive.sh` byte-for-byte (dropped the local db:push fork). See D-20261104-2326.
-- Re-synced to Ratchet 1.3.0 (`11a02d0`) via `upgrade.sh --from /tmp/ratchet-130/drop-in --to <repo> --installed-version 1.2.1`. Applied every MERGE except `AGENTS.md` / `CLAUDE.md` (CONFLICT, left as project files). Added `.ratchet/guard-destructive.rules` with the documented `npm run db:push` and `drizzle-kit generate` patterns. See D-20261105-0125.
+- Re-synced to 1.2.1 (`770fc5d`), then 1.3.0 (`11a02d0`) with `.ratchet/guard-destructive.rules` for `npm run db:push` / `drizzle-kit generate`. See D-20261105-0125.
+- Re-synced to 1.3.1 (`efb2dc7`) via `upgrade.sh --from /tmp/ratchet-131/drop-in --to <repo> --installed-version 1.3.0`. Applied every MERGE except `AGENTS.md` / `CLAUDE.md`. Left the project rules file untouched. See D-20261105-0322.
 
 ## Working on
 
@@ -41,8 +40,8 @@ Re-synced installed Ratchet files on `cursor/install-ratchet-b7d1` (work PR #63)
 
 ## Next
 
-1. Wait for Ternary on the 1.3.0 re-sync head; if it flags unmodified upstream files, stop and report — do not patch them locally. If it fails on infrastructure (sandbox error, exit 137, no findings), do not push empty commits; report it.
-2. Post one follow-up evidence comment on brief PR #62 (head SHA, hash table, rules file, guard output, placeholder grep, Vercel, Ternary).
+1. Wait for Vercel and Ternary on the 1.3.1 head. If Ternary flags unmodified upstream files, stop and report — do not patch them. If it fails on infrastructure, do not push empty commits; report it.
+2. Post one evidence comment on brief PR #62 (head SHA, hash table, rules file, guard output, placeholder grep, Vercel, Ternary).
 3. Operator reviews and merges (reserved). After merge, rewrite this file on `main`.
 
 ## Blocked
@@ -51,34 +50,31 @@ Re-synced installed Ratchet files on `cursor/install-ratchet-b7d1` (work PR #63)
 
 ## Important context
 
-- `main` HEAD at install time: `f2bddce` (Clear example values for Stripe configuration). Recent shipped work on main: `/security` page (GRA-78, PRs #55–#58), marketing agent team (#51–#53), RLS (#49), open signup GRA-68 (#48).
-- Another brief (`stale-pr-triage`, PR #61) is open. This workstream is scoped to the Ratchet install only and does not triage those PRs.
-- Linear issues for Granted AI now live in team LOO; the in-repo Linear tracking rule still says `GRA-<id>` (`CLAUDE.md` `/start`, `.claude/commands/start.md`). Left unchanged on purpose.
-- Review/merge gate is still Codex `/review` (`chatgpt-codex-connector`). Ratchet does not replace it.
-- App is OpenAI-only; canonical schema is `shared/schema-simple.ts`; no `api/simple.ts`; OCR not implemented. See the five gotchas at the top of `AGENTS.md`.
-- `AGENTS.md` / `CLAUDE.md` still carry `ratchet-version: 1.2.0`; hooks, skills, and `CODEX.md` are 1.3.0. Those two markers were left because those files are project files.
-- `.ratchet/guard-destructive.rules` is project-owned MEMORY. `install.sh` / `upgrade.sh` never overwrite it.
+- `main` HEAD at install time: `f2bddce`. This workstream does not triage the other open PRs.
+- Linear issues live in team LOO; in-repo tracking still says `GRA-<id>`. Left unchanged.
+- Review/merge gate is still Codex `/review`. Ratchet does not replace it.
+- `AGENTS.md` / `CLAUDE.md` still carry `ratchet-version: 1.2.0`; hooks, skills, and `CODEX.md` are 1.3.1.
+- `.ratchet/guard-destructive.rules` is project-owned MEMORY and was not rewritten in this pass.
 
 ## Verification status
 
-- Upgrade source: `/tmp/ratchet-130/drop-in` at `11a02d0dca64c9af6bc11400d693b7cea9a77c03` (Ratchet 1.3.0).
-- Second `upgrade.sh` report: `SAME` for every unmodified upstream file; `CURRENT` for `check-on-stop.sh` and `lint-edited-file.sh` (owner fills); `CONFLICT` only on `AGENTS.md` / `CLAUDE.md` (left unresolved); `MEMORY` for `.ratchet/`.
-- `sha256sum` MATCH vs 11a02d0 for every installed upstream file except the two owner-filled hooks. Named files `guard-destructive.sh`, `lib-payload.sh`, `source-root.sh`, `upgrade.sh`, `rrr.sh` all MATCH.
-- Guard probes (payload files, not typed commands): `npm run db:push` exit 2 (project rule); `npx drizzle-kit generate` exit 2 (project rule); `npm run lint` exit 0.
-- `.claude/hooks/test-hooks.sh` 298 passed, 0 failed (stderr: two `jq: Argument list too long` lines in the large-payload case).
-- `.agents/skills/ratchet-bugfix/scripts/test-rrr.sh` 36 passed, 0 failed.
-- `.agents/skills/ratchet-handoff/scripts/test-runlog.sh` 49 passed, 0 failed.
-- `.agents/skills/ratchet-init/scripts/test-source-root.sh` 17 passed, 0 failed.
+- Upgrade source: `/tmp/ratchet-131/drop-in` at `efb2dc70b61a79f912ef36aac5c8ce3ca4372b96` (Ratchet 1.3.1).
+- Second `upgrade.sh` report: `SAME` for every unmodified upstream file; `CURRENT` for `check-on-stop.sh` and `lint-edited-file.sh`; `CONFLICT` only on `AGENTS.md` / `CLAUDE.md` (left unresolved); `MEMORY` for `.ratchet/` including the rules file.
+- `sha256sum` MATCH vs efb2dc7 for every installed upstream file except the two owner-filled hooks. Named files `guard-destructive.sh`, `lib-payload.sh`, `source-root.sh`, `upgrade.sh`, `rrr.sh`, `runlog.sh` all MATCH.
+- Guard probes: schema-push script exit 2 (project rule); kit generate exit 2 (project rule); lint exit 0.
+- `.claude/hooks/test-hooks.sh` 298 passed, 0 failed (stderr: two `jq: Argument list too long` lines).
+- `.agents/skills/ratchet-bugfix/scripts/test-rrr.sh` 40 passed, 0 failed.
+- `.agents/skills/ratchet-handoff/scripts/test-runlog.sh` 65 passed, 0 failed.
 - Narrowed placeholder grep (exclude `.agents`, `.claude`, `.git`) empty (exit 1).
-- `AGENTS.md` / `CLAUDE.md` vs pre-upgrade HEAD: unchanged.
-- `npm run lint && npm run check && npm run test:run` exit 0 — 24 files, 181 tests passed (vitest 4.0.18).
+- `AGENTS.md` / `CLAUDE.md` / `.ratchet/guard-destructive.rules` vs pre-upgrade HEAD: unchanged.
+- `npm run lint && npm run check && npm run test:run` exit 0 — 24 files, 181 tests passed.
 
 ## Open risks / assumptions
 
 - Node 22.23.4 / npm 10.9.9 in this environment; CI/preview may differ.
-- `npm test` is vitest watch; a future agent that restores the template `CHECKS` will hang the stop hook.
-- Ratchet skill and hook files document the template placeholder sentinel (the stop hook greps for it). Seeded `.ratchet/` files and merged `AGENTS.md` / `CLAUDE.md` must not leave that placeholder in a slot.
+- `npm test` is vitest watch; restoring the template `CHECKS` would hang the stop hook.
 - Installed `test-install.sh` / `test-upgrade.sh` fail (do not skip) when this repo has no Ratchet drop-in source.
+- Ternary still reviews vendored files (the skip is not deployed). 1.3.1 is expected to clear `runlog.sh:122` and `rrr.sh:140`; any new finding is reported, not patched downstream.
 
 ## Integration note
 
@@ -89,4 +85,4 @@ When PR #63 is merged, rewrite this file against `main`: tag the install `[merge
 - Updated: 2026-11-05
 - By: agent (Cursor Grok 4.6)
 - Branch/worktree: cursor/install-ratchet-b7d1
-- Last known-good commit: 87948a3c7d8b74f6579f0c081a4d918d5abf883a (Ratchet 1.3.0 re-sync + project rules)
+- Last known-good commit: 80b64747258d8b9ac21926f59648f60fa4238119 (Ratchet 1.3.1 re-sync)

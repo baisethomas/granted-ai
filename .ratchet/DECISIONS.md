@@ -104,3 +104,15 @@ At branch integration, preserve compatible entries from all sides; escalate mate
 - **Consequences:** `npm run db:push` and `npx drizzle-kit generate` are blocked again, via `.ratchet/guard-destructive.rules`, not a hook fork. Defaults still block `drizzle-kit push` and `db:migrate`. `install.sh` / `upgrade.sh` classify the rules file as MEMORY and never overwrite it. `AGENTS.md` / `CLAUDE.md` still read `ratchet-version: 1.2.0` while hooks/skills/`CODEX.md` are 1.3.0. Stop-hook `CHECKS` and the lint-hook comment stay as owner edits (`CURRENT`).
 - **Revisit when:** Ratchet's default guard gains `db:push` / `generate` itself, or this repo adds another schema-mutation script, or the operator allows updating the version markers in `AGENTS.md` / `CLAUDE.md`.
 - **Approved by:** agent (authorized by brief PR #62 / work PR #63 re-sync to 11a02d0)
+
+### D-20261105-0322-resync-ratchet-1.3.1 — Re-sync installed Ratchet files to 1.3.1 (efb2dc7)
+
+- **Status:** accepted
+- **Impact:** medium
+- **Date:** 2026-11-05
+- **Decision:** Bring the installed upstream Ratchet files on PR #63 to Ratchet 1.3.1 at main squash `efb2dc70b61a79f912ef36aac5c8ce3ca4372b96`. Keep every installed upstream file byte-identical to that drop-in, including `guard-destructive.sh` (no local fork). Leave `.ratchet/guard-destructive.rules` unchanged. Leave `AGENTS.md` and `CLAUDE.md` content unchanged. This entry supersedes D-20261105-0125-restore-db-push-via-project-rules as the current installed-version record; the project-rules block from that decision remains in force. Earlier entries are left as written (append-only).
+- **Why:** Ratchet #26 merged as 1.3.1 (`runlog` formula scrub after whitespace; `rrr` exact-mode restore). Those two files were the Ternary findings on the 1.3.0 vendored copies. Byte-for-byte sync is the required path; the project rules file already covers `npm run db:push` / `drizzle-kit generate`.
+- **Rejected / alternatives:** Fork `guard-destructive.sh` (forbidden). Rewrite `AGENTS.md` / `CLAUDE.md` version markers to 1.3.1 (forbidden: project files). Edit `.ratchet/guard-destructive.rules` (must stay as the 1.3.0 documented patterns).
+- **Consequences:** Hooks/skills/`CODEX.md` are 1.3.1. `AGENTS.md` / `CLAUDE.md` still read `ratchet-version: 1.2.0`. Stop-hook `CHECKS` and the lint-hook comment stay as owner edits (`CURRENT`). The project rules file still blocks `npm run db:push` and `drizzle-kit generate`.
+- **Revisit when:** a later Ratchet release, or the operator allows updating the version markers in `AGENTS.md` / `CLAUDE.md`.
+- **Approved by:** agent (authorized by brief PR #62 / work PR #63 re-sync to efb2dc7)
