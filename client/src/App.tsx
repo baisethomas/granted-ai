@@ -15,6 +15,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { MainHeader } from "@/components/layout/main-header";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { LAST_OPENED_PROJECT_STORAGE_KEY } from "@/lib/recent-project";
+import { Analytics } from "@vercel/analytics/react";
 
 // Import landing page components
 import { HeroSection } from "@/components/landing/hero-section";
@@ -377,6 +378,7 @@ function App() {
   return (
     <AuthProvider>
       <AppContent />
+      <Analytics />
     </AuthProvider>
   );
 }
